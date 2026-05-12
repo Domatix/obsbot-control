@@ -8,7 +8,8 @@
 ## Project-specific terms
 
 - **App ID / namespace**: the reverse-DNS identifier that names the app
-  across the system (e.g. `io.github.username.ObsbotControl`). Used in
+  across the system. For this project:
+  **`io.github.domatix.ObsbotCamControl`** (resolved in ADR-0012). Used in
   `.desktop`, `.metainfo.xml`, Flatpak manifest, GSettings schema, D-Bus
   name. Must match everywhere.
 
@@ -149,4 +150,6 @@
 - **T-XYZ**: task ID (e.g. T-014) referencing `PLAN.md`.
 - **ADR-NNNN**: ADR id in `DECISIONS.md`.
 - **vX.Y.Z**: semver version tag.
-- **`<app-id>`**: placeholder for the chosen reverse-DNS app namespace.
+- **`<app-id>`**: legacy placeholder for the reverse-DNS app namespace,
+  resolved by ADR-0012 to `io.github.domatix.ObsbotCamControl`. Kept here
+  for readers of older revisions of the docs.

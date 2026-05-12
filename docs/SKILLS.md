@@ -83,7 +83,7 @@ existing GNOME Circle apps (Pika Backup, Amberol, Fractal) for examples.
 ### 2.3 Settings
 
 - All persistent settings go through `gio::Settings` with a schema in
-  `data/<app-id>.gschema.xml`.
+  `data/io.github.domatix.ObsbotCamControl.gschema.xml`.
 - One key per atomic setting.
 - For complex structures (presets list), serialize JSON in a single string
   key. Document the schema in the GSettings `<description>`.
@@ -96,7 +96,8 @@ existing GNOME Circle apps (Pika Backup, Amberol, Fractal) for examples.
 - Source language: English. Project-maintained translation: Spanish.
 - `po/POTFILES` lists every file with translatable strings.
 - New translatable strings: run `xgettext` / `meson compile -C builddir
-  <app-id>-pot` to update `.pot`, then update `.po`s.
+  io.github.domatix.ObsbotCamControl-pot` to update `.pot`, then update
+  `.po`s.
 
 ### 2.5 Resources
 

@@ -197,5 +197,101 @@ either by completing the referenced task or by adding a superseding ADR.
 
 ---
 
+## ADR-0011 — License: GPL-3.0-or-later
+
+**Date**: 2026-05-12
+**Status**: accepted (supersedes the license half of [[ADR-0009]])
+**Context**: T-002 required choosing an OSI-approved license compatible with
+the GNOME Circle criteria ([[ADR-0001]]), with the no-proprietary-derivatives
+spirit of [[ADR-0002]], and with redistribution by Debian main, Fedora, and
+Arch. Four alternatives were weighed: GPL-3.0-or-later, GPL-2.0-or-later,
+LGPL-3.0-or-later, and permissive (MIT/Apache-2.0). All four are OSI/FSF
+approved and redistributable in the target distros; the differentiating
+factors were copyleft strength, GNOME Circle precedent, and patent /
+anti-Tivoization clauses.
+**Decision**: Release the entire project under **GPL-3.0-or-later** (SPDX:
+`GPL-3.0-or-later`). The full license text is committed at the repo root
+as `LICENSE` (verbatim text from gnu.org). New Rust source files must carry
+an SPDX header (`// SPDX-License-Identifier: GPL-3.0-or-later`) plus the
+short GPL boilerplate; new documentation files keep the project-level
+licensing implicit (no per-file header needed for prose).
+**Consequence**:
+- AppStream metainfo will declare `project_license` as `GPL-3.0-or-later`.
+- Any third-party Rust crate added to the workspace must be license-compatible
+  with GPLv3+ (Apache-2.0, MIT, BSD, MPL-2.0, LGPLv3+ — all OK; GPLv2-only,
+  CDDL, ISC-with-advertising — case-by-case). License compatibility is
+  checked at crate-add time, not retroactively.
+- Forks that distribute modified versions must release source under the same
+  license; this is the desired outcome per [[ADR-0002]].
+- A `CONTRIBUTING.md` (later task, v0.6 area) will state explicitly that
+  contributions are accepted under the same license and that no CLA is
+  required (Circle criterion).
+
+---
+
+## ADR-0012 — App identity, hosting, and copyright
+
+**Date**: 2026-05-12
+**Status**: accepted (supersedes the namespace half of [[ADR-0009]])
+**Context**: T-002 required choosing the project's public identity:
+reverse-DNS App ID, hosting URL, and binary/display naming. Constraints:
+the App ID prefix must follow Flathub conventions for the chosen host;
+the trademark "OBSBOT" (Remo Tech Co., Ltd.) is used descriptively under
+nominative-fair-use but should be qualified to avoid confusion with the
+manufacturer's own products; Cargo crate names were already fixed in
+[[ARCHITECTURE.md §2]] (`obsbot-core`, `obsbot-cli`, `obsbot-gui`) and are
+out of scope for this ADR.
+**Decision**:
+- **Hosting**: GitHub organization `Domatix` (https://github.com/Domatix).
+  The repo URL will be `https://github.com/Domatix/obsbot-control` (folder
+  name preserved as the umbrella project name; the public-facing app name
+  differs intentionally — see below).
+- **Reverse-DNS prefix**: `io.github.domatix` (Flathub rule: the
+  user/organization segment is lowercased; "Domatix" → "domatix"; no hyphens
+  to escape).
+- **App ID** (Flatpak, AppStream, D-Bus path, GSettings schema base,
+  `.desktop` filename): **`io.github.domatix.ObsbotCamControl`**.
+- **Display name** (GNOME Shell, header bar, About dialog): **"Obsbot Cam
+  Control"** (HIG title-case; the "Cam" qualifier helps distinguish from
+  OBSBOT's own products and from other OBSBOT-related tools).
+- **GUI binary name**: deferred to T-007 implementation; default
+  `obsbot-cam-control` (kebab-case of the App ID's last segment), settable
+  via `[[bin]] name = ...` in `crates/obsbot-gui/Cargo.toml`. The crate name
+  itself stays `obsbot-gui`.
+- **CLI binary name**: `obsbot-cli` (short, idiomatic for a CLI companion;
+  unchanged from the crate name).
+- **Copyright holder line** (used in source-file headers, About dialog,
+  AppStream metainfo): `Copyright © 2026 Domatix and contributors`. This
+  attributes the project to the Domatix organization while leaving room for
+  external contributors. Individual file `Authors:` lines, where applicable,
+  record specific authorship.
+- **Trademark disclaimer**: `README.md` and AppStream metainfo carry the
+  disclaimer "Unofficial third-party application, not affiliated with or
+  endorsed by OBSBOT/Remo Tech Co., Ltd." (already partially present in
+  `README.md`; refined at T-009 metainfo writing).
+- **Local folder, repo name, crate names**: unchanged (`obsbot-control`,
+  `obsbot-core`, `obsbot-cli`, `obsbot-gui`). The umbrella project name
+  ("obsbot-control") and the user-facing app name ("Obsbot Cam Control")
+  are intentionally distinct: the former is a dev/repository handle, the
+  latter is the product identity.
+**Consequence**:
+- Every `<app-id>` placeholder in the docs is now resolved to
+  `io.github.domatix.ObsbotCamControl`; every `io.github.<ns>` to
+  `io.github.domatix`. T-002's project-wide replacement applies.
+- GSettings schemas live under `io.github.domatix.ObsbotCamControl`
+  (`...preferences`, `...state`, etc.).
+- Filenames generated at T-009/T-010/T-014:
+  `data/io.github.domatix.ObsbotCamControl.desktop.in`,
+  `data/io.github.domatix.ObsbotCamControl.metainfo.xml.in`,
+  `data/io.github.domatix.ObsbotCamControl.gschema.xml`,
+  `data/icons/scalable/apps/io.github.domatix.ObsbotCamControl.svg`,
+  `build-aux/io.github.domatix.ObsbotCamControl.json`.
+- If Flathub objects to the use of "Obsbot" in the App ID during submission,
+  renaming is a single ADR-superseding event and a few hours of
+  search-and-replace; the repo URL and crate names absorb no churn because
+  they don't use the trademark.
+
+---
+
 <!-- Append new ADRs above this line, never below. Newest ADRs go at the bottom
      of the list but new entries are added; do not edit old ones. -->

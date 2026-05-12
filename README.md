@@ -1,7 +1,12 @@
-# OBSBOT Control for GNOME
+# Obsbot Cam Control
 
 A native GNOME application to control OBSBOT cameras on Linux. Built with
 GTK 4, libadwaita, and Rust. Targets GNOME Circle inclusion.
+
+- **App ID**: `io.github.domatix.ObsbotCamControl`
+- **License**: [GPL-3.0-or-later](LICENSE) (SPDX: `GPL-3.0-or-later`)
+- **Repo**: hosted under the [`Domatix`](https://github.com/Domatix)
+  GitHub organization.
 
 > ⚠️ **Status**: pre-alpha. Project scaffolding only. No functionality yet.
 
@@ -43,8 +48,12 @@ workflow are documented:
 
 ## License
 
-This project will be released under an OSI-approved free software license
-(decision pending, see `docs/DECISIONS.md`). The OBSBOT SDK is **not** used.
+Copyright © 2026 Domatix and contributors.
+
+This project is released under the **GNU General Public License v3.0 or
+later** (`SPDX-License-Identifier: GPL-3.0-or-later`). See [`LICENSE`](LICENSE)
+for the full text and [`docs/DECISIONS.md`](docs/DECISIONS.md) (ADR-0011)
+for the rationale. The OBSBOT proprietary SDK is **not** used (ADR-0002).
 
 ## Acknowledgments
 

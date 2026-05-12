@@ -30,17 +30,26 @@
 - **Notes**: this is also a test of the Conventional Commits + task-id rule.
 
 ### T-002 — Decide and document app namespace and license
-- **State**: TODO
+- **State**: DONE
+- **Started**: 2026-05-12T10:35:00Z
+- **Completed**: 2026-05-12T10:55:00Z
 - **Depends on**: T-001
-- **Description**: Pick the reverse-DNS namespace for the app (e.g.
-  `io.github.<username>.ObsbotControl`) and the OSI license (recommend GPL-3.0
-  or MIT). Stop and ask the user — both decisions need their input.
+- **Description**: Pick the reverse-DNS namespace for the app (resolved to
+  `io.github.domatix.ObsbotCamControl`) and the OSI license (resolved to
+  `GPL-3.0-or-later`). Both decisions taken with explicit user input.
 - **Acceptance criteria**:
   - `DECISIONS.md` contains an ADR with rationale for the namespace.
   - `DECISIONS.md` contains an ADR with rationale for the license.
   - `LICENSE` file added at repo root.
   - All placeholders `io.github.<ns>` replaced project-wide.
   - Commit: `chore: set namespace and license (T-002)`.
+- **Outcome**: [[ADR-0011]] records GPL-3.0-or-later; [[ADR-0012]] records
+  the App ID `io.github.domatix.ObsbotCamControl`, GitHub org `Domatix`,
+  display name "Obsbot Cam Control", and copyright line "© 2026 Domatix and
+  contributors". `LICENSE` file installed at repo root with verbatim GNU
+  GPL-3.0 text. All live `<ns>` and `<app-id>` placeholders in ARCHITECTURE,
+  PLAN, SKILLS, GLOSSARY, README replaced; historical references inside
+  past PROGRESS entries and ADR-0009/ADR-0010 left intact (append-only).
 
 ### T-003 — Capture and document Tiny 2 USB descriptor
 - **State**: TODO
@@ -119,9 +128,10 @@
 ### T-009 — Create AppStream metainfo and desktop file
 - **State**: TODO
 - **Depends on**: T-002 (namespace), T-008
-- **Description**: Write `<app-id>.metainfo.xml.in` with description, summary
-  (≤ 35 chars), categories, license, content rating. Write `<app-id>.desktop.in`
-  with name, comment, exec, icon, categories.
+- **Description**: Write `io.github.domatix.ObsbotCamControl.metainfo.xml.in`
+  with description, summary (≤ 35 chars), categories, license, content
+  rating. Write `io.github.domatix.ObsbotCamControl.desktop.in` with name,
+  comment, exec, icon, categories.
 - **Acceptance criteria**:
   - `appstreamcli validate` passes with zero errors.
   - `desktop-file-validate` passes.
@@ -131,7 +141,8 @@
 - **State**: TODO
 - **Depends on**: T-009
 - **Description**: Add a placeholder icon (scalable SVG) at the correct path
-  (`data/icons/scalable/apps/<app-id>.svg`) and a symbolic version. A
+  (`data/icons/scalable/apps/io.github.domatix.ObsbotCamControl.svg`) and a
+  symbolic version. A
   better-designed icon is a later concern; this just needs to be a recognizable
   camera shape in Adwaita style.
 - **Acceptance criteria**:
@@ -177,13 +188,15 @@
 ### T-014 — Initial Flatpak manifest
 - **State**: TODO
 - **Depends on**: T-008, T-009, T-010
-- **Description**: Create `build-aux/<app-id>.json` for `flatpak-builder`.
+- **Description**: Create
+  `build-aux/io.github.domatix.ObsbotCamControl.json` for `flatpak-builder`.
   Permissions: `--device=all`, `--share=ipc`, `--socket=wayland`,
   `--socket=fallback-x11`. Runtime: GNOME 48.
 - **Acceptance criteria**:
   - `flatpak-builder --user --install --force-clean build-flatpak
-    build-aux/<app-id>.json` succeeds.
-  - `flatpak run <app-id>` opens the diagnostics window from T-013.
+    build-aux/io.github.domatix.ObsbotCamControl.json` succeeds.
+  - `flatpak run io.github.domatix.ObsbotCamControl` opens the diagnostics
+    window from T-013.
   - Commit: `build: initial Flatpak manifest (T-014)`.
 
 ### T-015 — Set up CI (deferred until repo is public)

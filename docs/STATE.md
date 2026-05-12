@@ -8,14 +8,15 @@
 
 active_task: none
 active_task_state: not_started
-last_completed_task: T-001
-last_commit: chore: initial scaffolding (T-001)
-last_step: T-001 closed — repo initialized, scaffolding tree committed on main
-next_step: propose T-002 (decide and document app namespace and license; requires user input)
+last_completed_task: T-002
+last_commit: chore: set namespace and license (T-002)
+last_step: T-002 closed — GPL-3.0-or-later + io.github.domatix.ObsbotCamControl wired through docs; LICENSE installed
+next_step: propose T-003 (capture and document Tiny 2 USB descriptor) — requires user to run lsusb/v4l2-ctl
 blockers: none
 session_notes: |
-  Git repository now exists on branch `main`. ADR-0010 records the
-  scaffolding completeness check against ARCHITECTURE §2.
-  T-002 needs the user to choose: (a) reverse-DNS namespace, (b) OSI license.
-  T-003 is also unblocked but requires hardware actions by the user.
-updated_at: 2026-05-12T10:30:00Z
+  Identity is now fixed: App ID io.github.domatix.ObsbotCamControl,
+  display name "Obsbot Cam Control", repo under github.com/Domatix,
+  copyright "© 2026 Domatix and contributors", license GPL-3.0-or-later.
+  T-003 needs hardware (Tiny 2 plugged in). T-004 (cargo workspace) is the
+  next code-only task if T-003 is deferred for hardware reasons.
+updated_at: 2026-05-12T10:55:00Z

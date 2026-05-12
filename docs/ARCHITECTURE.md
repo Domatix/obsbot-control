@@ -78,9 +78,9 @@ obsbot-control/
 │   ├── icons/
 │   │   ├── scalable/apps/
 │   │   └── symbolic/apps/
-│   ├── io.github.<ns>.ObsbotControl.desktop.in
-│   ├── io.github.<ns>.ObsbotControl.metainfo.xml.in
-│   ├── io.github.<ns>.ObsbotControl.gschema.xml
+│   ├── io.github.domatix.ObsbotCamControl.desktop.in
+│   ├── io.github.domatix.ObsbotCamControl.metainfo.xml.in
+│   ├── io.github.domatix.ObsbotCamControl.gschema.xml
 │   └── resources.gresource.xml
 │
 ├── po/                     # translations
@@ -89,13 +89,16 @@ obsbot-control/
 │   └── es.po               # Spanish, maintained by project
 │
 ├── build-aux/
-│   └── io.github.<ns>.ObsbotControl.json  # Flatpak manifest
+│   └── io.github.domatix.ObsbotCamControl.json  # Flatpak manifest
 │
 └── docs/                   # project documentation (see CLAUDE.md §0)
 ```
 
-App ID placeholder `io.github.<ns>` is replaced with the chosen reverse-DNS
-namespace once decided (see `DECISIONS.md`).
+The App ID `io.github.domatix.ObsbotCamControl` (resolved in ADR-0012)
+appears as the basename of every namespaced asset above. The local folder
+and Cargo crate names stay as `obsbot-control`, `obsbot-core`,
+`obsbot-cli`, `obsbot-gui`; the user-visible product name is "Obsbot Cam
+Control".
 
 ## 3. Backend architecture
 
@@ -160,7 +163,8 @@ GStreamer pipeline setup, file I/O) must not block.
 ### 3.4 Persistence
 
 - All user-facing settings live in GSettings (XML schema in `data/`).
-- Schema namespace: `<app-id>.preferences` and `<app-id>.state`.
+- Schema namespace: `io.github.domatix.ObsbotCamControl.preferences` and
+  `io.github.domatix.ObsbotCamControl.state`.
 - Per-camera state (last brightness, last preset) keyed by serial number, so
   multiple cameras don't collide.
 - Presets stored as a JSON-serialized list inside a single GSettings string key
