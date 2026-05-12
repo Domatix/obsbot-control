@@ -1,0 +1,50 @@
+# Rust
+target/
+Cargo.lock
+**/*.rs.bk
+*.pdb
+
+# Meson
+builddir/
+build/
+_build/
+subprojects/packagecache/
+subprojects/*/
+
+# Flatpak
+.flatpak-builder/
+flatpak-build-dir/
+repo/
+*.flatpak
+
+# IDE
+.idea/
+.vscode/
+*.iml
+.vs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+*.swp
+*.swo
+*~
+.#*
+\#*#
+
+# Logs and temp
+*.log
+*.tmp
+*.bak
+
+# Generated artifacts
+data/icons/scalable/apps/*.png
+
+# Local environment
+.env
+.envrc.local
+
+# Claude Code local cache
+.claude/cache/
