@@ -209,6 +209,30 @@ commit `docs: close T-016 after install/remove validation
 (`build(deb): scaffold .deb test-artifact pipeline`) is the
 code-complete commit T-016's `Commit:` line referred to.
 
+### [2026-05-13T20:10:00Z] [infra] Repo online: github.com/Domatix/obsbot-control (PRIVATE)
+
+`gh repo create Domatix/obsbot-control --private --source=. --remote=origin --push` succeeded:
+333 objects / 257 KiB pushed in one shot, `origin/main` now tracks the local `main` at
+`4e68390` (T-016 closure). `gh repo view` confirms `visibility=PRIVATE` and
+`defaultBranchRef=main`. The local-only safety branch `backup-pre-rewrite-2026-05-13`
+(at `6eb8f1e`) intentionally stayed off the remote — a working-tree backup, no value
+exposed.
+
+User's stance for now (no ADR — operational, not a project-shape change): keep this
+private repo as the source of truth for development + the AI-workflow / docs/ tree,
+and at v1.0 (or whenever it bothers them) split out a separate **public release repo**
+with only the application files (`crates/`, `data/`, `build-aux/{cargo-build.sh,
+build-deb.sh,*.json}`, `Cargo.toml`, `Cargo.lock`, `meson.build`, `LICENSE`, a
+user-facing `README.md`, a trimmed `.gitignore`) committed as a single fresh
+`vX.Y.0 initial release` commit. Flathub accepts either shape so the split has no
+deadline. INIT_PROMPT.txt stays — `.gitignore` cannot un-track historical files
+without rewriting all 20+ commits with `git filter-repo`, which we're not doing.
+
+T-015 status unchanged: still BLOCKED. The PLAN note says "until repo is public",
+and this repo is private; GitHub Actions does run on private repos, but the
+README-badge + Flathub-prep parts of T-015 want public visibility. Re-evaluate
+when the public release repo lands.
+
 
 
 ### [2026-05-12T00:00:00Z] [bootstrap] Project scaffolding generated
