@@ -6,16 +6,16 @@
 
 ---
 
-active_task: none
-active_task_state: idle
+active_task: T-014
+active_task_state: in_progress
 last_completed_task: T-013c
-last_commit: feat: V4L2 control sub-page (T-013c)  # 6480adb
-last_step: T-013c DONE. Backend: new `crates/obsbot-core/src/controls.rs` exposes `read_controls(path) -> Result<Vec<ControlDescriptor>>` against the `v4l 0.14` workspace dep; reshapes the v4l Description/Value types into the obsbot-core-owned `ControlDescriptor / ControlClass / ControlKind` so consumers never see the v4l crate types. Skips CtrlClass headers + DISABLED/WRITE_ONLY flags. 3 new unit tests on the `classify()` ID→class mapping; 1 new `#[ignore]`d hardware test asserts ≥22 controls + Brightness present on the user's Tiny 2 Lite. `home@0.5.11` pinned in Cargo.lock to keep the MSRV 1.85 compatible (transitive bindgen pulled in home 0.5.12 which needs rustc 1.88). GUI: `crates/obsbot-gui/src/window.rs` wraps everything in an `AdwNavigationView`; each camera row is now activatable with a `go-next-symbolic` suffix and `connect_activated` pushes the detail page returned by the new module `controls_view::build_controls_page(&cam)`. Detail page = AdwToolbarView + AdwPreferencesPage with one PreferencesGroup per V4L2 class; each control surfaces as `{name}: {current} · range {min}..={max} step {step}` / Yes-No / `{label} · N options`. Error paths render as AdwStatusPage. User-confirmed drill-down 2026-05-13T16:58Z: 22 controls show with values + ranges, back button works. Commit `6480adb` on `main`.
-next_step: T-013d (Blueprint pipeline — `blueprint-compiler` apt install, meson custom_target, GResource bundle, migrate T-013a/c .ui from hand-coded to .blp templates). Then T-014 Flatpak, T-015 CI, T-016 .deb, T-017 Arch to close v0.1.
-blockers: none.
+last_commit: docs: defer T-013d Blueprint pipeline to v0.2 (ADR-0017)  # ce6206e
+last_step: T-013d deferred to v0.2 via [[ADR-0017]] (ADR-0016's "T-013c will have many named children" premise didn't materialise; the V4L2 detail page renders from a dynamic Vec<ControlDescriptor> with zero named children, so the Blueprint pipeline overhead is premature now and will land in v0.2 as new T-099). T-014 (Flatpak manifest) started. flatpak and flatpak-builder are not installed on the host, so the manifest will be written + cargo gates checked locally, with runtime validation flagged PENDING_USER (needs ~1-2 GB GNOME 48 runtime/SDK download via `flatpak install`).
+next_step: write `build-aux/io.github.domatix.ObsbotCamControl.json` (GNOME 48 runtime, --device=all + --socket=wayland/x11 + --share=ipc, rust-stable SDK extension, source from local dir, meson buildsystem), update README to point at the manifest, run cargo gates (no functional code change so should stay green), commit `build: initial Flatpak manifest (T-014)`. Acceptance criteria for `flatpak-builder` succeeding + `flatpak run` opening the diagnostics window remain PENDING_USER until they install the Flatpak environment.
+blockers: T-014 runtime validation requires user-side `sudo apt install flatpak flatpak-builder` and `flatpak install --user flathub org.gnome.Platform//48 org.gnome.Sdk//48 org.freedesktop.Sdk.Extension.rust-stable//24.08` (the rust-stable extension is hosted under freedesktop). Not blocking the manifest commit.
 working_tree:
-  pre_commit_modified: []
-  pre_commit_untracked: []
+  pre_commit_modified: [docs/PLAN.md, docs/STATE.md, docs/PROGRESS.md]
+  pre_commit_untracked: [build-aux/io.github.domatix.ObsbotCamControl.json]
   pre_commit_deleted: []
 pending_user_actions:
   - T-013 (later, v0.1): log out / log back in to pick up the new
@@ -26,4 +26,4 @@ pending_user_actions:
     after a fresh session, file a follow-up task (the install path
     via Flatpak/distro should resolve it; we revisit only if the
     same failure persists there).
-updated_at: 2026-05-13T17:00:00Z  # T-013c SHA recorded
+updated_at: 2026-05-13T17:05:00Z  # T-014 started, T-013d deferred

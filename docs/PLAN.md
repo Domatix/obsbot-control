@@ -690,7 +690,8 @@
     equivalent v0.2 task ID).
 
 ### T-014 — Initial Flatpak manifest
-- **State**: TODO
+- **State**: IN_PROGRESS
+- **Started**: 2026-05-13T17:05:00Z
 - **Depends on**: T-008, T-009, T-010
 - **Description**: Create
   `build-aux/io.github.domatix.ObsbotCamControl.json` for `flatpak-builder`.

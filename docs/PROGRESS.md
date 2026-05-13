@@ -596,6 +596,81 @@ T-014, T-016, T-017 dependency lines updated in PLAN.md to point at
 T-013a (the moment the GUI shows a real camera) instead of the
 parent T-013.
 
+### [2026-05-13T17:05:00Z] [T-014] Started — initial Flatpak manifest
+
+Pre-flight probe: neither `flatpak` nor `flatpak-builder` is
+installed on the host. The full runtime validation
+(`flatpak-builder --user --install ...`) requires ~1-2 GB of GNOME
+48 runtime+SDK download on the user's side, so the autonomous
+deliverable for this turn is the manifest itself (a structured JSON
+that can be written correctly and reviewed against Flathub patterns
+without running it). The two acceptance criteria that need the
+running flatpak toolchain stay PENDING_USER until they install the
+environment.
+
+Plan:
+
+* `build-aux/io.github.domatix.ObsbotCamControl.json` — Flatpak
+  manifest with the canonical GNOME-Circle shape:
+    - `runtime`: `org.gnome.Platform` 48 + `org.gnome.Sdk` 48.
+    - `sdk-extensions`: `org.freedesktop.Sdk.Extension.rust-stable`
+      so cargo is available during the meson build (the GNOME SDK
+      itself does not ship rustc).
+    - `command`: `obsbot-cam-control` (the binary name from
+      [[ADR-0012]]).
+    - `finish-args`: `--share=ipc`, `--socket=wayland`,
+      `--socket=fallback-x11`, `--device=all`. The
+      `--device=all` is required to reach `/dev/video*` plus the
+      raw USB device for future XU work (no narrower Flatpak
+      device filter exists for V4L2 + UVC controls).
+    - `build-options`: `append-path` for the rust-stable extension's
+      `/usr/lib/sdk/rust-stable/bin`, `--share=network` build-arg
+      so cargo can fetch crates, `CARGO_HOME` pointed at the
+      Flatpak build dir.
+    - Single module `obsbot-cam-control` of buildsystem `meson`,
+      source `type=dir path=..` for local-build (CI / Flathub will
+      replace this with a `type=git` block at release time).
+
+* No code or test changes — the manifest is data, the existing
+  `meson` orchestration from T-008 already produces a runnable
+  binary.
+
+* README update: a `## Flatpak (local build)` subsection with the
+  three-line install sequence
+  (`sudo apt install flatpak flatpak-builder`, `flatpak install
+  --user flathub org.gnome.Platform//48 …`, `flatpak-builder --user
+  --install --force-clean build-flatpak build-aux/…json`).
+
+Cargo gates: unchanged (no Rust touched). Will run `cargo fmt
+--all --check`, `cargo clippy --workspace --all-targets --
+-D warnings`, `cargo test --workspace` as a regression check before
+the commit.
+
+Commit: `build: initial Flatpak manifest (T-014)`.
+
+### [2026-05-13T17:03:00Z] [scope] T-013d deferred to v0.2 per [[ADR-0017]]
+
+ADR-0016's premise — "Blueprint pipeline lands in T-013d because
+T-013c will have many named children" — did not materialise. The
+V4L2 detail page from T-013c renders entirely from a dynamic
+`Vec<ControlDescriptor>` (22 entries on the user's hardware), the
+only static widget tree in the GUI is the 5-line `AdwApplication
+Window → AdwNavigationView → AdwToolbarView → AdwHeaderBar +
+AdwBin` shell in `window.rs`. Setting up `blueprint-compiler` +
+`glib-build-tools` + `build.rs` + GResource for that shell would be
+~150 lines of new glue with one consumer — the textbook "design for
+hypothetical future requirements" CLAUDE.md warns against. The
+pipeline lands in v0.2 as the new T-099, before any T-100+ task
+that introduces a static widget tree (slider forms, PTZ pad, etc.).
+
+PLAN.md T-013d state moved to `DEFERRED` with the acceptance
+criteria preserved verbatim for the absorbing v0.2 task. v0.2
+hints gain a `T-099 Blueprint pipeline` entry at the top so it is
+the first task on the v0.2 backlog. v0.1 milestone DOD shrinks
+from "all of T-013a/b/c/d + T-014..T-017" to "all of T-013a/b/c +
+T-014..T-017"; T-013a/b/c are already DONE, so v0.1 closes when
+T-014..T-017 are DONE. Commit `ce6206e` records the decision.
+
 ### [2026-05-13T16:58:00Z] [T-013c] DONE — backend + GUI, drill-down user-confirmed
 
 Implementation came in with three in-flight design / environment

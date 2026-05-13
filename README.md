@@ -53,8 +53,38 @@ workflow are documented:
 
 ## Building
 
-> Not yet implemented. Build instructions will be added when the first
-> milestone (v0.1) is reached.
+### Local meson build (Debian / Fedora / Arch)
+
+```sh
+meson setup builddir
+meson compile -C builddir
+sudo meson install -C builddir
+```
+
+Runtime dependencies: GTK 4 ≥ 4.14, libadwaita ≥ 1.6, glib/gio ≥
+2.74, plus a Rust toolchain ≥ 1.83 to compile.
+
+### Flatpak (local build)
+
+```sh
+sudo apt install flatpak flatpak-builder
+flatpak remote-add --user --if-not-exists \
+    flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+flatpak install --user flathub \
+    org.gnome.Platform//48 \
+    org.gnome.Sdk//48 \
+    org.freedesktop.Sdk.Extension.rust-stable//24.08
+flatpak-builder --user --install --force-clean \
+    build-flatpak build-aux/io.github.domatix.ObsbotCamControl.json
+flatpak run io.github.domatix.ObsbotCamControl
+```
+
+The manifest at
+[`build-aux/io.github.domatix.ObsbotCamControl.json`](build-aux/io.github.domatix.ObsbotCamControl.json)
+targets the GNOME 48 runtime with the rust-stable SDK extension.
+Flathub submission is a v1.0 goal — for v0.1 the manifest exists for
+local-build verification and to seed T-015 CI (when the repository
+goes public).
 
 ## License
 
