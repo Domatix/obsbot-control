@@ -8,11 +8,11 @@
 
 active_task: none
 active_task_state: idle
-last_completed_task: T-106
+last_completed_task: T-107
 last_milestone: v0.1.0  # tag 5e005fd
-last_commit: feat(gui): About dialog with credits (T-106)  # pending in this turn
-last_step: T-106 DONE — `window.blp` carries a `menu primary_menu` (About + Quit items) and a `Gtk.MenuButton` in the `Adw.HeaderBar`; `application::register_actions` now takes the App ID and registers `app.about`, whose callback presents an `adw::AboutDialog` populated from `CARGO_PKG_*` + a credits acknowledgement section for `aaronsb/obsbot-camera-control` and `taxfromdk/obsbot_tiny_reversing` (PROTOCOL.md §0). Gates: fmt, clippy -D warnings, 14 unit + 1 doctest + 1 settings unit-test = 16 native pass; 5 hardware tests still ignored (no hardware-touching code changed this task).
-next_step: Advance to T-107 (gettext scaffolding) — add top-level `po/` (LINGUAS, POTFILES.in, meson.build, empty es.po), wire `subdir('po')` in root meson.build, add `gettext-rs` to workspace deps, add `crates/obsbot-gui/src/i18n.rs` with `gettext()` + textdomain init, route user-facing string literals in window.rs / controls_view.rs / wb_group.rs / exposure_group.rs / ptz_pad.rs through it, run gates, commit `feat(gui): gettext scaffolding (T-107)`.
+last_commit: feat(gui): About dialog with credits (T-106)  # a688714 (T-107 commit pending in this turn)
+last_step: T-107 DONE — top-level `po/` populated (`LINGUAS = es`, `POTFILES.in` listing the six GUI .rs files, `meson.build` invoking `i18n.gettext('obsbot-cam-control', preset: 'glib')`, header-only `es.po`); root `meson.build` now calls `subdir('po')` and forwards `localedir` to `build-aux/cargo-build.sh` as a 7th arg; the wrapper exports it as `OBSBOT_LOCALEDIR` so `build.rs` stage 4 re-emits it via `cargo:rustc-env` for `option_env!`. `crates/obsbot-gui/src/i18n.rs` is a thin wrapper over `gettextrs::{setlocale, bindtextdomain, bind_textdomain_codeset, textdomain, gettext}`; `main.rs` calls `i18n::init()` before `application::run`. User-facing strings in `window.rs` / `controls_view.rs` / `wb_group.rs` / `exposure_group.rs` / `ptz_pad.rs` / the About-dialog copyright + section title now flow through `gettext()`; `ptz-pad.blp` literals were marked with `_("...")` for v0.6's blueprint extraction follow-up. Gates: fmt, clippy -D warnings, 14 unit + 1 doctest + 1 settings unit-test = 16 native pass; 5 hardware tests still `#[ignore]`d. Caveat: this Debian 13 host has `gettext-base` only (no `msgfmt`); meson logs the standard "Gettext not found" warning and skips the .pot target — wiring is correct (`OBSBOT_LOCALEDIR` is baked into the release binary, verified via `strings`), CI / Flatpak builders ship full gettext.
+next_step: Advance to T-108 (toast-based error surfacing) — wrap the controls page in an `adw::ToastOverlay`, pass the overlay handle into `integer_scale_row` / `boolean_switch_row` / `menu_combo_row` / `wb_group::*` / `exposure_group::*` / `ptz_pad::*` write callbacks, and dispatch a `Failed to set {control}: {error}` toast on every `write_control` failure (replacing the current `eprintln!`). Keep GSettings-save eprintln in place (justified inline). Commit `feat(gui): toast-based write-error surfacing (T-108)`.
 blockers: none.
 working_tree:
   pre_commit_modified: []
@@ -49,4 +49,4 @@ pending_user_actions:
     when you launch the app.
   - T-017 (Arch stakeholder, whenever): build/install/remove the
     PKGBUILD on Arch.
-updated_at: 2026-05-14T01:00:00Z  # T-106 closed, T-107 next in the autonomous batch
+updated_at: 2026-05-14T01:25:00Z  # T-107 closed, T-108 next in the autonomous batch

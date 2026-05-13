@@ -34,6 +34,7 @@ use adw::prelude::*;
 use obsbot_core::{enumerate_cameras, CameraInfo};
 
 use crate::controls_view::build_controls_page;
+use crate::i18n::gettext;
 
 /// Hot-plug poll interval. Two seconds matches GNOME Settings' rough
 /// device-panel latency while keeping the sysfs syscall load trivial.
@@ -103,15 +104,15 @@ fn build_body(cameras: &[CameraInfo], nav_view: &adw::NavigationView) -> gtk::Wi
     if cameras.is_empty() {
         return adw::StatusPage::builder()
             .icon_name("camera-web-symbolic")
-            .title("No OBSBOT cameras detected")
-            .description("Connect an OBSBOT Tiny 2 family camera via USB.")
+            .title(gettext("No OBSBOT cameras detected"))
+            .description(gettext("Connect an OBSBOT Tiny 2 family camera via USB."))
             .build()
             .upcast();
     }
 
     let page = adw::PreferencesPage::new();
     let group = adw::PreferencesGroup::builder()
-        .title("Connected cameras")
+        .title(gettext("Connected cameras"))
         .build();
     for cam in cameras {
         group.add(&camera_row(cam, nav_view));
@@ -123,10 +124,10 @@ fn build_body(cameras: &[CameraInfo], nav_view: &adw::NavigationView) -> gtk::Wi
 /// Render a single camera entry as an activatable `AdwActionRow` that
 /// pushes the V4L2 detail page when tapped.
 fn camera_row(cam: &CameraInfo, nav_view: &adw::NavigationView) -> adw::ActionRow {
-    let video = cam.video_path.as_ref().map_or_else(
-        || String::from("(no video node)"),
-        |p| p.display().to_string(),
-    );
+    let video = cam
+        .video_path
+        .as_ref()
+        .map_or_else(|| gettext("(no video node)"), |p| p.display().to_string());
     let subtitle = format!("{:04x}:{:04x} · {video}", cam.vid, cam.pid);
 
     let row = adw::ActionRow::builder()

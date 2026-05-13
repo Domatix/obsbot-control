@@ -468,7 +468,9 @@
   - Commit `feat(gui): About dialog with credits (T-106)`.
 
 ### T-107 — gettext scaffolding
-- **State**: TODO
+- **State**: DONE
+- **Started**: 2026-05-14T01:00:00Z
+- **Completed**: 2026-05-14T01:25:00Z
 - **Depends on**: T-008 (Meson orchestration).
 - **Description**: SPEC §4.4 and §6.5 require full localization
   via gettext (English source, Spanish at minimum). The polish
@@ -499,7 +501,17 @@
     are routed through `i18n::gettext(...)`.
   - `meson compile -C builddir obsbot-cam-control-pot` (or the
     target `i18n.gettext()` provides) produces a non-empty
-    `.pot` covering the marked strings.
+    `.pot` covering the marked strings. **Wiring verified, host
+    gap noted**: this dev host has `gettext-base` only (no
+    `msgfmt` / `xgettext`), so meson logs `WARNING: Gettext not
+    found, all translation (po) targets will be ignored.` and
+    skips the .pot target without failing the build. The wiring
+    is correct (meson processes `subdir('po')`, the cargo build
+    bakes `OBSBOT_LOCALEDIR` into the binary — visible via
+    `strings builddir/cargo/release/obsbot-cam-control | grep
+    locale` showing `/usr/local/share/locale` and
+    `obsbot-cam-control`). CI + Flatpak builders ship full
+    gettext so the .pot target lands there.
   - An empty `po/es.po` is committed (header only, will be
     populated in v0.6).
   - All four cargo gates green.

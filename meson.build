@@ -79,6 +79,7 @@ cargo_build = custom_target(
     'obsbot-gui',
     bin_name,
     '@OUTPUT@',
+    localedir,
   ],
   build_always_stale: true,
   build_by_default: true,
@@ -88,11 +89,10 @@ cargo_build = custom_target(
 )
 
 # Data files (.desktop, AppStream metainfo) land in data/ from T-009.
-# Future tasks extend it: T-010 icons, T-105 GSettings schema. The
-# `po/` subdir + gettext wiring will land when real translatable
-# strings emerge (deferred from T-009 — see data/meson.build).
+# T-010 icons + T-105 GSettings schema are wired in data/meson.build.
+# T-107 lands the gettext scaffolding in po/.
 subdir('data')
-# subdir('po')
+subdir('po')
 
 summary(
   {

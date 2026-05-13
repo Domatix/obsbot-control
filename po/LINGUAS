@@ -1,0 +1,6 @@
+# Languages with translation catalogs maintained by this project.
+# One entry per language code (POSIX two-letter, or `xx_YY` for
+# regional variants). Empty translation files are committed as
+# placeholders so the build infrastructure has something to compile
+# even before real translation work starts (v0.6 / T-500+).
+es

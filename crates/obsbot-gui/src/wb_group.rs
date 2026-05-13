@@ -39,6 +39,7 @@ use adw::prelude::*;
 use obsbot_core::ControlDescriptor;
 
 use crate::controls_view::control_row;
+use crate::i18n::gettext;
 
 const CID_WHITE_BALANCE_AUTOMATIC: u32 = 0x0098_090c;
 const CID_RED_BALANCE: u32 = 0x0098_090e;
@@ -82,12 +83,12 @@ pub fn build_wb_group(
     }
 
     let group = adw::PreferencesGroup::builder()
-        .title("White balance")
-        .description(
+        .title(gettext("White balance"))
+        .description(gettext(
             "When automatic mode is on, the camera firmware picks the colour temperature, \
              red/blue balance, and freezes the manual controls. Turn it off to set them \
              yourself.",
-        )
+        ))
         .build();
 
     for ctrl in present {

@@ -41,6 +41,7 @@ use libadwaita as adw;
 use adw::prelude::*;
 use obsbot_core::{ControlDescriptor, ControlKind, ControlValue};
 
+use crate::i18n::gettext;
 use crate::settings;
 
 /// V4L2 Camera-class control IDs consumed by the PTZ pad.
@@ -289,12 +290,12 @@ fn build_focus_row(
     serial: &Rc<Option<String>>,
 ) -> adw::ExpanderRow {
     let expander = adw::ExpanderRow::builder()
-        .title("Focus")
-        .subtitle("Auto-focus + manual focus distance (0–100)")
+        .title(gettext("Focus"))
+        .subtitle(gettext("Auto-focus + manual focus distance (0–100)"))
         .build();
 
     let auto_row = adw::SwitchRow::builder()
-        .title("Auto-focus")
+        .title(gettext("Auto-focus"))
         .active(focus_auto.is_some_and(|b| b.current))
         .build();
     auto_row.set_sensitive(focus_auto.is_some_and(|b| b.is_active));
@@ -358,7 +359,7 @@ fn build_focus_abs_row(
     scale.set_round_digits(0);
 
     let row = adw::ActionRow::builder()
-        .title("Manual focus")
+        .title(gettext("Manual focus"))
         .subtitle(format!(
             "range {}..={} default {}",
             focus_abs.min, focus_abs.max, focus_abs.default

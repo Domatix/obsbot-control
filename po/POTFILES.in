@@ -1,0 +1,21 @@
+# Source files containing translatable strings (T-107).
+#
+# Listed paths are relative to the project root. xgettext (invoked by
+# meson `i18n.gettext()`) extracts every literal passed to a
+# `gettext(...)` call in these files into the .pot template.
+#
+# Blueprint (.blp) files carry `_("...")` markers too, but extracting
+# from .blp via xgettext requires either:
+#   (a) `blueprint-compiler pot` (writes a .pot fragment), or
+#   (b) extracting from the generated .ui via `--language=Glade`.
+# Neither is wired here — the v0.2 scaffolding is Rust-only. The
+# Blueprint extraction is queued for v0.6 polish (T-500+); the
+# `_("...")` markers in *.blp stay so the v0.6 follow-up has source
+# to extract from.
+
+crates/obsbot-gui/src/application.rs
+crates/obsbot-gui/src/controls_view.rs
+crates/obsbot-gui/src/exposure_group.rs
+crates/obsbot-gui/src/ptz_pad.rs
+crates/obsbot-gui/src/wb_group.rs
+crates/obsbot-gui/src/window.rs

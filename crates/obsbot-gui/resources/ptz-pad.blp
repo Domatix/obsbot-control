@@ -24,8 +24,8 @@ using Gtk 4.0;
 using Adw 1;
 
 Adw.PreferencesGroup ptz_group {
-  title: "Pan / Tilt / Zoom";
-  description: "Direction buttons move by 5°. Press the center to reset to (0, 0).";
+  title: _("Pan / Tilt / Zoom");
+  description: _("Direction buttons move by 5°. Press the center to reset to (0, 0).");
 
   Gtk.Box pad_layout {
     orientation: horizontal;
@@ -42,7 +42,7 @@ Adw.PreferencesGroup ptz_group {
 
       Gtk.Button btn_nw {
         label: "↖";
-        tooltip-text: "Up + Left";
+        tooltip-text: _("Up + Left");
         width-request: 44;
         height-request: 44;
 
@@ -54,7 +54,7 @@ Adw.PreferencesGroup ptz_group {
 
       Gtk.Button btn_n {
         icon-name: "go-up-symbolic";
-        tooltip-text: "Tilt up 5°";
+        tooltip-text: _("Tilt up 5°");
         width-request: 44;
         height-request: 44;
 
@@ -66,7 +66,7 @@ Adw.PreferencesGroup ptz_group {
 
       Gtk.Button btn_ne {
         label: "↗";
-        tooltip-text: "Up + Right";
+        tooltip-text: _("Up + Right");
         width-request: 44;
         height-request: 44;
 
@@ -78,7 +78,7 @@ Adw.PreferencesGroup ptz_group {
 
       Gtk.Button btn_w {
         icon-name: "go-previous-symbolic";
-        tooltip-text: "Pan left 5°";
+        tooltip-text: _("Pan left 5°");
         width-request: 44;
         height-request: 44;
 
@@ -90,7 +90,7 @@ Adw.PreferencesGroup ptz_group {
 
       Gtk.Button btn_reset {
         icon-name: "view-restore-symbolic";
-        tooltip-text: "Reset pan / tilt to (0, 0)";
+        tooltip-text: _("Reset pan / tilt to (0, 0)");
         width-request: 44;
         height-request: 44;
 
@@ -106,7 +106,7 @@ Adw.PreferencesGroup ptz_group {
 
       Gtk.Button btn_e {
         icon-name: "go-next-symbolic";
-        tooltip-text: "Pan right 5°";
+        tooltip-text: _("Pan right 5°");
         width-request: 44;
         height-request: 44;
 
@@ -118,7 +118,7 @@ Adw.PreferencesGroup ptz_group {
 
       Gtk.Button btn_sw {
         label: "↙";
-        tooltip-text: "Down + Left";
+        tooltip-text: _("Down + Left");
         width-request: 44;
         height-request: 44;
 
@@ -130,7 +130,7 @@ Adw.PreferencesGroup ptz_group {
 
       Gtk.Button btn_s {
         icon-name: "go-down-symbolic";
-        tooltip-text: "Tilt down 5°";
+        tooltip-text: _("Tilt down 5°");
         width-request: 44;
         height-request: 44;
 
@@ -142,7 +142,7 @@ Adw.PreferencesGroup ptz_group {
 
       Gtk.Button btn_se {
         label: "↘";
-        tooltip-text: "Down + Right";
+        tooltip-text: _("Down + Right");
         width-request: 44;
         height-request: 44;
 
@@ -159,7 +159,7 @@ Adw.PreferencesGroup ptz_group {
       valign: center;
 
       Gtk.Label {
-        label: "Zoom";
+        label: _("Zoom");
 
         styles [
           "heading",

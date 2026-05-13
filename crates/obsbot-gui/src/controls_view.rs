@@ -39,6 +39,7 @@ use obsbot_core::{
 };
 
 use crate::exposure_group::{build_exposure_group, EXPOSURE_GROUP_IDS};
+use crate::i18n::gettext;
 use crate::ptz_pad::{build_ptz_pad, PTZ_PAD_IDS};
 use crate::settings;
 use crate::wb_group::{build_wb_group, WB_GROUP_IDS};
@@ -67,21 +68,28 @@ pub fn build_controls_page(cam: &CameraInfo) -> adw::NavigationPage {
 
 fn build_body(cam: &CameraInfo) -> gtk::Widget {
     let Some(path) = cam.video_path.as_deref() else {
-        return error_status("No video node", "This camera has no /dev/videoN path.").upcast();
+        return error_status(
+            gettext("No video node"),
+            gettext("This camera has no /dev/videoN path."),
+        )
+        .upcast();
     };
 
     let initial = match read_controls(path) {
         Ok(controls) if controls.is_empty() => {
             return error_status(
-                "No controls exposed",
-                "The driver returned an empty control list.",
+                gettext("No controls exposed"),
+                gettext("The driver returned an empty control list."),
             )
             .upcast()
         }
         Ok(controls) => controls,
         Err(err) => {
-            return error_status("Could not read V4L2 controls", &format!("{path:?}: {err}"))
-                .upcast()
+            return error_status(
+                gettext("Could not read V4L2 controls"),
+                format!("{path:?}: {err}"),
+            )
+            .upcast()
         }
     };
 
@@ -160,11 +168,13 @@ fn render_controls(
             continue;
         }
         let group = match ctrl.class {
-            ControlClass::User => user_group.get_or_insert_with(|| make_group("User Controls")),
-            ControlClass::Camera => {
-                camera_group.get_or_insert_with(|| make_group("Camera Controls"))
+            ControlClass::User => {
+                user_group.get_or_insert_with(|| make_group(&gettext("User Controls")))
             }
-            _ => other_group.get_or_insert_with(|| make_group("Other")),
+            ControlClass::Camera => {
+                camera_group.get_or_insert_with(|| make_group(&gettext("Camera Controls")))
+            }
+            _ => other_group.get_or_insert_with(|| make_group(&gettext("Other"))),
         };
         let row = control_row(ctrl, path, serial);
         // Generic INACTIVE grey-out — covers WB Temperature while WB
@@ -408,9 +418,9 @@ fn readonly_action_row(ctrl: &ControlDescriptor) -> adw::ActionRow {
         } => format!("{current} · range {min}..={max} step {step}"),
         ControlKind::Boolean { current, .. } => {
             if *current {
-                "Yes".to_owned()
+                gettext("Yes")
             } else {
-                "No".to_owned()
+                gettext("No")
             }
         }
         ControlKind::Menu {
@@ -478,7 +488,7 @@ fn menu_combo_row(
     row
 }
 
-fn error_status(title: &str, description: &str) -> adw::StatusPage {
+fn error_status(title: String, description: String) -> adw::StatusPage {
     adw::StatusPage::builder()
         .icon_name("dialog-error-symbolic")
         .title(title)

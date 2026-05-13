@@ -25,6 +25,7 @@
 mod application;
 mod controls_view;
 mod exposure_group;
+mod i18n;
 mod ptz_pad;
 mod settings;
 mod wb_group;
@@ -34,5 +35,9 @@ mod window;
 const APP_ID: &str = "io.github.domatix.ObsbotCamControl";
 
 fn main() -> glib::ExitCode {
+    // T-107: bind the gettext text-domain before any widget is built
+    // so labels constructed via `i18n::gettext(...)` resolve against
+    // the runtime locale catalogs from the very first frame.
+    i18n::init();
     application::run(APP_ID)
 }

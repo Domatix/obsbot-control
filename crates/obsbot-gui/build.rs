@@ -2,7 +2,7 @@
 //
 // Build script for the Obsbot Cam Control GUI crate.
 //
-// Three stages:
+// Four stages:
 //
 // 1. Compile the Blueprint templates under `resources/*.blp` into
 //    `*.ui` files under OUT_DIR using the `blueprint-compiler`
@@ -18,6 +18,14 @@
 //    without needing `meson install` (T-105). The compiled-schema
 //    directory is exposed to the binary as the
 //    `OBSBOT_DEV_SCHEMA_DIR` rustc env var.
+//
+// 4. Re-export the `OBSBOT_LOCALEDIR` build-time env var (set by
+//    `build-aux/cargo-build.sh` when meson drives the build) as a
+//    `cargo:rustc-env` so `i18n::init()` can pick it up via
+//    `option_env!` at compile time (T-107). Bare `cargo run` /
+//    `cargo build` leaves it unset — `i18n::init()` then skips
+//    `bindtextdomain` and English source strings flow through
+//    unchanged.
 
 use std::path::PathBuf;
 use std::process::Command;
@@ -111,4 +119,18 @@ fn main() {
         "cargo:rustc-env=OBSBOT_DEV_SCHEMA_DIR={}",
         schema_dst_dir.display(),
     );
+
+    // Stage 4 — re-export OBSBOT_LOCALEDIR if meson set it.
+    //
+    // The meson wrapper `build-aux/cargo-build.sh` exports
+    // `OBSBOT_LOCALEDIR=<install localedir>` before invoking cargo
+    // build. We forward it via `cargo:rustc-env` so `option_env!` in
+    // `src/i18n.rs` evaluates to `Some(...)` at compile time. Bare
+    // `cargo build` / `cargo run` leaves the env var unset, the
+    // option_env! returns `None`, and `i18n::init()` skips
+    // `bindtextdomain` — source-language strings flow unchanged.
+    println!("cargo:rerun-if-env-changed=OBSBOT_LOCALEDIR");
+    if let Ok(localedir) = std::env::var("OBSBOT_LOCALEDIR") {
+        println!("cargo:rustc-env=OBSBOT_LOCALEDIR={localedir}");
+    }
 }

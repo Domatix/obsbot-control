@@ -34,6 +34,11 @@ libadwaita.workspace = true
 glib.workspace = true
 gio.workspace = true
 
+# gettext binding (T-107). The scaffolding routes user-facing
+# strings through libintl; .po → .mo compilation is handled by
+# `po/meson.build` via `i18n.gettext()`.
+gettext-rs.workspace = true
+
 # Build script (T-099) compiles Blueprint templates and bundles
 # the resulting .ui files into a GResource. `glib-build-tools`
 # tracks the `glib` / `gio` 0.20 pin from the workspace.

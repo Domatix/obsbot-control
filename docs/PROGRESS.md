@@ -596,6 +596,192 @@ commit `build(gui): Blueprint pipeline (T-099)` packages the
 seven changed/added files plus `Cargo.lock` (glib-build-tools
 0.20.0 transitive deps).
 
+### [2026-05-14T01:25:00Z] [T-107] DONE — gettext scaffolding
+
+Second task of the T-106..T-110 run. Goal per SPEC §4.4 / §6.5:
+land the i18n infrastructure now so user-facing strings funnel
+through `gettext()` from v0.2 onwards; actual translation work
+is v0.6.
+
+New `po/` subdir (committed in place of the previous
+`po/.gitkeep` placeholder):
+
+* `po/LINGUAS` — single entry `es` (Spanish baseline per SPEC
+  §6.5; other languages added by community in v0.6).
+* `po/POTFILES.in` — six entries pointing at the GUI Rust
+  modules carrying translatable strings (application.rs,
+  controls_view.rs, exposure_group.rs, ptz_pad.rs, wb_group.rs,
+  window.rs). Blueprint files are intentionally NOT listed:
+  xgettext doesn't grok `.blp` natively, and the workaround
+  (`blueprint-compiler pot` per-file + merge) is queued for
+  v0.6 polish. The `_("...")` markers in ptz-pad.blp / window.blp
+  stay so the v0.6 follow-up has source to extract.
+* `po/es.po` — header-only template (Project-Id-Version,
+  Language=es, Plural-Forms, UTF-8). `msgfmt` accepts this as
+  a valid empty catalog.
+* `po/meson.build` — `import('i18n')` then
+  `i18n.gettext('obsbot-cam-control', preset: 'glib')` (domain
+  matches the installed binary name per ADR-0012).
+
+Top-level `meson.build`:
+* `subdir('po')` now active (was previously commented as
+  "deferred from T-009").
+* `cargo_build` `custom_target` passes a 7th positional arg —
+  `localedir` from `get_option('localedir')` — through to the
+  cargo wrapper. The block of "future tasks extend this file"
+  comments was trimmed (T-009/T-010/T-105/T-107 are all in
+  now).
+
+`build-aux/cargo-build.sh`:
+* Argv count check bumped from 6 to 7 with the seventh being
+  `<localedir>`. The wrapper exports `OBSBOT_LOCALEDIR=$localedir`
+  before `cargo build`. The header docstring documents the new
+  arg and its role in the T-107 plumbing.
+
+`crates/obsbot-gui/build.rs`:
+* New "Stage 4 — re-export `OBSBOT_LOCALEDIR`". When meson set
+  the env var, build.rs emits `cargo:rustc-env=OBSBOT_LOCALEDIR=
+  <value>` so `option_env!("OBSBOT_LOCALEDIR")` resolves to
+  `Some(...)` at compile time. Bare `cargo build` leaves it
+  unset and the option_env! returns `None`. `cargo:rerun-if-env-
+  changed=OBSBOT_LOCALEDIR` makes the binary rebuild when meson
+  reconfigures with a different prefix.
+* The "Three stages" header doc bumps to "Four stages".
+
+Workspace:
+* `Cargo.toml` `gettext-rs = { version = "0.7", features = [
+  "gettext-system"] }` was already pinned (from earlier v0.6
+  forward-loading); the inline comment was updated from "used
+  by obsbot-gui from v0.6 polish / T-500+" to "scaffolding
+  landed in T-107; translation polish is v0.6 / T-500+".
+* `crates/obsbot-gui/Cargo.toml` adds `gettext-rs.workspace =
+  true` with a section comment cross-referencing po/.
+
+New `crates/obsbot-gui/src/i18n.rs`:
+* `TEXTDOMAIN` const = `obsbot-cam-control` (ADR-0012).
+* `pub fn init()`: calls `setlocale(LcAll, "")`, then — only if
+  `option_env!("OBSBOT_LOCALEDIR")` is `Some` — binds the
+  textdomain, the codeset (`UTF-8`), and selects the domain.
+  Each `gettext-rs` call is `let _ = ...` to swallow the
+  `Result<...>` returns (failures are non-fatal: missing
+  catalog → English fall-through, no panic).
+* `pub fn gettext(msgid: &str) -> String`: thin inline wrapper
+  over `gettextrs::gettext`.
+
+`crates/obsbot-gui/src/main.rs`:
+* `mod i18n;` added in alphabetical position.
+* `i18n::init();` called before `application::run(APP_ID)`.
+
+Strings now flowing through `gettext()`:
+* `application.rs` — About-dialog copyright line and the
+  "Reverse-engineering references" section title. Application
+  name + author names intentionally left bare (branding /
+  proper names should not be retranslated).
+* `window.rs` — "No OBSBOT cameras detected", "Connect an
+  OBSBOT Tiny 2 family camera via USB.", "Connected cameras",
+  "(no video node)".
+* `controls_view.rs` — group titles ("User Controls", "Camera
+  Controls", "Other"), error_status fallback messages ("No
+  video node", "This camera has no /dev/videoN path.", "No
+  controls exposed", "The driver returned an empty control
+  list.", "Could not read V4L2 controls"), readonly Boolean
+  subtitle ("Yes" / "No"). `error_status` signature swapped
+  from `(&str, &str)` to `(String, String)` so callers pass
+  `gettext("X")` straight through without intermediate refs.
+* `wb_group.rs` — group title "White balance" + description
+  paragraph.
+* `exposure_group.rs` — group title "Exposure" + description
+  paragraph.
+* `ptz_pad.rs` — Focus expander row ("Focus" + subtitle),
+  "Auto-focus" switch row title, "Manual focus" action row
+  title.
+
+`crates/obsbot-gui/resources/ptz-pad.blp` (Blueprint markers
+for v0.6 extraction):
+* `title`, `description`, all eight directional / reset
+  `tooltip-text` strings, and the central "Zoom" label wrapped
+  in `_("...")`. The compiler emits `<property name="..."
+  translatable="yes">value</property>` in the generated .ui,
+  which GTK4 translates at widget-construction time via
+  `dgettext($textdomain, ...)` once the catalogs are populated.
+
+Gates:
+  cargo fmt --all --check                                → exit 0
+  cargo clippy --workspace --all-targets -- -D warnings  → exit 0
+  cargo test --workspace                                 → 14 unit
+                                                           + 1 settings unit
+                                                           + 1 doctest, all pass;
+                                                           5 hardware tests
+                                                           still `#[ignore]`d.
+  meson setup builddir                                   → exit 0
+                                                           (`po/` picked up;
+                                                           "Gettext not found"
+                                                           warning logged because
+                                                           this Debian 13 host
+                                                           has `gettext-base`
+                                                           only — no `msgfmt`,
+                                                           `xgettext`, `msgmerge`.
+                                                           The .pot target is
+                                                           skipped without
+                                                           failing the build.
+                                                           CI / Flatpak builders
+                                                           ship full gettext so
+                                                           the target lands
+                                                           there.)
+  meson compile -C builddir                              → exit 0 (release
+                                                           obsbot-cam-control
+                                                           binary built;
+                                                           `strings <binary> |
+                                                           grep locale` confirms
+                                                           `/usr/local/share/
+                                                           locale` and
+                                                           `obsbot-cam-control`
+                                                           textdomain are baked
+                                                           in via OBSBOT_LOCALEDIR
+                                                           re-export).
+
+Cargo.lock picks up gettext-rs 0.7.7 plus its transitives
+(gettext-sys 0.26.0, locale_config 0.3.0, temp-dir 0.1.16, cc
+1.2.62, find-msvc-tools 0.1.9 (build-only), and the macOS-only
+objc / objc-foundation / objc_id / malloc_buf / block crates
+that gettext-sys's macOS path drags in even on Linux — they
+end up as harmless declared-but-unbuilt members of the lock
+file).
+
+Files touched:
+  * Cargo.toml                                            (1 line comment edit)
+  * Cargo.lock                                            (gettext-rs + transitives)
+  * crates/obsbot-gui/Cargo.toml                          (gettext-rs.workspace dep)
+  * crates/obsbot-gui/build.rs                            (Stage 4 + header)
+  * crates/obsbot-gui/src/i18n.rs                         (NEW, ~70 lines)
+  * crates/obsbot-gui/src/main.rs                         (mod + init call)
+  * crates/obsbot-gui/src/application.rs                  (gettext on About strings)
+  * crates/obsbot-gui/src/window.rs                       (gettext on status-page + group)
+  * crates/obsbot-gui/src/controls_view.rs                (gettext + signature swap)
+  * crates/obsbot-gui/src/wb_group.rs                     (gettext on group title/desc)
+  * crates/obsbot-gui/src/exposure_group.rs               (gettext on group title/desc)
+  * crates/obsbot-gui/src/ptz_pad.rs                      (gettext on focus row labels)
+  * crates/obsbot-gui/resources/ptz-pad.blp               (`_()` markers)
+  * meson.build                                           (subdir('po') + cargo-build arg)
+  * build-aux/cargo-build.sh                              (7th arg + env export)
+  * po/LINGUAS                                            (NEW)
+  * po/POTFILES.in                                        (NEW)
+  * po/es.po                                              (NEW, header-only)
+  * po/meson.build                                        (NEW)
+  * po/.gitkeep                                           (DELETED — po/ now has real content)
+  * docs/PLAN.md                                          (T-107 DONE + caveat)
+  * docs/STATE.md                                         (active → idle, last → T-107)
+  * docs/PROGRESS.md                                      (this entry)
+
+No new user-validation item this task — the binary continues
+to display English source strings (no Spanish translation
+exists yet) and `i18n::init()` is silent when no catalog is
+bound. Regression-check on existing behaviour is implicitly
+covered by the rest of the T-106..T-110 validation pass.
+
+Commit `feat(gui): gettext scaffolding (T-107)` follows.
+T-108 (toast-based error surfacing) is next.
+
 ### [2026-05-14T01:00:00Z] [T-106] DONE — About dialog with credits
 
 `resources/window.blp`:

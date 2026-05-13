@@ -1,0 +1,22 @@
+# Spanish translations for obsbot-cam-control.
+# Copyright (C) 2026 Domatix and contributors
+# This file is distributed under the same license as the
+# obsbot-cam-control package (GPL-3.0-or-later).
+#
+# Placeholder file committed by T-107: the gettext scaffolding lands
+# in v0.2 but the actual translation work is deferred to v0.6
+# (ROADMAP §v0.6 — "Polish for GNOME Circle"). Until then, this
+# file's header is enough for `msgfmt` to produce a valid (empty) .mo.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: obsbot-cam-control 0.2.0\n"
+"Report-Msgid-Bugs-To: https://github.com/Domatix/obsbot-control/issues\n"
+"PO-Revision-Date: 2026-05-14 01:00+0000\n"
+"Last-Translator: Domatix and contributors <noreply@domatix.com>\n"
+"Language-Team: Spanish\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"

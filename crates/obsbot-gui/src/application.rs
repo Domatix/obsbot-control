@@ -26,6 +26,7 @@ use libadwaita as adw;
 use adw::prelude::*;
 use gio::ActionEntry;
 
+use crate::i18n::gettext;
 use crate::window;
 
 /// Build the `adw::Application`, register actions, and enter the `GLib`
@@ -87,11 +88,15 @@ fn register_actions(app: &adw::Application, app_id: &str) {
 /// `docs/PROTOCOL.md` §0.
 fn present_about_dialog(app: &adw::Application, app_id: &str) {
     let dialog = adw::AboutDialog::builder()
+        // Application name is the project's literal branding —
+        // intentionally NOT routed through gettext (translators
+        // should not rebrand the product). Same rationale as
+        // GNOME's own apps' AboutDialog wiring.
         .application_name("Obsbot Cam Control")
         .application_icon(app_id)
         .version(env!("CARGO_PKG_VERSION"))
         .developer_name(env!("CARGO_PKG_AUTHORS"))
-        .copyright("© 2026 Domatix and contributors")
+        .copyright(gettext("© 2026 Domatix and contributors"))
         .license_type(gtk::License::Gpl30)
         .website(env!("CARGO_PKG_HOMEPAGE"))
         .issue_url(concat!(env!("CARGO_PKG_REPOSITORY"), "/issues"))
@@ -100,9 +105,11 @@ fn present_about_dialog(app: &adw::Application, app_id: &str) {
 
     // PROTOCOL.md §0 — these projects are load-bearing for our
     // understanding of the device. Credit them prominently so users
-    // who land here can follow the upstream trail.
+    // who land here can follow the upstream trail. The section title
+    // is translatable; the names themselves stay as-is (they identify
+    // people, not concepts).
     dialog.add_acknowledgement_section(
-        Some("Reverse-engineering references"),
+        Some(&gettext("Reverse-engineering references")),
         &[
             "Aaron Brown — aaronsb/obsbot-camera-control (Qt6 reference)",
             "taxfromdk — obsbot_tiny_reversing",

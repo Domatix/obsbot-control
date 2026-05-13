@@ -47,7 +47,7 @@ clap = { version = "4", features = ["derive"] }
 # Cross-thread comms with the GLib main loop, per ADR-0004 (no Tokio).
 async-channel = "2"
 
-# i18n (used by obsbot-gui from v0.6 polish / T-500+).
+# i18n (scaffolding landed in T-107; translation polish is v0.6 / T-500+).
 gettext-rs = { version = "0.7", features = ["gettext-system"] }
 
 # Test-only: mock sysfs / filesystem trees (used by obsbot-core's
