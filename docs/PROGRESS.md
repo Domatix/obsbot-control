@@ -226,4 +226,70 @@ criteria satisfied. T-004 set to DONE in [[PLAN.md]]. Commit
 to record the real SHA (was a placeholder during the commit-prep
 window). Trailing docs-only delta to follow.
 
+### [2026-05-13T10:20:00Z] [T-003] User correction → resuming with direct hardware probe
+
+User flagged that the "Claude cannot touch hardware" framing in the
+2026-05-12T11:00Z entry was wrong: `lsusb`/`v4l2-ctl` are read-only
+USB / V4L2 queries that I run on the user's local machine like any
+other shell tool. The original hand-off was unnecessary friction.
+T-003 returns to active work; the SPEC change of [[ADR-0014]] follows
+directly from the first capture.
+
+### [2026-05-13T10:21:00Z] [T-003] lsusb capture — device is Tiny 2 *Lite*, not Tiny 2
+
+`lsusb` shows `Bus 001 Device 006: ID 3564:fef9 Remo Tech Co., Ltd.
+OBSBOT Tiny 2 Lite`. The regular Tiny 2 ships as `3564:fef8`
+(linuxtv-commits patch). SPEC.md was authored assuming the regular
+Tiny 2. Three options weighed: (A) declare a "Tiny 2 family" primary
+target covering both regular and Lite; (B) flip primary to Lite,
+downgrade regular to best-effort; (C) keep SPEC pointing at regular
+Tiny 2 and treat the Lite as a development proxy. User chose (A).
+[[ADR-0014]] records the rationale and the doc deltas.
+
+### [2026-05-13T10:21:30Z] [T-003] Doc sweep for ADR-0014 — SPEC / ROADMAP / README updated
+
+`docs/SPEC.md` §3 (target users), §5 (out of scope), §7 (constraints),
+§10 (references) reworded to name the family and both PIDs.
+`docs/ROADMAP.md` v0.1 goal, v0.4 prerequisites, beyond-v1.0 ideas
+updated. `README.md` "Goals" and "Supported cameras" sections rewritten
+with both PIDs and a pointer to ADR-0014. Crate names, App ID, repo
+name, GUI binary name remain unchanged (all family-neutral).
+
+### [2026-05-13T10:21:50Z] [T-003] PROTOCOL.md §1 + §3 filled from the Lite capture
+
+`docs/PROTOCOL.md` §1.1 documents the Lite's full device descriptor,
+VideoControl interface (INPUT_TERMINAL bmControls = 0x00023e3a,
+PROCESSING_UNIT bUnitID=3 bmControls = 0x0000f7df, EXTENSION_UNIT
+bUnitID=2 GUID `9a1e7291-6843-4683-6d92-39bc7906ee49` bmControls =
+ff ff 3f 00 bNumControls=19), and VideoStreaming / Audio interface
+shapes. §1.2 keeps regular Tiny 2 (`3564:fef8`) but explicitly marks
+it as speculative pending community capture. §3.1 records the Lite
+XU table; §3.2 notes the regular Tiny 2 XU as TBD. §5 captures a
+critical finding: `iSerial = 0` on the Lite — per-device settings
+persistence (T-105) cannot key off USB serial as SPEC.md §4.1 implied;
+flagged for T-105 decision.
+
+### [2026-05-13T10:22:00Z] [T-003] V4L2 half held by /dev/video* permissions
+
+`/dev/video0` and `/dev/video1` belong to `root:video` with ACL only
+extending to `Debian-gdm`. User `alvaro` is not in the `video` group.
+Result: `v4l2-ctl -d /dev/video0 --all` returns `Permission denied`.
+Two paste-blocks handed to the user in chat: (1) `sudo usermod -aG
+video alvaro` for the long-term fix (also unblocks future
+`cargo run -p obsbot-gui` from T-007 onwards), (2) four `sudo v4l2-ctl
+... > /tmp/obsbot-v4l2-*.txt` redirects to seed PROTOCOL.md §2
+immediately. Both blocks are also archived as the canonical procedure
+inside PROTOCOL.md §2. T-003 stays IN_PROGRESS until /tmp/*.txt land
+and the V4L2 table goes into PROTOCOL.md §2.
+
+### [2026-05-13T10:22:12Z] [T-003] Commit prep — splitting into two commits
+
+ADR-0014 + SPEC/ROADMAP/README and the T-003 lsusb capture are causally
+one change but conceptually two: a scope decision and a data point.
+Splitting per ADR-0008 (commit granularity):
+  1. `docs: expand primary target to Tiny 2 family (ADR-0014)` —
+     `docs/DECISIONS.md`, `docs/SPEC.md`, `docs/ROADMAP.md`, `README.md`.
+  2. `docs: capture Tiny 2 Lite USB descriptor (T-003)` —
+     `docs/PROTOCOL.md`, `docs/PLAN.md`, `docs/STATE.md`, `docs/PROGRESS.md`.
+
 ---

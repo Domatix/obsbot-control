@@ -51,26 +51,34 @@
   PLAN, SKILLS, GLOSSARY, README replaced; historical references inside
   past PROGRESS entries and ADR-0009/ADR-0010 left intact (append-only).
 
-### T-003 — Capture and document Tiny 2 USB descriptor
-- **State**: BLOCKED
+### T-003 — Capture and document Tiny 2 family USB descriptor
+- **State**: IN_PROGRESS (lsusb half DONE, v4l2-ctl half pending — see notes)
 - **Started**: 2026-05-12T11:00:00Z
 - **Depends on**: T-001
-- **Blocker**: awaiting the user's hardware capture (lsusb / v4l2-ctl
-  outputs against a plugged-in Tiny 2). Procedure handed off in the
-  session of 2026-05-12.
-- **Description**: With the user's help (they must run the commands; Claude
-  cannot touch hardware), capture `lsusb -v` and `v4l2-ctl --all` and
-  `v4l2-ctl --list-ctrls-menus` output for the connected Tiny 2. Identify XU
-  unit IDs, GUIDs, and existing V4L2 controls.
+- **Description**: Capture `lsusb -v` and `v4l2-ctl --all` and
+  `v4l2-ctl --list-ctrls-menus` output for the user's connected Tiny 2
+  family unit. Identify XU unit IDs, GUIDs, and existing V4L2 controls.
+  Title amended from "Tiny 2" to "Tiny 2 family" by [[ADR-0014]] after
+  the first capture revealed the hardware on hand is a Tiny 2 Lite
+  (`3564:fef9`), sibling of the regular Tiny 2 (`3564:fef8`).
+- **Notes**: original "Claude cannot touch hardware" framing was wrong.
+  `lsusb` is a read-only USB descriptor query that Claude runs directly
+  on the user's machine. The hand-off in PROGRESS 2026-05-12T11:00Z was
+  unnecessary. V4L2 capture still benefits from a one-time `usermod
+  -aG video alvaro` so Claude can re-run it without sudo.
 - **Acceptance criteria**:
-  - `docs/PROTOCOL.md` has a "Tiny 2 USB descriptor" section with the trimmed
-    relevant `lsusb -v` output (focus on Video Control interface, Extension
-    Units).
-  - `docs/PROTOCOL.md` has a table of V4L2 controls exposed and their ranges.
-  - All XU unit IDs and GUIDs documented.
-  - Commit: `docs: document Tiny 2 USB descriptor (T-003)`.
-- **Notes**: STOP and ask the user to run the commands. Provide them exactly
-  what to paste.
+  - `docs/PROTOCOL.md` has a "Hardware identifiers" section with the
+    `lsusb -v` capture for each Tiny 2 family PID for which data is
+    available (Lite = direct capture; regular Tiny 2 = community
+    capture, marked speculative until then).
+    **Done for the Lite.**
+  - `docs/PROTOCOL.md` has a table of V4L2 controls exposed and their
+    ranges (`/dev/video0` and `/dev/video1`). **Pending v4l2-ctl run.**
+  - All XU unit IDs and GUIDs of the captured device documented.
+    **Done for the Lite (Unit 2, GUID `9a1e7291-…`).**
+  - Commit: `docs: capture Tiny 2 Lite USB descriptor (T-003)` (lsusb
+    half) and a follow-up `docs: capture Tiny 2 Lite V4L2 controls
+    (T-003)` (v4l2-ctl half).
 
 ### T-004 — Set up Cargo workspace
 - **State**: DONE
