@@ -345,7 +345,8 @@
   - Commit `feat(core+gui): menu writes and INACTIVE grey-out (T-102)`.
 
 ### T-103 — White balance group widget
-- **State**: TODO
+- **State**: DONE
+- **Completed**: 2026-05-13T23:55:00Z
 - **Depends on**: T-102 (uses the menu / INACTIVE infrastructure).
 - **Description**: Cosmetic / UX win: assemble the four WB
   controls (`white_balance_automatic`, `white_balance_temperature`,

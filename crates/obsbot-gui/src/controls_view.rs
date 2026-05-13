@@ -40,6 +40,7 @@ use obsbot_core::{
 };
 
 use crate::ptz_pad::{build_ptz_pad, PTZ_PAD_IDS};
+use crate::wb_group::{build_wb_group, WB_GROUP_IDS};
 
 /// Path to the controls-view shell inside the embedded `GResource`
 /// (see `build.rs` + `resources/controls-view.blp` +
@@ -84,11 +85,14 @@ fn build_body(cam: &CameraInfo) -> gtk::Widget {
 fn render_controls(controls: &[ControlDescriptor], path: &Path) -> adw::PreferencesPage {
     let page = adw::PreferencesPage::new();
 
-    // PTZ pad consumes a handful of Camera-class controls — mount it
-    // at the top of the page and filter those IDs out of the generic
-    // per-class render below.
+    // PTZ pad + White balance group consume a curated subset of
+    // controls. Mount them at the top of the page and filter the
+    // consumed IDs out of the generic per-class render below.
     if let Some(ptz_group) = build_ptz_pad(controls, path) {
         page.add(&ptz_group);
+    }
+    if let Some(wb_group) = build_wb_group(controls, path) {
+        page.add(&wb_group);
     }
 
     let mut user_group: Option<adw::PreferencesGroup> = None;
@@ -96,7 +100,7 @@ fn render_controls(controls: &[ControlDescriptor], path: &Path) -> adw::Preferen
     let mut other_group: Option<adw::PreferencesGroup> = None;
 
     for ctrl in controls {
-        if PTZ_PAD_IDS.contains(&ctrl.id) {
+        if PTZ_PAD_IDS.contains(&ctrl.id) || WB_GROUP_IDS.contains(&ctrl.id) {
             continue;
         }
         let group = match ctrl.class {
@@ -132,7 +136,11 @@ fn make_group(title: &str) -> adw::PreferencesGroup {
 /// User-class Boolean controls get an [`AdwSwitchRow`]; User-class Menu
 /// controls get an [`adw::ComboRow`]. Every other shape stays a
 /// read-only [`AdwActionRow`] until its dedicated write path lands.
-fn control_row(ctrl: &ControlDescriptor, path: &Path) -> gtk::Widget {
+///
+/// `pub(crate)` so sibling group modules (`wb_group`, `exposure_group`)
+/// can reuse the exact same widgets inside their dedicated groups
+/// without duplicating any of the T-100 / T-102 widget builders.
+pub(crate) fn control_row(ctrl: &ControlDescriptor, path: &Path) -> gtk::Widget {
     if ctrl.class == ControlClass::User {
         match &ctrl.kind {
             ControlKind::Integer {

@@ -596,6 +596,52 @@ commit `build(gui): Blueprint pipeline (T-099)` packages the
 seven changed/added files plus `Cargo.lock` (glib-build-tools
 0.20.0 transitive deps).
 
+### [2026-05-13T23:55:00Z] [T-103] DONE — White balance group widget
+
+Small composition task. New module
+`crates/obsbot-gui/src/wb_group.rs` (~85 lines):
+
+* `WB_GROUP_IDS` lists the four User-class WB controls
+  (`white_balance_automatic`, `white_balance_temperature`,
+  `red_balance`, `blue_balance`).
+* `pub fn build_wb_group(controls, path) -> Option<adw::
+  PreferencesGroup>` returns `None` if none of the four IDs is
+  present; otherwise builds an `adw::PreferencesGroup` titled
+  "White balance" with a one-sentence description explaining
+  the auto/manual relationship, then iterates the four IDs in
+  display order (Auto switch → Temperature → Red → Blue) and
+  calls `crate::controls_view::control_row` for each.
+  `set_sensitive(ctrl.is_active)` applied per row so the V4L2
+  `INACTIVE` flag from T-102 keeps doing its job inside the
+  dedicated group.
+
+`controls_view.rs` changes:
+
+* `control_row` is bumped from private to `pub(crate)` so
+  sibling group modules can reuse the existing widget
+  builders (T-100 scale/spin/reset + T-100 switch row +
+  T-102 combo row) without duplication.
+* `render_controls` now mounts the WB group right after the
+  PTZ pad and filters `WB_GROUP_IDS` out of the generic User
+  loop alongside `PTZ_PAD_IDS`.
+* `main.rs` declares `mod wb_group;`.
+
+No core-crate changes; no new hardware test (the WB controls
+already round-trip via T-100 / T-102's brightness and
+power_line_frequency tests — they exercise the same code path).
+
+Gates: fmt / clippy / test all green; 5 / 5 hardware tests still
+pass under `cargo test -- --ignored` (regression-free).
+
+PLAN T-103 DONE. Commit `feat(gui): white balance group widget
+(T-103)`. STATE advances to T-104.
+
+**User validation queued**: confirm the four WB controls
+appear inside a "White balance" group (with description text)
+at the top of the User Controls section instead of mixed in
+the generic list; toggle WB Auto and watch the other three
+grey out / wake up.
+
 ### [2026-05-13T23:45:00Z] [T-102] DONE — menu writes (INACTIVE grey-out already landed with T-101)
 
 T-102 splits into two halves per [[ADR-0019]]: menu writes
