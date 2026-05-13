@@ -569,6 +569,19 @@ preserved by `git add`), `build-aux/.gitkeep` (deleted —
 directory now has real content, matching the [[T-005]] precedent
 for `crates/`), and the three docs files.
 
+### [2026-05-13T12:42:08Z] [session-end] Clean checkpoint at end of session
+
+User asked to end the session. No active task, no partial work, no
+uncommitted changes. Eight v0.1 tasks closed this session (T-003
+USB+V4L2 capture, T-004 Cargo workspace, T-005 obsbot-core stub,
+T-006 obsbot-cli stub, T-007 obsbot-gui stub, T-008 Meson
+orchestration) plus two scope decisions (ADR-0014 Tiny 2 family
+target, ADR-0015 .deb + Arch test-package tier). Next session
+resumes with T-009 (AppStream metainfo + `.desktop` file +
+i18n scaffolding). Tiny fix-up commit follows to record the real
+T-008 SHA in STATE.md (it was a "pending in this turn" placeholder)
+and to leave this checkpoint marker.
+
 ### [2026-05-13T12:30:42Z] [T-007] DONE — user confirmed visual + interactive
 
 User ran `cargo run -p obsbot-gui` and reported all three acceptance
