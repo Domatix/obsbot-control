@@ -447,6 +447,80 @@ header per [[ADR-0011]]. Validate: `cargo run -p obsbot-cli --
 run -p obsbot-cli` shows `obsbot-cli v0.1.0`. Then four workspace
 gates as for T-005. Commit `feat(cli): scaffold CLI binary (T-006)`.
 
+### [2026-05-13T12:30:00Z] [T-007] Code lands; objective smoke-test passes
+
+`cargo build -p obsbot-gui` succeeded (1m 05s first build pulling
+GTK4 + libadwaita Rust bindings + transitives). Four workspace gates
+green after a `clippy::doc_markdown` fix (`GLib` needed backticks in
+the application.rs doc comment). Two minor design choices hardened
+into the source:
+  * Aliasing strategy: `use gtk4 as gtk;` / `use libadwaita as adw;`
+    declared per-module (the gtk-rs idiom). Tried first via
+    `package = "..."` workspace-rename in Cargo.toml — Cargo rejects
+    that combination (looks up the consumer-side name in
+    `workspace.dependencies`, not the package field). The per-module
+    `use ... as ...` is what every gtk-rs example does.
+  * Cargo.toml `[[bin]] name = "obsbot-cam-control"` per
+    [[ADR-0012]]; `cargo run -p obsbot-gui` still works because `-p`
+    selects the package.
+
+Objective window-appearance check via xwininfo while the binary ran
+in the background (X11 session, DISPLAY=:10.0): root window tree
+includes `0x2600004 "Obsbot Cam Control": ("obsbot-cam-control"
+"obsbot-cam-control") 842x662+539+231` — i.e. the app maps a window
+titled "Obsbot Cam Control" with WM_CLASS `obsbot-cam-control` and
+near-default 720×540 geometry (Mutter expanded for decoration). The
+process accepted SIGTERM with exit 143 (= 128 + 15), the standard
+GTK behaviour without an explicit signal handler.
+
+Visual + interactive checks (window appearance, Ctrl+Q, close
+button) handed to the user — Claude cannot drive keyboard input.
+T-007 stays IN_PROGRESS until the user reports back; once confirmed,
+closes with `feat(gui): scaffold libadwaita application (T-007)`.
+
+### [2026-05-13T12:30:42Z] [T-007] DONE — user confirmed visual + interactive
+
+User ran `cargo run -p obsbot-gui` and reported all three acceptance
+paths green: window appears with the "Obsbot Cam Control" header
+bar + the Adwaita status-page placeholder, Ctrl+Q quits cleanly,
+and the window close button quits cleanly. PLAN.md T-007 set to
+DONE with the Outcome block. STATE.md goes idle with T-008 (Meson
+orchestration) as the natural next task. Commit `feat(gui): scaffold
+libadwaita application (T-007)` follows, bundling crates/obsbot-gui/
+(four new files) + Cargo.lock + docs/PLAN.md + docs/STATE.md + this
+PROGRESS section.
+
+### [2026-05-13T12:21:13Z] [T-007] Started — scaffold obsbot-gui
+
+Plan: third workspace member. `crates/obsbot-gui/Cargo.toml` with
+the same `[lints]` block as obsbot-core/obsbot-cli, `[[bin]] name =
+"obsbot-cam-control"` (per [[ADR-0012]] GUI binary name; `cargo run
+-p obsbot-gui` still works because `-p` selects the package, not the
+bin), and dependencies on `gtk4 + libadwaita + gio + glib` from
+`[workspace.dependencies]` (plus a `path` dep on `obsbot-core` so
+the trait is already imported for T-013 to wire to). Source split per
+[[ARCHITECTURE §2]]:
+  src/main.rs — bootstrap: APP_ID constant
+    (`io.github.domatix.ObsbotCamControl`), call into
+    `application::run(APP_ID)`, return `glib::ExitCode`.
+  src/application.rs — `pub fn run(app_id) -> glib::ExitCode` that
+    builds an `adw::Application`, wires `connect_activate` to spawn
+    a `window::ObsbotWindow`, registers an `app.quit` SimpleAction
+    and binds it to `<primary>q` so Ctrl+Q closes the app.
+  src/window.rs — minimal `pub fn build(app: &adw::Application) ->
+    adw::ApplicationWindow` that constructs the window with a header
+    bar carrying the literal `"Obsbot Cam Control"` title plus a
+    placeholder Adwaita status page ("nothing here yet, T-013 will
+    fill this") so the empty window looks intentional rather than
+    broken.
+SPDX header on every .rs per [[ADR-0011]]. Validate: `cargo check
+--workspace`, `cargo fmt --all --check`, `cargo clippy --workspace
+--all-targets -- -D warnings`, `cargo test --workspace`, and a `cargo
+build -p obsbot-gui` followed by a brief `cargo run -p obsbot-gui`
+spot-launch (window appearance / Ctrl+Q quit have to be confirmed by
+the user — Claude can't see the screen). Commit `feat(gui): scaffold
+libadwaita application (T-007)`.
+
 ### [2026-05-13T11:02:07Z] [T-006] DONE — gates green, behaviour verified
 
   cargo run -p obsbot-cli -- --version → `obsbot-cli 0.1.0` (clap), exit 0

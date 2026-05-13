@@ -180,15 +180,37 @@
   `Cargo.lock` picks up clap 4.6.1 + transitive deps.
 
 ### T-007 — Stub `obsbot-gui` crate
-- **State**: TODO
+- **State**: DONE
+- **Started**: 2026-05-13T12:21:13Z
+- **Completed**: 2026-05-13T12:30:42Z
 - **Depends on**: T-005
 - **Description**: Create `crates/obsbot-gui/` with an `adw::Application` that
-  opens an empty `adw::ApplicationWindow` with a header bar saying "OBSBOT
-  Control".
+  opens an empty `adw::ApplicationWindow` with a header bar saying
+  **"Obsbot Cam Control"** (the resolved display name per [[ADR-0012]];
+  the original T-007 text said "OBSBOT Control" — a placeholder written
+  before T-002 resolved the namespace and now superseded).
 - **Acceptance criteria**:
   - `cargo run -p obsbot-gui` opens the window on the user's machine.
+    **DONE** — objectively verified via xwininfo
+    (`0x2600004 "Obsbot Cam Control" 842x662+539+231`) plus the user's
+    visual confirmation 2026-05-13T12:30:42Z.
   - Closes cleanly on Ctrl+Q and on window close button.
+    **DONE** — user confirmed both interactive paths work
+    (Claude cannot drive keyboard input).
   - Commit: `feat(gui): scaffold libadwaita application (T-007)`.
+- **Outcome**: `crates/obsbot-gui/` with three source files (~120 lines
+  of project code, ignoring SPDX headers) backed by GTK 4.18.6 +
+  libadwaita 1.7.6 on the user's Debian trixie. `[[bin]] name =
+  "obsbot-cam-control"` per [[ADR-0012]]. Source split mirrors
+  [[ARCHITECTURE §2]]: `main.rs` (APP_ID const + `application::run`),
+  `application.rs` (`adw::Application` factory, registers
+  `app.quit` ActionEntry, binds `<primary>q`), `window.rs`
+  (`AdwApplicationWindow` with header bar + Adwaita StatusPage
+  placeholder pointing at T-013 / v0.2 for real content).
+  Per-module gtk-rs aliasing via `use gtk4 as gtk;` /
+  `use libadwaita as adw;`. Four workspace gates green
+  (fmt-check, check --all-targets, clippy -D warnings, test).
+  Cargo.lock picks up the GTK4 + libadwaita Rust binding trees.
 
 ### T-008 — Set up Meson build system
 - **State**: TODO
