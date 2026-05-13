@@ -36,21 +36,78 @@
 //! values are `__s32`; booleans encode as 0 / 1 and menus encode as
 //! their integer ID.
 
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use gio::prelude::*;
+use glib::object::ObjectExt;
+use libadwaita as adw;
 
 use obsbot_core::{write_control, ControlValue};
 
+use crate::i18n::gettext;
+
 const APP_ID: &str = "io.github.domatix.ObsbotCamControl";
 const KEY: &str = "control-values";
+/// Duration in seconds before a write-failure toast auto-dismisses.
+/// `adw::Toast` interprets `0` as "never auto-dismiss"; we want users
+/// to actually notice the message but not be hostage to it.
+const TOAST_TIMEOUT_SECS: u32 = 5;
 /// ASCII Unit Separator — reserved in V4L2 control names and OBSBOT
 /// serial strings, safe as an in-key separator.
 const KEY_SEP: char = '\x1f';
 
 fn dict_key(serial: &str, control_name: &str) -> String {
     format!("{serial}{KEY_SEP}{control_name}")
+}
+
+thread_local! {
+    /// Weak ref to the `AdwToastOverlay` wrapping the currently-active
+    /// controls page (T-108). Set by `controls_view::build_controls_
+    /// page`; cleared implicitly when the previous page widget drops
+    /// and the weak upgrade returns `None`. Stored as
+    /// `glib::WeakRef` (vs `std::rc::Weak`) because gtk-rs widgets
+    /// are GObject-refcounted, not Rc-refcounted.
+    static TOAST_OVERLAY: RefCell<Option<glib::WeakRef<adw::ToastOverlay>>> =
+        const { RefCell::new(None) };
+}
+
+/// Bind the toast surface used by [`surface_error`] (T-108). Called
+/// once per controls-page build; later binds supersede earlier ones,
+/// so navigating to a different camera replaces the target without
+/// leaving a stale strong reference.
+pub fn bind_toast_overlay(overlay: &adw::ToastOverlay) {
+    TOAST_OVERLAY.with(|cell| {
+        *cell.borrow_mut() = Some(overlay.downgrade());
+    });
+}
+
+/// Show `msg` on the most-recently-bound toast overlay (T-108).
+///
+/// Falls through to `eprintln!` when no overlay is bound or the
+/// previously-bound overlay has been dropped (e.g. the user navigated
+/// away from the controls page just before a delayed write callback
+/// fires). The fall-through keeps the diagnostic visible during dev
+/// runs without requiring a toast surface.
+pub fn surface_error(msg: &str) {
+    let shown = TOAST_OVERLAY.with(|cell| {
+        let Some(weak) = cell.borrow().as_ref().cloned() else {
+            return false;
+        };
+        let Some(overlay) = weak.upgrade() else {
+            return false;
+        };
+        let toast = adw::Toast::builder()
+            .title(msg)
+            .timeout(TOAST_TIMEOUT_SECS)
+            .build();
+        overlay.add_toast(toast);
+        true
+    });
+    if !shown {
+        eprintln!("warning: {msg}");
+    }
 }
 
 /// Resolve the [`gio::Settings`] handle for the app, loading the
@@ -109,10 +166,17 @@ pub fn save_for_camera(serial: &str, control_name: &str, value: i32) {
 /// best-effort half.
 pub fn write_and_save(path: &Path, id: u32, value: ControlValue, serial: Option<&str>, name: &str) {
     if let Err(err) = write_control(path, id, value) {
-        eprintln!(
-            "warning: failed to write {name} ({id:#010x}) on {}: {err}",
-            path.display(),
-        );
+        // T-108: surface the failure as an in-app toast so the user
+        // sees the message without having to read the terminal. The
+        // helper falls through to `eprintln!` when no toast overlay
+        // is bound (cargo run before navigating into a camera).
+        // GSettings save failures (further below) stay on stderr —
+        // they are transparently recovered next session and are not
+        // user-actionable.
+        let msg = gettext("Failed to set {name}: {error}")
+            .replace("{name}", name)
+            .replace("{error}", &err.to_string());
+        surface_error(&msg);
         return;
     }
     let Some(serial) = serial else { return };

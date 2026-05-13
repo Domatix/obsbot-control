@@ -518,7 +518,9 @@
   - Commit `feat(gui): gettext scaffolding (T-107)`.
 
 ### T-108 — Toast-based error surfacing
-- **State**: TODO
+- **State**: DONE
+- **Started**: 2026-05-14T01:25:00Z
+- **Completed**: 2026-05-14T01:40:00Z
 - **Depends on**: T-100..T-105 (every write path that currently
   `eprintln!`s on failure).
 - **Description**: Replace stderr `eprintln!` write-failure logs
@@ -529,18 +531,29 @@
   human-readable message (e.g. `"Failed to set Brightness:
   Device busy"`). GSettings save failures stay on stderr (they
   are recovered transparently next session, not user-actionable).
+  **Implementation**: rather than thread a `&adw::ToastOverlay`
+  through every widget closure, T-108 binds a weak ref to the
+  overlay in a `thread_local!` from
+  `controls_view::build_controls_page`, and the single chokepoint
+  `settings::write_and_save` calls a new `settings::surface_
+  error(msg)` helper that pops a 5s `adw::Toast`. The weak ref
+  pattern keeps the binding self-cleaning across page
+  navigations (when the previous page widget drops, the upgrade
+  returns `None` and we fall through to `eprintln!`).
 - **Acceptance criteria**:
-  - `controls_view::build_controls_page` returns an
-    `adw::NavigationPage` whose child is wrapped in an
-    `adw::ToastOverlay`; the overlay handle is passed to the
-    widget builders so each can call `add_toast`.
-  - `integer_scale_row`, `boolean_switch_row`, `menu_combo_row`,
-    `wb_group::*`, `exposure_group::*`, `ptz_pad::*` route
-    `write_control` failures to a toast (no more `eprintln!`
-    in the write paths).
-  - Toast message format: `"Failed to set {control}: {error}"`
-    where `{error}` is the `Display` of `obsbot_core::Error`.
-  - GSettings save errors keep `eprintln!` (justified inline).
+  - `controls_view::build_controls_page` wraps the dynamic body
+    in an `adw::ToastOverlay` and calls
+    `settings::bind_toast_overlay(&overlay)` to register the
+    surface.
+  - `settings::surface_error(msg)` exists; resolves the bound
+    overlay via `glib::WeakRef::upgrade`, falls through to
+    `eprintln!` when nothing is bound.
+  - `settings::write_and_save` now surfaces V4L2 write errors via
+    `surface_error` instead of `eprintln!`; the toast message is
+    `gettext("Failed to set {name}: {error}")` with `{name}` /
+    `{error}` substituted (T-107 gettext path).
+  - GSettings save errors stay on `eprintln!` with the existing
+    inline justification.
   - All four cargo gates green.
   - **User validation pending**: pull the camera USB cable
     mid-drag; confirm a toast appears (instead of silent stderr).

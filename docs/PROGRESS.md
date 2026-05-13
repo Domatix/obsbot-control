@@ -596,6 +596,110 @@ commit `build(gui): Blueprint pipeline (T-099)` packages the
 seven changed/added files plus `Cargo.lock` (glib-build-tools
 0.20.0 transitive deps).
 
+### [2026-05-14T01:40:00Z] [T-108] DONE — toast-based write-error surfacing
+
+Third task of the T-106..T-110 run. Replace stderr `eprintln!`
+on V4L2 write failures with `adw::Toast` notifications inside
+the controls page, so users actually see the message.
+
+Implementation chose the **thread_local weak-ref** route over
+the alternative of threading `Rc<adw::ToastOverlay>` through
+every widget builder + closure. Rationale:
+
+* GTK is single-threaded by design — a `thread_local!` is the
+  same conceptual scope as the GUI's lifetime.
+* The alternative would have changed the signatures of
+  `integer_scale_row`, `boolean_switch_row`, `menu_combo_row`,
+  `build_ptz_pad`, `build_wb_group`, `build_exposure_group`,
+  `build_focus_row`, `build_focus_abs_row`, and `ptz_pad::write`
+  — and propagated `Rc<adw::ToastOverlay>` captures into ~10
+  `glib::clone!` blocks. Thread_local avoids all of that.
+* Weak ref (not strong) keeps the binding self-cleaning across
+  page navigations: when the user navigates back to the camera
+  list and the previous controls page widget drops, the next
+  `surface_error` upgrade returns `None` and falls through to
+  `eprintln!` (the dev safety net). The next page bind
+  supersedes the previous one — no leak, no stale strong ref.
+
+`crates/obsbot-gui/src/settings.rs` (new infrastructure):
+
+* New imports: `std::cell::RefCell`, `glib::object::ObjectExt`
+  (for `.downgrade()`), `libadwaita as adw`, `crate::i18n::
+  gettext`.
+* New const `TOAST_TIMEOUT_SECS: u32 = 5` — the toast lifetime.
+  `0` would mean "never dismiss" but a write failure isn't
+  worth holding the user hostage.
+* New `thread_local!` `TOAST_OVERLAY: RefCell<Option<glib::
+  WeakRef<adw::ToastOverlay>>>` initialised to `None`. `const`
+  initialiser per modern stdlib idiom.
+* New `pub fn bind_toast_overlay(overlay: &adw::ToastOverlay)`
+  — called once per controls-page build, replaces any prior
+  binding.
+* New `pub fn surface_error(msg: &str)` — upgrade-or-fallthrough
+  to `eprintln!`. Builds an `adw::Toast` with the msg as title
+  and `TOAST_TIMEOUT_SECS` timeout.
+* `write_and_save` now constructs the toast message via
+  `gettext("Failed to set {name}: {error}").replace("{name}",
+  name).replace("{error}", &err.to_string())` and calls
+  `surface_error`. The Rust-style `{}` placeholders match the
+  `tr!`-macro convention familiar to gettext translators in the
+  Rust ecosystem; substitution via `str::replace` keeps the call
+  site free of any `format_args!` translation hazard.
+* GSettings-save `eprintln!`s in `save_for_camera` stay as-is.
+  Justification expanded inline (best-effort, recovered next
+  session, not user-actionable).
+
+`crates/obsbot-gui/src/controls_view.rs`:
+
+* `build_controls_page` now creates `let overlay = adw::Toast
+  Overlay::new();`, mounts the body via
+  `overlay.set_child(Some(&build_body(cam)))`, calls
+  `settings::bind_toast_overlay(&overlay)`, and only then sets
+  the overlay as the `body_slot` child. The page's
+  `NavigationPage` shell from `controls-view.blp` stays
+  unchanged.
+
+Tried but reverted: an initial draft added
+`use adw::prelude::ToastOverlayExt;` — the trait isn't exported
+under that name in libadwaita 0.7.2 (`add_toast` is an
+inherent method on `AdwToastOverlay`). The next attempt with
+`use adw::prelude::*;` triggered an `unused_imports` clippy
+error because both `add_toast` (inherent) and `downgrade` (via
+`glib::object::ObjectExt` already imported on the line above)
+resolve without any adw prelude items. Final import list:
+`gio::prelude::*` + `glib::object::ObjectExt` + `libadwaita
+as adw` — no `adw::prelude::*`.
+
+No new widget-builder signature changes. No new closure
+captures. Every existing write path that already routed through
+`settings::write_and_save` (T-100 integer/boolean/menu rows,
+T-101 PTZ pad + focus rows, T-102 menu writes, T-103/T-104
+group rows) automatically inherits the new surfacing.
+
+Gates:
+  cargo fmt --all --check                                → exit 0
+  cargo clippy --workspace --all-targets -- -D warnings  → exit 0
+  cargo test --workspace                                 → 14 unit
+                                                           + 1 settings unit
+                                                           + 1 doctest, all pass;
+                                                           5 hardware ignored.
+
+Files touched:
+  * crates/obsbot-gui/src/settings.rs                     (+~55 / -7)
+  * crates/obsbot-gui/src/controls_view.rs                (+10 / -1)
+  * docs/PLAN.md                                          (T-108 DONE block)
+  * docs/STATE.md                                         (active → idle, last → T-108)
+  * docs/PROGRESS.md                                      (this entry)
+
+User-validation pending: yank the camera USB cable (or `chmod
+000 /dev/videoN`) while on a controls page and drag a slider;
+confirm a toast appears reading "Failed to set <control name>:
+<error>". Added to `STATE.pending_user_actions` for the
+end-of-run validation walk-through.
+
+Commit `feat(gui): toast-based write-error surfacing (T-108)`
+follows. T-109 (AppStream `<releases>` for v0.2.0) is next.
+
 ### [2026-05-14T01:25:00Z] [T-107] DONE — gettext scaffolding
 
 Second task of the T-106..T-110 run. Goal per SPEC §4.4 / §6.5:

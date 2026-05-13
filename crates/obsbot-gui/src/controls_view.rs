@@ -61,7 +61,16 @@ pub fn build_controls_page(cam: &CameraInfo) -> adw::NavigationPage {
 
     page.set_title(&cam.product);
     page.set_tag(Some(&format!("controls-{:04x}-{:04x}", cam.vid, cam.pid)));
-    body_slot.set_child(Some(&build_body(cam)));
+
+    // T-108: wrap the dynamic body in an `AdwToastOverlay` and bind
+    // it as the global error surface for `settings::surface_error`.
+    // Every V4L2 write failure routed through `settings::write_and_
+    // save` now pops a toast here instead of an `eprintln!` the user
+    // would never see.
+    let overlay = adw::ToastOverlay::new();
+    overlay.set_child(Some(&build_body(cam)));
+    settings::bind_toast_overlay(&overlay);
+    body_slot.set_child(Some(&overlay));
 
     page
 }

@@ -8,11 +8,11 @@
 
 active_task: none
 active_task_state: idle
-last_completed_task: T-107
+last_completed_task: T-108
 last_milestone: v0.1.0  # tag 5e005fd
-last_commit: feat(gui): About dialog with credits (T-106)  # a688714 (T-107 commit pending in this turn)
-last_step: T-107 DONE — top-level `po/` populated (`LINGUAS = es`, `POTFILES.in` listing the six GUI .rs files, `meson.build` invoking `i18n.gettext('obsbot-cam-control', preset: 'glib')`, header-only `es.po`); root `meson.build` now calls `subdir('po')` and forwards `localedir` to `build-aux/cargo-build.sh` as a 7th arg; the wrapper exports it as `OBSBOT_LOCALEDIR` so `build.rs` stage 4 re-emits it via `cargo:rustc-env` for `option_env!`. `crates/obsbot-gui/src/i18n.rs` is a thin wrapper over `gettextrs::{setlocale, bindtextdomain, bind_textdomain_codeset, textdomain, gettext}`; `main.rs` calls `i18n::init()` before `application::run`. User-facing strings in `window.rs` / `controls_view.rs` / `wb_group.rs` / `exposure_group.rs` / `ptz_pad.rs` / the About-dialog copyright + section title now flow through `gettext()`; `ptz-pad.blp` literals were marked with `_("...")` for v0.6's blueprint extraction follow-up. Gates: fmt, clippy -D warnings, 14 unit + 1 doctest + 1 settings unit-test = 16 native pass; 5 hardware tests still `#[ignore]`d. Caveat: this Debian 13 host has `gettext-base` only (no `msgfmt`); meson logs the standard "Gettext not found" warning and skips the .pot target — wiring is correct (`OBSBOT_LOCALEDIR` is baked into the release binary, verified via `strings`), CI / Flatpak builders ship full gettext.
-next_step: Advance to T-108 (toast-based error surfacing) — wrap the controls page in an `adw::ToastOverlay`, pass the overlay handle into `integer_scale_row` / `boolean_switch_row` / `menu_combo_row` / `wb_group::*` / `exposure_group::*` / `ptz_pad::*` write callbacks, and dispatch a `Failed to set {control}: {error}` toast on every `write_control` failure (replacing the current `eprintln!`). Keep GSettings-save eprintln in place (justified inline). Commit `feat(gui): toast-based write-error surfacing (T-108)`.
+last_commit: feat(gui): gettext scaffolding (T-107)  # 39c1206 (T-108 commit pending in this turn)
+last_step: T-108 DONE — toast-based error surfacing. `controls_view::build_controls_page` wraps the dynamic body in an `adw::ToastOverlay` and calls `settings::bind_toast_overlay` to register it. `settings.rs` gains a `thread_local!` `Option<glib::WeakRef<adw::ToastOverlay>>` plus a `surface_error(msg)` helper that upgrades the weak ref and pops a 5s `adw::Toast`; falls through to `eprintln!` when no overlay is bound (cargo run before navigating into a camera) or the previously-bound overlay has been dropped (page navigation race). `settings::write_and_save` now routes V4L2 write failures through `surface_error(gettext("Failed to set {name}: {error}").replace(...))`; GSettings save failures stay on `eprintln!` (inline-justified — best-effort, transparent recovery next session). No widget-builder signature changes — the thread_local sidesteps the alternative of threading `Rc<adw::ToastOverlay>` through every closure. Gates: fmt, clippy -D warnings, 14 unit + 1 doctest + 1 settings unit-test = 16 native pass; 5 hardware ignored.
+next_step: Advance to T-109 (AppStream `<releases>` for v0.2.0) — add a `<releases>` block in `data/io.github.domatix.ObsbotCamControl.metainfo.xml.in` with a `<release version="0.2.0" date="@RELEASE_DATE@">` entry; release notes cover T-099..T-108 (Blueprint pipeline, image controls, menu writes + INACTIVE grey-out, WB / Exposure groups, PTZ pad, GSettings persistence, About dialog, gettext scaffolding, toast errors). Substitute `@RELEASE_DATE@` via `data/meson.build`'s `configuration_data()` with a default `unreleased`; tag-time bumps it to the ISO date. Validate via `meson test -C builddir validate-metainfo`. Commit `docs(appstream): v0.2.0 release notes (T-109)`.
 blockers: none.
 working_tree:
   pre_commit_modified: []
@@ -25,6 +25,11 @@ pending_user_actions:
     Obsbot Cam Control" → confirm version, license, repo link,
     issue-tracker link, and the "Reverse-engineering references"
     acknowledgement block render correctly.
+  - T-108: while on a camera detail page, yank the USB cable
+    (or temporarily revoke `/dev/videoN` permissions via `chmod
+    000`) and drag a slider; confirm a toast appears reading
+    "Failed to set <control name>: <error>" instead of a silent
+    stderr line. Re-plug to restore.
   - T-101: drag the 8 PTZ buttons + center-reset, confirm pan/tilt;
     drag the vertical zoom slider, confirm the frame zooms; toggle
     "Auto-focus" off and drag "Manual focus" — focus distance changes.
@@ -49,4 +54,4 @@ pending_user_actions:
     when you launch the app.
   - T-017 (Arch stakeholder, whenever): build/install/remove the
     PKGBUILD on Arch.
-updated_at: 2026-05-14T01:25:00Z  # T-107 closed, T-108 next in the autonomous batch
+updated_at: 2026-05-14T01:40:00Z  # T-108 closed, T-109 next in the autonomous batch
