@@ -425,15 +425,55 @@
   validate-metainfo + validate-desktop unchanged.
 
 ### T-012 — Wire enumeration into CLI
-- **State**: TODO
+- **State**: DONE
+- **Started**: 2026-05-13T16:05:00Z
+- **Completed**: 2026-05-13T16:12:00Z
 - **Depends on**: T-006, T-011
 - **Description**: Add `obsbot-cli list` subcommand that prints detected
   cameras.
 - **Acceptance criteria**:
   - On the user's machine, `cargo run -p obsbot-cli -- list` prints the
-    detected Tiny 2.
-  - Output format documented in `--help`.
+    detected Tiny 2. **DONE** — live invocation against the user's
+    plugged-in Tiny 2 Lite yields the stanza:
+
+    ```
+    1 camera detected:
+
+    [1] OBSBOT Tiny 2 Lite
+        Vendor:   Remo Tech Co., Ltd.
+        USB ID:   3564:fef9
+        Serial:   (not advertised)
+        Firmware: 0510
+        Video:    /dev/video0
+    ```
+  - Output format documented in `--help`. **DONE** — the `list`
+    subcommand carries a `clap` `long_about` listing all six stanza
+    fields plus the zero-camera fallback and the exit-code contract;
+    surfaced verbatim by `obsbot-cli list --help`.
   - Commit: `feat(cli): list command (T-012)`.
+- **Outcome**: `crates/obsbot-cli/Cargo.toml` gains the `path = "../
+  obsbot-core"` dep that [[PLAN T-006]] explicitly deferred ("`obsbot-
+  core` dependency intentionally deferred to T-012"). `crates/obsbot-
+  cli/src/main.rs` grows from a `--version` stub into a `clap`
+  subcommand router: `Cli` now carries `command: Option<Commands>`,
+  `Commands::List` calls `obsbot_core::enumerate_cameras()`, and a
+  pure helper `render(&[CameraInfo]) -> String` produces the on-stdout
+  output. The bare `obsbot-cli` invocation keeps its T-006 behaviour
+  (prints `obsbot-cli v0.1.0`) so the version smoke test stays green.
+  Three new unit tests (`render_zero_cameras`, `render_one_camera_
+  missing_serial`, `render_two_cameras_indexed_and_pluralised`) pin
+  the format-stability promise made in `list --help`: empty list →
+  `No OBSBOT cameras detected.`, single-camera → 1-camera stanza
+  with `(not advertised)` serial fallback, two-camera → pluralised
+  header + `[1]`/`[2]` indexing + blank-line separator. Workspace
+  test count: 11 unit (8 obsbot-core + 3 obsbot-cli) + 1 ignored
+  hardware + 1 doctest. All four cargo gates green (`fmt --check`,
+  `check --workspace --all-targets`, `clippy -D warnings`, `test
+  --workspace`) and the meson 2/2 (validate-desktop +
+  validate-metainfo) untouched. Exit code 0 in every case
+  (cameras present, no cameras, bare invocation) — matches `ls`'s
+  empty-directory semantics, no false-positive non-zero for the
+  "nothing connected" path.
 
 ### T-013 — Diagnostics view in GUI
 - **State**: TODO

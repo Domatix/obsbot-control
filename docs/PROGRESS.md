@@ -569,6 +569,137 @@ preserved by `git add`), `build-aux/.gitkeep` (deleted —
 directory now has real content, matching the [[T-005]] precedent
 for `crates/`), and the three docs files.
 
+### [2026-05-13T16:12:00Z] [T-012] DONE — gates green incl. live hardware smoke test
+
+Implementation came in exactly the shape planned in the Started
+entry, with one in-task delta worth a paper trail:
+
+* First clippy pass tripped on `map(...).unwrap_or_else(...)` — the
+  pedantic `clippy::map_unwrap_or` lint suggests the canonical
+  `map_or_else` form. Flipped to `cam.video_path.as_ref().
+  map_or_else(|| String::from("(none)"), |p| p.display().to_string())`
+  in `render`. `cargo fmt --all` rewrapped the call onto one line
+  afterwards; final source lives at `crates/obsbot-cli/src/main.rs`
+  L106–L109.
+* No other lint corrections, no follow-up dependency churn.
+
+Live verification on this turn (the user's plugged-in Tiny 2 Lite,
+VID 0x3564 / PID 0xfef9, kernel uvcvideo against `/dev/video0`):
+
+```
+$ cargo run -q -p obsbot-cli -- list
+1 camera detected:
+
+[1] OBSBOT Tiny 2 Lite
+    Vendor:   Remo Tech Co., Ltd.
+    USB ID:   3564:fef9
+    Serial:   (not advertised)
+    Firmware: 0510
+    Video:    /dev/video0
+```
+
+Six fields, all populated from sysfs reads done by
+`obsbot_core::enumerate_cameras()`; the `Serial: (not advertised)`
+fallback fires because Tiny 2 Lite firmware 5.10 reports `iSerial=
+0` (see PROTOCOL.md §5). `obsbot-cli list --help` renders the full
+six-field schema verbatim from the `LIST_LONG_ABOUT` constant,
+satisfying the second acceptance criterion ("Output format
+documented in `--help`"). `obsbot-cli --help` correctly lists
+`list` as a subcommand. The bare `obsbot-cli` invocation prints
+`obsbot-cli v0.1.0` unchanged from T-006 — the new `command:
+Option<Commands>` schema preserves the version-banner default for
+the `None` arm.
+
+Gate summary:
+
+```
+cargo fmt --all --check                                → exit 0
+cargo clippy --workspace --all-targets -- -D warnings  → exit 0
+cargo test --workspace                                 → 11 unit
+                                                         (8 obsbot-core
+                                                          + 3 obsbot-cli)
+                                                         + 1 ignored
+                                                         hardware
+                                                         + 1 doctest pass
+cargo run -p obsbot-cli -- list                        → 1 camera
+                                                         detected (real
+                                                         Tiny 2 Lite)
+```
+
+PLAN.md T-012 set to DONE with the Outcome block. STATE.md returns
+to idle; T-013 (diagnostics view — GUI consumer of
+`enumerate_cameras` with a hot-plug listener) is the natural next
+task. Commit `feat(cli): list command (T-012)` follows, bundling:
+`crates/obsbot-cli/Cargo.toml` (new path dep), `crates/obsbot-cli/
+src/main.rs` (subcommand router + render helper + three unit
+tests), `Cargo.lock` (no new transitives — `obsbot-core` already
+locked in by T-011), and the three docs files.
+
+### [2026-05-13T16:05:00Z] [T-012] Started — wire enumeration into the CLI
+
+Plan: surface `obsbot_core::enumerate_cameras()` through a `list`
+subcommand on `obsbot-cli`. Changes scoped to two files:
+
+* `crates/obsbot-cli/Cargo.toml` gains an `obsbot-core = { path =
+  "../obsbot-core" }` entry under `[dependencies]`. This was the
+  dependency [[PLAN T-006]] explicitly deferred ("`obsbot-core`
+  dependency intentionally deferred to T-012 when the `list`
+  subcommand needs it"); T-012 is that moment.
+* `crates/obsbot-cli/src/main.rs` grows from a `--version`-only stub
+  into a clap subcommand router:
+  - `enum Commands { List }` via `#[derive(Subcommand)]`. Only one
+    variant for now; adding more is a one-line append per future task.
+  - The `Cli` struct gains `#[command(subcommand)] command:
+    Option<Commands>`; with `None` we keep the bare `obsbot-cli`
+    behaviour (print version banner and exit) so the T-006 smoke test
+    stays green.
+  - A pure helper `render(cameras: &[CameraInfo]) -> String` that
+    produces the on-stdout output. Factoring as a pure function lets
+    two compact unit tests pin the empty-list shape and a
+    two-camera-with-and-without-serial shape — verifying the
+    pluralisation, the `(not advertised)` serial fallback, and the
+    stanza ordering without touching stdout.
+  - `Commands::List` calls `obsbot_core::enumerate_cameras()` and
+    prints `render(&cams)`. Exit code 0 in every case, mirroring
+    `ls` on an empty directory; the "no cameras" message goes to
+    stdout, not stderr.
+  - The `list` subcommand carries a `long_about` block enumerating
+    the six fields of each stanza (Product / Vendor / USB ID /
+    Serial / Firmware / Video) and the exit-code contract. This
+    satisfies the second acceptance criterion ("Output format
+    documented in `--help`") — `obsbot-cli list --help` will show
+    the full schema.
+
+Output shape (one stanza per camera, indexed):
+
+```
+2 cameras detected:
+
+[1] OBSBOT Tiny 2 Lite
+    Vendor:   Remo Tech Co., Ltd.
+    USB ID:   3564:fef9
+    Serial:   (not advertised)
+    Firmware: 0510
+    Video:    /dev/video0
+
+[2] …
+```
+
+The firmware string is rendered as the raw `bcdDevice` hex (e.g.
+`0510` rather than `5.10`) — the v0.1 CLI mirrors what the kernel
+attribute file contains; surfacing a decoded "major.minor"
+representation is a minor display-only concern that can live as a
+later task if the GUI's About dialog wants it.
+
+Validation: the four cargo gates (`fmt --all --check`, `check
+--workspace --all-targets`, `clippy --workspace --all-targets --
+-D warnings`, `test --workspace`) plus a real `cargo run -p
+obsbot-cli -- list` smoke test on the user's plugged-in Tiny 2 Lite,
+plus `obsbot-cli --help` and `obsbot-cli list --help` to verify the
+documented format renders. Meson tests stay unchanged.
+
+Commit: `feat(cli): list command (T-012)`.
+
 ### [2026-05-13T15:59:15Z] [session-end] Clean checkpoint at end of session
 
 User asked to wrap the session and resume in a new one. No active

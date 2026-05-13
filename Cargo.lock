@@ -642,6 +642,7 @@ name = "obsbot-cli"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "obsbot-core",
 ]
 
 [[package]]
