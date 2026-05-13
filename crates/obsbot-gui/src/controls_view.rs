@@ -61,6 +61,13 @@ pub fn build_controls_page(cam: &CameraInfo) -> adw::NavigationPage {
 
     page.set_title(&cam.product);
     page.set_tag(Some(&format!("controls-{:04x}-{:04x}", cam.vid, cam.pid)));
+
+    // T-111: reset the sensitivity-refresh row registry before
+    // building. Each row builder downstream calls
+    // `settings::register_row` so the post-write refresh path can
+    // find them.
+    settings::reset_row_registry(cam.video_path.clone());
+
     body_slot.set_child(Some(&build_body(cam)));
 
     // T-108 / T-110: the toast surface that backs
@@ -187,6 +194,7 @@ fn render_controls(
         // Generic INACTIVE grey-out — covers WB Temperature while WB
         // Auto is on, Exposure Time while Auto Exposure is engaged, etc.
         row.set_sensitive(ctrl.is_active);
+        settings::register_row(ctrl.id, &row);
         group.add(&row);
     }
 

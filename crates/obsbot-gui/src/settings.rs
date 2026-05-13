@@ -41,10 +41,12 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use gio::prelude::*;
-use glib::object::ObjectExt;
+use glib::object::{IsA, ObjectExt};
+use gtk4 as gtk;
 use libadwaita as adw;
 
-use obsbot_core::{write_control, ControlValue};
+use gtk::prelude::WidgetExt;
+use obsbot_core::{read_controls, write_control, ControlValue};
 
 use crate::i18n::gettext;
 
@@ -71,6 +73,26 @@ thread_local! {
     /// are GObject-refcounted, not Rc-refcounted.
     static TOAST_OVERLAY: RefCell<Option<glib::WeakRef<adw::ToastOverlay>>> =
         const { RefCell::new(None) };
+
+    /// Registry of `(control_id, widget)` pairs for the currently-
+    /// active controls page (T-111). Populated by each row builder
+    /// (`control_row`-derived widgets in `controls_view.rs`,
+    /// `wb_group`, `exposure_group`, and the focus / zoom rows in
+    /// `ptz_pad.rs`) and consumed by [`refresh_sensitivity`] after
+    /// every successful Boolean / Menu write so the kernel's V4L2
+    /// `INACTIVE` flag flips propagate to the widgets without
+    /// requiring per-control ad-hoc listeners. Cleared at the start
+    /// of every new controls-page build by
+    /// [`reset_row_registry`].
+    static REGISTERED_ROWS: RefCell<Vec<(u32, gtk::Widget)>> =
+        const { RefCell::new(Vec::new()) };
+
+    /// `/dev/videoN` path of the currently-active controls page
+    /// (T-111). Companion to [`REGISTERED_ROWS`]; used by
+    /// [`refresh_sensitivity`] to re-read controls without
+    /// threading the path through every write callback.
+    static ACTIVE_VIDEO_PATH: RefCell<Option<PathBuf>> =
+        const { RefCell::new(None) };
 }
 
 /// Bind the toast surface used by [`surface_error`] (T-108). Called
@@ -80,6 +102,49 @@ thread_local! {
 pub fn bind_toast_overlay(overlay: &adw::ToastOverlay) {
     TOAST_OVERLAY.with(|cell| {
         *cell.borrow_mut() = Some(overlay.downgrade());
+    });
+}
+
+/// Reset the per-page sensitivity refresh state for a freshly-built
+/// controls page (T-111). Clears the row registry and stores the
+/// camera's video path so [`refresh_sensitivity`] knows which device
+/// to re-`read_controls` from.
+pub fn reset_row_registry(video_path: Option<PathBuf>) {
+    REGISTERED_ROWS.with(|cell| cell.borrow_mut().clear());
+    ACTIVE_VIDEO_PATH.with(|cell| *cell.borrow_mut() = video_path);
+}
+
+/// Register a single row's `(control_id, widget)` pair (T-111). Called
+/// by each row builder right after `set_sensitive(ctrl.is_active)`;
+/// every write that flips an INACTIVE flag downstream then refreshes
+/// this widget via [`refresh_sensitivity`].
+pub fn register_row(ctrl_id: u32, row: &impl IsA<gtk::Widget>) {
+    REGISTERED_ROWS.with(|cell| {
+        cell.borrow_mut().push((ctrl_id, row.clone().upcast()));
+    });
+}
+
+/// Re-read the camera's controls and update every registered row's
+/// `set_sensitive` flag to match the current `is_active` from the
+/// kernel (T-111). Skipped silently if no path is bound (cargo run
+/// before navigating to a camera) or `read_controls` fails (device
+/// just disconnected / busy). Called from [`write_and_save`] after a
+/// successful Boolean / Menu write — Integer writes (slider drags)
+/// don't trigger this path because they don't gate other controls
+/// in the UVC standard control set.
+fn refresh_sensitivity() {
+    let path = ACTIVE_VIDEO_PATH.with(|cell| cell.borrow().clone());
+    let Some(path) = path else { return };
+    let Ok(controls) = read_controls(&path) else {
+        return;
+    };
+    let active_by_id: HashMap<u32, bool> = controls.iter().map(|c| (c.id, c.is_active)).collect();
+    REGISTERED_ROWS.with(|cell| {
+        for (id, widget) in cell.borrow().iter() {
+            if let Some(&active) = active_by_id.get(id) {
+                widget.set_sensitive(active);
+            }
+        }
     });
 }
 
@@ -165,6 +230,13 @@ pub fn save_for_camera(serial: &str, control_name: &str, value: i32) {
 /// authoritative half of the contract, the `GSettings` update is the
 /// best-effort half.
 pub fn write_and_save(path: &Path, id: u32, value: ControlValue, serial: Option<&str>, name: &str) {
+    // T-111: only Boolean / Menu writes are "gates" that could flip
+    // the V4L2 INACTIVE flag of dependent controls (WB Auto switch,
+    // Auto Exposure dropdown, etc.). Integer writes — slider drags
+    // running at ~100Hz — don't gate anything in the UVC standard
+    // control set, so we skip the extra `read_controls` ioctl on
+    // them. This keeps the perf cost of the refresh path bounded.
+    let needs_refresh = matches!(value, ControlValue::Boolean(_) | ControlValue::Menu(_));
     if let Err(err) = write_control(path, id, value) {
         // T-108: surface the failure as an in-app toast so the user
         // sees the message without having to read the terminal. The
@@ -178,6 +250,9 @@ pub fn write_and_save(path: &Path, id: u32, value: ControlValue, serial: Option<
             .replace("{error}", &err.to_string());
         surface_error(&msg);
         return;
+    }
+    if needs_refresh {
+        refresh_sensitivity();
     }
     let Some(serial) = serial else { return };
     let int_value = match value {

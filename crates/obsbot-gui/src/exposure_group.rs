@@ -71,6 +71,7 @@ pub fn build_exposure_group(
     for ctrl in present {
         let row = control_row(ctrl, path, serial);
         row.set_sensitive(ctrl.is_active);
+        crate::settings::register_row(ctrl.id, &row);
         group.add(&row);
     }
 

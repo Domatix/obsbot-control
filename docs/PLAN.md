@@ -657,6 +657,65 @@
     confirm the camera re-appears in the list.
   - Commit `feat(gui): hot-plug REMOVE resilience (T-110)`.
 
+### T-111 — Sensitivity refresh after gate writes
+- **State**: DONE
+- **Started**: 2026-05-14T02:30:00Z
+- **Completed**: 2026-05-14T02:45:00Z
+- **Depends on**: T-102 (the original build-time `set_sensitive`
+  call), T-108 (the `settings`-module pattern this re-uses).
+- **Description**: Bug fix uncovered by the post-T-106..T-110
+  user validation pass. Three reports — "WB temperature
+  sliders stay un-editable after I uncheck WB Auto" (D),
+  "Exposure Time stays un-editable after I switch to Manual"
+  (E), "WB temperature stays editable when WB Auto is on"
+  (F.12) — all stem from one root cause: T-102 wired
+  `row.set_sensitive(ctrl.is_active)` **once at page-build
+  time** and never re-evaluated on subsequent writes. The
+  kernel does flip the V4L2 `INACTIVE` flag on dependent
+  controls when a gating control is written (e.g. writing
+  auto_exposure=Manual un-flags exposure_time_absolute), but
+  the GUI ignored the flip. The only place this worked was
+  the ptz_pad focus row, which had a bespoke
+  `auto_row.connect_active_notify` listener manually toggling
+  `abs_row.set_sensitive` — T-101 baked that in directly
+  without a generic equivalent.
+  **Fix**: register every controlled row in a `thread_local!`
+  `Vec<(u32, gtk::Widget)>` at page build, then call
+  `refresh_sensitivity` from `settings::write_and_save` after
+  every successful Boolean / Menu write. The refresh re-reads
+  `read_controls(path)` and walks the registry, calling
+  `set_sensitive(ctrl.is_active)` on each registered widget.
+  Integer writes (slider drags, ~100Hz) do **not** trigger
+  the refresh — no UVC standard Integer control gates other
+  controls, so the extra ioctl would be pure overhead.
+- **Acceptance criteria**:
+  - `settings::reset_row_registry(video_path)` clears the
+    registry and stores the path at the start of every
+    `controls_view::build_controls_page` call.
+  - `settings::register_row(ctrl_id, &widget)` exposed for
+    every row builder; called once per row right after the
+    initial `set_sensitive(ctrl.is_active)`.
+  - `settings::refresh_sensitivity()` (private) called from
+    `settings::write_and_save` after a successful Boolean or
+    Menu write (gated by `matches!(value,
+    ControlValue::Boolean(_) | ControlValue::Menu(_))`);
+    Integer writes do not call it.
+  - `controls_view::build_body` (User / Camera class loop),
+    `wb_group::build_wb_group`, `exposure_group::
+    build_exposure_group`, and `ptz_pad::build_ptz_pad` (zoom
+    scale + focus auto switch + focus abs row) all
+    call `register_row` for every widget they construct that
+    has a 1:1 mapping to a V4L2 control.
+  - All four cargo gates green.
+  - **User validation pending** (covers D / E / F.12 from the
+    previous pass):
+    * Toggle WB Auto OFF → WB Temperature / Red / Blue
+      sliders become editable. Toggle ON → they grey out.
+    * Switch Auto Exposure to Manual → Exposure Time Absolute
+      slider becomes editable. Switch back to Auto Mode →
+      greys out.
+  - Commit `fix(gui): refresh row sensitivity after gate writes (T-111)`.
+
 ---
 
 ## Closed milestone: v0.1 — Scaffolding & Detection (v0.1.0)

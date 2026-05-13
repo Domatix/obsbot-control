@@ -172,6 +172,7 @@ pub fn build_ptz_pad(
     );
     zoom_scale.set_adjustment(&zoom_adj);
     zoom_scale.set_sensitive(zoom.is_active);
+    settings::register_row(CID_ZOOM_ABSOLUTE, &zoom_scale);
     {
         let owned_path = owned_path.clone();
         let owned_serial = owned_serial.clone();
@@ -299,14 +300,18 @@ fn build_focus_row(
         .active(focus_auto.is_some_and(|b| b.current))
         .build();
     auto_row.set_sensitive(focus_auto.is_some_and(|b| b.is_active));
+    if focus_auto.is_some() {
+        settings::register_row(CID_FOCUS_AUTOMATIC_CONTINUOUS, &auto_row);
+    }
     expander.add_row(&auto_row);
 
     let abs_row = build_focus_abs_row(focus_abs, path, serial);
     // Grey out the manual slider while auto is on (matches what the
-    // kernel would mark INACTIVE; the explicit listener is defensive
-    // because the INACTIVE flag refresh is what T-102 wires
-    // generically).
+    // kernel would mark INACTIVE; the explicit listener below stays
+    // in place because the T-111 generic refresh acts on every
+    // gate-write but the toggle here is fast-path local UX).
     abs_row.set_sensitive(focus_abs.is_active && !focus_auto.is_some_and(|b| b.current));
+    settings::register_row(CID_FOCUS_ABSOLUTE, &abs_row);
     expander.add_row(&abs_row);
 
     {

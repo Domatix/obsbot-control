@@ -596,6 +596,141 @@ commit `build(gui): Blueprint pipeline (T-099)` packages the
 seven changed/added files plus `Cargo.lock` (glib-build-tools
 0.20.0 transitive deps).
 
+### [2026-05-14T02:45:00Z] [T-111] DONE — sensitivity refresh after gate writes (validation-driven fix)
+
+User started the validation pass right after the
+T-106..T-110 run closed and reported three failures from the
+T-103 / T-104 / T-102 group, which all share the same root
+cause:
+
+* **D** — "after unchecking WB Auto, the WB Temperature / Red /
+  Blue sliders stay un-editable".
+* **E** — "switching Auto Exposure to Manual doesn't unlock
+  Exposure Time Absolute".
+* **F.12** — "WB Auto ON should grey out the dependent
+  sliders but they stay active".
+
+All three are facets of the same bug: T-102's "generic
+INACTIVE handler" was only a one-shot `row.set_sensitive(
+ctrl.is_active)` at page-build time. The kernel does flip
+the V4L2 `INACTIVE` flag on dependent controls when a gating
+control is written (auto_exposure → exposure_time_absolute,
+white_balance_automatic → wb_temperature / red_balance /
+blue_balance) — but the GUI ignored the flip. The PTZ focus
+row worked by accident (T-101 had baked in an explicit
+`auto_row.connect_active_notify` listener that manually
+called `abs_row.set_sensitive(!value)`); WB and Exposure had
+no equivalent.
+
+Fix — a `settings`-module-scoped row registry plus a
+post-write refresh:
+
+`crates/obsbot-gui/src/settings.rs` (new infrastructure):
+
+* New imports: `glib::object::IsA`, `gtk4 as gtk`,
+  `gtk::prelude::WidgetExt`, `obsbot_core::read_controls`.
+* Two new `thread_local!`s alongside the existing
+  `TOAST_OVERLAY`:
+  - `REGISTERED_ROWS: RefCell<Vec<(u32, gtk::Widget)>>` —
+    the active page's `(control_id, row widget)` pairs.
+  - `ACTIVE_VIDEO_PATH: RefCell<Option<PathBuf>>` — companion
+    so the refresh path can re-read controls without
+    threading the path through every write callback.
+* New public functions:
+  - `reset_row_registry(video_path)` — clear + rebind path.
+    Called once per `build_controls_page`.
+  - `register_row(ctrl_id, &impl IsA<gtk::Widget>)` —
+    push a pair. Called by each row builder.
+* New private function `refresh_sensitivity()` — re-reads
+  `read_controls(path)`, builds a `HashMap<u32, bool>` of
+  `id → is_active`, then walks `REGISTERED_ROWS` calling
+  `widget.set_sensitive(active)` for each known id. Silently
+  skips when no path is bound or `read_controls` errors
+  (device just disconnected).
+* `write_and_save` now gates the refresh on
+  `matches!(value, ControlValue::Boolean(_) |
+  ControlValue::Menu(_))` — only "gate" writes (toggle / menu)
+  trigger the extra ioctl. Slider drags running at ~100Hz
+  during user interaction skip the refresh entirely (no UVC
+  standard Integer control gates anything, so it'd be pure
+  overhead).
+
+`crates/obsbot-gui/src/controls_view.rs`:
+
+* `build_controls_page` calls
+  `settings::reset_row_registry(cam.video_path.clone())`
+  right after setting the page tag and title. This wipes any
+  registry state left over from a previously-visited camera
+  before the new page's row builders populate it.
+* The generic `User`/`Camera` class loop in `build_body` now
+  calls `settings::register_row(ctrl.id, &row)` right after
+  the existing `row.set_sensitive(ctrl.is_active)`.
+
+`crates/obsbot-gui/src/wb_group.rs` and `exposure_group.rs`:
+
+* Same `register_row(ctrl.id, &row)` call inserted in the
+  per-group loop after the build-time `set_sensitive`. Both
+  groups feed the same registry as the generic loop.
+
+`crates/obsbot-gui/src/ptz_pad.rs`:
+
+* Three explicit `register_row` calls — `zoom_scale`
+  (CID_ZOOM_ABSOLUTE), focus `auto_row`
+  (CID_FOCUS_AUTOMATIC_CONTINUOUS, only when the control is
+  actually present per `focus_auto.is_some()`), and focus
+  `abs_row` (CID_FOCUS_ABSOLUTE). Pan/tilt button sensitivity
+  stays one-shot — the buttons don't map 1:1 to a single
+  control (they write pan_absolute or tilt_absolute per
+  click and their sensitivity depends on both pan + tilt
+  being active, which is a multi-ID rule the simple registry
+  doesn't model). For the OBSBOT Tiny 2 family this is
+  fine — neither pan nor tilt is ever marked INACTIVE in
+  practice.
+* The existing `auto_row.connect_active_notify` →
+  `abs_row.set_sensitive(!value)` listener stays in place —
+  it's the fast-path local UX that T-111's generic refresh
+  duplicates a fraction of a second later. Keeping it makes
+  the toggle feel snappy and is harmless if the kernel
+  agrees.
+
+`docs/PROTOCOL.md` is untouched — the underlying V4L2
+behaviour was already documented; what was missing was the
+GUI handling of it.
+
+Gates:
+  cargo fmt --all --check                                → exit 0
+  cargo clippy --workspace --all-targets -- -D warnings  → exit 0
+  cargo test --workspace                                 → 14 unit
+                                                           + 1 settings unit
+                                                           + 1 doctest, all pass;
+                                                           5 hardware ignored.
+
+Files touched:
+  * crates/obsbot-gui/src/settings.rs                     (+~55 / -2)
+  * crates/obsbot-gui/src/controls_view.rs                (+8 / -0)
+  * crates/obsbot-gui/src/wb_group.rs                     (+1 / -0)
+  * crates/obsbot-gui/src/exposure_group.rs               (+1 / -0)
+  * crates/obsbot-gui/src/ptz_pad.rs                      (+6 / -3)
+  * docs/PLAN.md                                          (T-111 DONE block)
+  * docs/STATE.md                                         (active → idle, last → T-111)
+  * docs/PROGRESS.md                                      (this entry)
+
+User re-validation needed: toggle WB Auto on/off and confirm
+WB Temperature / Red / Blue grey out / wake up correctly.
+Switch Auto Exposure between Auto Mode and Manual; confirm
+Exposure Time Absolute follows. Replaces the previously-
+pending D / E / F.12 items in `STATE.pending_user_actions`.
+
+The user also asked about H (toast on write failure — the
+device gets removed before they can drag a slider): pointed
+them at the `sudo chmod 000 /dev/video0` workaround which
+keeps the device enumerable but makes writes EACCES. And
+J.19 (T-017 Arch PKGBUILD) was clarified as the convenience
+sideload package per ADR-0015; not blocking for v0.2.0.
+
+Commit `fix(gui): refresh row sensitivity after gate writes
+(T-111)` follows.
+
 ### [2026-05-14T02:20:00Z] [session-checkpoint] Autonomous T-106..T-110 run closed
 
 User asked for 5 more tasks executed autonomously with
