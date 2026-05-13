@@ -432,6 +432,36 @@ addition is purely additive at the v0.1 tail.
 Commit `docs: add .deb + Arch test-package scope (ADR-0015)` follows
 before T-006 starts.
 
+### [2026-05-13T11:01:00Z] [T-006] Started — scaffold obsbot-cli
+
+Plan: `crates/obsbot-cli/Cargo.toml` (package metadata pulled from
+`[workspace.package]`; `[[bin]] name = "obsbot-cli"`; depends only on
+`clap` from `[workspace.dependencies]` for now — `obsbot-core`
+dependency deferred to T-012 when the `list` subcommand actually
+needs it; same `[lints]` block as obsbot-core); `src/main.rs` with a
+minimal `#[derive(clap::Parser)]` empty struct carrying
+`#[command(name = "obsbot-cli", version, about = "...")]`, `main()`
+calls `.parse()` and prints `obsbot-cli v{CARGO_PKG_VERSION}`. SPDX
+header per [[ADR-0011]]. Validate: `cargo run -p obsbot-cli --
+--version` shows `obsbot-cli 0.1.0` (clap's auto-render), bare `cargo
+run -p obsbot-cli` shows `obsbot-cli v0.1.0`. Then four workspace
+gates as for T-005. Commit `feat(cli): scaffold CLI binary (T-006)`.
+
+### [2026-05-13T11:02:07Z] [T-006] DONE — gates green, behaviour verified
+
+  cargo run -p obsbot-cli -- --version → `obsbot-cli 0.1.0` (clap), exit 0
+  cargo run -p obsbot-cli              → `obsbot-cli v0.1.0` (println), exit 0
+  cargo fmt --all --check              → exit 0
+  cargo check --workspace --all-targets → exit 0
+  cargo clippy --workspace --all-targets -- -D warnings → exit 0
+  cargo test --workspace               → 3 unit + 1 doc, all pass (obsbot-core); obsbot-cli has no tests yet (none added — would be premature for a `println!` stub)
+
+`Cargo.lock` picks up clap 4.6.1 along with its transitives
+(clap_builder 4.6.0, clap_derive 4.6.1, anstream 1.0.0, anstyle-parse
+1.0.0, strsim 0.11.1). PLAN.md T-006 set to DONE with outcome block.
+STATE.md idle, T-007 next. Commit `feat(cli): scaffold CLI binary
+(T-006)` follows.
+
 ### [2026-05-13T10:52:32Z] [T-005] DONE — closing task and prepping commit
 
 All acceptance criteria satisfied (see [[PLAN T-005]] Outcome

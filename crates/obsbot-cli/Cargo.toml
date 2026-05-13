@@ -1,0 +1,24 @@
+[package]
+name = "obsbot-cli"
+description = "Companion command-line interface for Obsbot Cam Control."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+module_name_repetitions = "allow"
+
+[[bin]]
+name = "obsbot-cli"
+path = "src/main.rs"
+
+[dependencies]
+clap.workspace = true

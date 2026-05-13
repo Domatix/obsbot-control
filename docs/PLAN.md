@@ -156,13 +156,28 @@
   `crates/.gitkeep` removed (directory has real content now).
 
 ### T-006 — Stub `obsbot-cli` crate
-- **State**: TODO
+- **State**: DONE
+- **Started**: 2026-05-13T11:01:00Z
+- **Completed**: 2026-05-13T11:02:07Z
 - **Depends on**: T-005
 - **Description**: Create `crates/obsbot-cli/` with a `main.rs` that prints
   "obsbot-cli vX.Y.Z" using `clap` and exits.
 - **Acceptance criteria**:
   - `cargo run -p obsbot-cli -- --version` prints version from `Cargo.toml`.
+    **DONE** — `obsbot-cli 0.1.0` via clap's auto-rendered `--version`,
+    `obsbot-cli v0.1.0` from `println!` on bare invocation.
   - Commit: `feat(cli): scaffold CLI binary (T-006)`.
+- **Outcome**: `crates/obsbot-cli/Cargo.toml` (consumes `clap` from
+  `[workspace.dependencies]`, `[lints]` mirroring obsbot-core, explicit
+  `[[bin]] name = "obsbot-cli"`); `src/main.rs` with `#[derive(Parser)]
+  struct Cli {}` carrying `#[command(name, version, about)]` and a
+  `main()` of three meaningful lines. `obsbot-core` dependency
+  intentionally deferred to T-012 when the `list` subcommand needs it
+  (per "no abstractions beyond what the task requires", [[CLAUDE.md §
+  Doing tasks]]). Four workspace gates green (`cargo fmt --all --check`,
+  `cargo check --workspace --all-targets`, `cargo clippy --workspace
+  --all-targets -- -D warnings`, `cargo test --workspace`).
+  `Cargo.lock` picks up clap 4.6.1 + transitive deps.
 
 ### T-007 — Stub `obsbot-gui` crate
 - **State**: TODO
