@@ -596,6 +596,36 @@ commit `build(gui): Blueprint pipeline (T-099)` packages the
 seven changed/added files plus `Cargo.lock` (glib-build-tools
 0.20.0 transitive deps).
 
+### [2026-05-13T21:30:00Z] [session-end] Clean checkpoint, v0.2 at 12%
+
+User asked to wrap. Working tree clean (this checkpoint
+commit aside). `origin/main` and local `main` both at
+`8248d07` (T-099 close). v0.1.0 tag still up at `5e005fd`.
+The cargo run -p obsbot-gui instance started during T-099
+validation got `kill -TERM`'d after the user's "Idéntico"
+confirmation; no lingering processes.
+
+Session ledger:
+* v0.2 entered (was active per ROADMAP after the
+  v0.1.0 milestone close 30 min before this session
+  restart).
+* T-099 (Blueprint pipeline) DONE in one session segment
+  (~30 min wall time including `sudo apt install blueprint-
+  compiler` round-trip + cold cargo rebuild on the new
+  build-dep). Commit `8248d07`.
+
+Next session entry point: T-100. v0.2's first user-visible
+deliverable is "I can finally move a slider and the camera
+reacts" — sketch in STATE.next_step covers the approach
+(obsbot_core write_control helper + AdwSpinRow/SwitchRow/
+ComboRow per ControlKind + connect_changed wiring). Likely
+side-task: a reusable `slider-row.blp` template for T-101+
+consistency. The user is in the `video` group already
+(T-013 prerequisite); if they haven't re-logged-in since
+that grant, T-100's first run will surface the EACCES on
+/dev/video0 write — the fix is one logout cycle, not
+code-side.
+
 
 
 ### [2026-05-12T00:00:00Z] [bootstrap] Project scaffolding generated
