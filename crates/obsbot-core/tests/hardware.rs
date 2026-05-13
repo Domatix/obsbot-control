@@ -185,3 +185,59 @@ fn writes_v4l2_brightness_round_trip() {
     write_control(path, brightness.id, ControlValue::Integer(current))
         .expect("brightness restore must succeed");
 }
+
+#[test]
+#[ignore = "requires a Tiny 2 family camera plugged into the host"]
+fn writes_v4l2_zoom_absolute_round_trip() {
+    // Mirror of the brightness round-trip for the T-101 PTZ pad's
+    // zoom slider. zoom_absolute = V4L2_CID_ZOOM_ABSOLUTE = 0x009a090d
+    // per PROTOCOL §2.2.
+    let cams = enumerate_cameras();
+    let path = cams
+        .first()
+        .and_then(|c| c.video_path.as_deref())
+        .expect("a connected Tiny 2 family camera with a /dev/videoN node");
+
+    let controls = read_controls(path).expect("read_controls succeeds on the connected unit");
+    let zoom = controls
+        .iter()
+        .find(|c| c.id == 0x009a_090d)
+        .expect("zoom_absolute must be present on Tiny 2 family");
+    let ControlKind::Integer {
+        current, min, max, ..
+    } = zoom.kind
+    else {
+        panic!("zoom_absolute must be Integer-typed; got {:?}", zoom.kind);
+    };
+
+    let target = if current + 5 <= max {
+        current + 5
+    } else if current - 5 >= min {
+        current - 5
+    } else {
+        // Pathological tiny range — pick the other endpoint.
+        if current == max {
+            min
+        } else {
+            max
+        }
+    };
+
+    write_control(path, zoom.id, ControlValue::Integer(target)).expect("zoom write must succeed");
+    let after = read_controls(path).expect("re-read after write succeeds");
+    let after_zoom = after
+        .iter()
+        .find(|c| c.id == zoom.id)
+        .expect("zoom_absolute still enumerates after write");
+    let ControlKind::Integer {
+        current: read_back, ..
+    } = after_zoom.kind
+    else {
+        panic!("zoom_absolute type changed mid-test");
+    };
+    assert_eq!(read_back, target, "zoom read-back mismatch");
+
+    // Restore — keep the camera frame at its original framing.
+    write_control(path, zoom.id, ControlValue::Integer(current))
+        .expect("zoom restore must succeed");
+}

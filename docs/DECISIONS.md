@@ -757,5 +757,82 @@ Concretely:
 
 ---
 
+## ADR-0019 — Re-scope T-102 from "Zoom slider" to "Menu writes + INACTIVE grey-out"
+
+**Status**: Accepted, 2026-05-13.
+
+**Context**:
+
+The v0.2 PLAN backlog hints listed:
+
+- T-101 PTZ pad widget in GUI
+- T-102 Zoom slider
+- T-103 White balance widget
+- T-104 Exposure widget
+- T-105 Per-camera GSettings persistence
+
+After landing T-100 and reading PROTOCOL §2.2 in full, two issues
+with the original T-102 framing emerge:
+
+1. **Zoom is already inside the PTZ pad scope.** ROADMAP v0.2 lists
+   "PTZ pad with absolute and continuous pan/tilt/zoom" as a single
+   bullet — the natural place for the zoom slider is inside the pad
+   widget, next to the directional buttons. A standalone T-102
+   "Zoom slider" task would either duplicate work or be a no-op.
+2. **Menus are an unhandled control kind.** The Tiny 2 family
+   exposes `power_line_frequency` (User-class menu, anti-flicker)
+   and `auto_exposure` (Camera-class menu, T-104 needs it). T-100's
+   write path only handles Integer / Boolean. Without a generic
+   menu-write path, T-103 and T-104 both have to ship their own
+   ad-hoc menu handling — exactly the duplication ADR-0008
+   warns against.
+
+Additionally, T-100 left an explicit UX debt: V4L2 `INACTIVE` flag
+(driver-side interlock; e.g. WB Temperature inactive while WB Auto
+is on) is not surfaced — the user sees a slider that silently
+no-ops. This debt is best repaid alongside the menu work because
+the AdwComboRow / ComboBox bindings need the same `is_active`
+boolean propagation as the existing scale/spin rows.
+
+**Decision**:
+
+T-102 is re-scoped to "Menu writes + INACTIVE grey-out":
+
+* Extend `ControlKind::Menu` to carry the option IDs (current shape
+  is label-only; writes need the underlying integer index).
+* Add `ControlValue::Menu(i64)` to write any menu by its integer
+  index; `write_control` accepts it via the same path as
+  Integer / Boolean.
+* GUI uses `AdwComboRow` for User-class menus (anti-flicker
+  naturally appears); Camera-class menus are handled explicitly
+  in T-104 (auto_exposure).
+* `ControlDescriptor` gains an `is_active: bool` field derived
+  from `Description.flags::INACTIVE`. The GUI calls
+  `widget.set_sensitive(is_active)` on the resulting row so
+  inactive controls grey out automatically.
+
+T-101 is augmented to explicitly include the zoom slider inside
+the PTZ pad widget. PLAN.md is updated accordingly. ROADMAP v0.2's
+bullet list does not change — the milestone still ships
+"PTZ + WB + Exposure + GSettings + Anti-flicker" (anti-flicker is
+now a free side-effect of T-102's menu infra). Task IDs are
+re-mapped; user-visible deliverables are unchanged.
+
+**Consequence**:
+
+* Anti-flicker selector ships in T-102 alongside the menu infra,
+  earlier than where the original hint placed it.
+* The INACTIVE grey-out lands in v0.2 rather than v0.6 polish.
+* T-103 / T-104 become smaller because the heavy lifting moves
+  upstream into T-102.
+* `ControlDescriptor` grows an `is_active` field; downstream
+  pattern-matches will need adjustments. The only such consumer
+  is `controls_view.rs`, which this milestone owns.
+* PROTOCOL §2.3's quirk Q2 (`zoom_continuous` overrange) is
+  now formally inside T-101 scope: drop `zoom_continuous` from
+  the surfaced controls until a stakeholder asks for it.
+
+---
+
 <!-- Append new ADRs above this line, never below. Newest ADRs go at the bottom
      of the list but new entries are added; do not edit old ones. -->

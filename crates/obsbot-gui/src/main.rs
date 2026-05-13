@@ -24,6 +24,7 @@
 
 mod application;
 mod controls_view;
+mod ptz_pad;
 mod window;
 
 /// The reverse-DNS App ID resolved in ADR-0012.

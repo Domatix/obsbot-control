@@ -259,11 +259,170 @@
   ignores writes; same for *Exposure Time, Absolute* when
   *Auto Exposure* is in an auto mode. Toggling the WB
   Automatic switch off freed the temperature slider. Not a
-  bug in our code; we surface every control the driver
-  enumerates and let the driver enforce its interlocks. A
-  future polish task (likely T-106 or a separate v0.2.x item)
-  can read the `Description.flags` `INACTIVE` bit and grey out
-  the row when set.
+  bug in our code. The repayment lands in T-102 per
+  [[ADR-0019]].
+
+### T-101 — PTZ pad widget (pan/tilt/zoom + focus)
+- **State**: DONE
+- **Started**: 2026-05-13T23:00:00Z
+- **Completed**: 2026-05-13T23:25:00Z
+- **Depends on**: T-100 (Integer / Boolean write path). Per [[ADR-0019]]
+  this task absorbs the original "T-102 Zoom slider" hint.
+- **Description**: Dedicated PTZ pad widget — a Blueprint template
+  `ptz-pad.blp` describing the static 3×3 directional grid + zoom
+  slider on the right + focus row at the bottom, loaded via
+  `gtk::Builder::from_resource`. Camera-class PTZ-related
+  controls (`pan_absolute`, `tilt_absolute`, `zoom_absolute`,
+  `focus_absolute`, `focus_automatic_continuous`, `pan_speed`,
+  `tilt_speed`) get filtered out of the generic `render_controls`
+  loop and routed to the pad. The eight directional buttons write
+  `pan_absolute += ±step` / `tilt_absolute += ±step` (1° = 3600
+  units per PROTOCOL §2.2) where step defaults to 5° to keep the
+  pad responsive without being twitchy. A center "Reset" button
+  writes both to 0. Zoom slider reuses T-100's scale+spin+reset
+  pattern. Focus row pairs a switch (auto-continuous) with a
+  slider (manual) that greys out when auto is on — the explicit
+  pairing previews the T-102 generic interlock handler.
+  `zoom_continuous` is intentionally not surfaced (PROTOCOL §2.3
+  Q2: driver reports values exceeding advertised range).
+- **Acceptance criteria**:
+  - `crates/obsbot-gui/resources/ptz-pad.blp` exists, compiled by
+    the existing T-099 Blueprint pipeline, embedded in the
+    GResource bundle.
+  - A new module `crates/obsbot-gui/src/ptz_pad.rs` exposes
+    `pub fn build_ptz_pad(controls: &[ControlDescriptor], path:
+    &Path) -> Option<adw::PreferencesGroup>` returning `None`
+    when none of the seven PTZ-related controls are present.
+  - `controls_view.rs::render_controls` calls `build_ptz_pad`,
+    adds the resulting group to the top of the page, and filters
+    the seven PTZ control IDs out of the remaining generic
+    render.
+  - Hardware-`#[ignore]`d round-trip test on `zoom_absolute` —
+    similar shape to the T-100 Brightness round-trip; not on
+    pan/tilt because aggressive deltas mid-test may collide with
+    user expectations of camera orientation.
+  - All four cargo gates green.
+  - **User validation pending**: drag the directional buttons
+    and confirm the camera frame pans/tilts; drag the zoom
+    slider and confirm the frame zooms. Accumulated into the
+    final report after T-105.
+  - Commit `feat(gui): PTZ pad widget (T-101)`.
+
+### T-102 — Menu writes + INACTIVE grey-out
+- **State**: TODO
+- **Depends on**: T-101 (no hard dep; can land in either order, but
+  the PTZ pad benefits from the INACTIVE handler for the focus
+  manual/auto pair).
+- **Description**: Per [[ADR-0019]], generalises the v0.2 write
+  surface to menus and propagates the V4L2 `INACTIVE` flag to the
+  UI. Adds `ControlKind::Menu`'s option-ID list, a
+  `ControlValue::Menu(i64)` variant, and the `is_active` field on
+  `ControlDescriptor`. GUI renders any User-class Menu as an
+  `AdwComboRow`; every row calls `set_sensitive(ctrl.is_active)`
+  so inactive controls grey out generically. Anti-flicker
+  (`power_line_frequency`) ships as a side-effect — this is the
+  v0.2 anti-flicker selector from ROADMAP.
+- **Acceptance criteria**:
+  - `ControlDescriptor.is_active: bool` populated from
+    `Description.flags::INACTIVE`.
+  - `ControlKind::Menu` carries `options: Vec<(i64, String)>`
+    (was `Vec<String>`).
+  - `ControlValue::Menu(i64)` writes via `write_control`.
+  - User-class menus render as `AdwComboRow`; toggling the combo
+    writes the menu's i64 ID via `write_control`.
+  - Every row has `set_sensitive(ctrl.is_active)` applied.
+  - Toggling *White Balance, Automatic* on/off flips the
+    sensitivity of *White Balance Temperature* without a code
+    change — proves the INACTIVE flag propagation works
+    end-to-end (the kernel updates `flags` live).
+  - Hardware-`#[ignore]`d round-trip on `power_line_frequency`.
+  - All four cargo gates green.
+  - **User validation pending**: change anti-flicker dropdown
+    (50 Hz / 60 Hz / Disabled), observe flicker (subtle) or just
+    confirm no error. Toggle WB Auto and observe the WB
+    Temperature row grey out / wake up.
+  - Commit `feat(core+gui): menu writes and INACTIVE grey-out (T-102)`.
+
+### T-103 — White balance group widget
+- **State**: TODO
+- **Depends on**: T-102 (uses the menu / INACTIVE infrastructure).
+- **Description**: Cosmetic / UX win: assemble the four WB
+  controls (`white_balance_automatic`, `white_balance_temperature`,
+  `red_balance`, `blue_balance`) into a dedicated
+  `AdwPreferencesGroup` titled "White balance" at the top of the
+  User Controls section, with a description explaining the
+  auto / manual relationship. The four IDs get filtered out of
+  the generic render so they don't appear twice.
+- **Acceptance criteria**:
+  - `crates/obsbot-gui/src/wb_group.rs` (new module) exposes
+    `pub fn build_wb_group(controls: &[ControlDescriptor], path:
+    &Path) -> Option<adw::PreferencesGroup>`.
+  - `controls_view.rs` calls it, adds the result above the
+    generic User group, and filters the four IDs out.
+  - The WB Temperature row inside the group still shows the
+    T-100 slider/spin/reset trio (no widget duplication).
+  - All four cargo gates green.
+  - **User validation pending**: toggle WB Auto off, drag WB
+    Temperature, observe colour shift in the preview.
+  - Commit `feat(gui): white balance group widget (T-103)`.
+
+### T-104 — Exposure group widget
+- **State**: TODO
+- **Depends on**: T-102.
+- **Description**: Symmetric to T-103 for exposure. Group:
+  `auto_exposure` (Camera-class menu, AdwComboRow) +
+  `exposure_time_absolute` (Camera-class int, slider). Both get
+  filtered out of the generic render; the group sits at the top
+  of the page near the PTZ pad.
+- **Acceptance criteria**:
+  - `crates/obsbot-gui/src/exposure_group.rs` exposes
+    `build_exposure_group(...)` returning an `Option<adw::
+    PreferencesGroup>`.
+  - `controls_view.rs` mounts it; the two control IDs get
+    filtered out.
+  - The auto_exposure menu writes (Camera-class menu) work via
+    the T-102 write path (no special-casing of Camera-class
+    menus).
+  - All four cargo gates green.
+  - **User validation pending**: change auto_exposure to
+    "Manual", drag exposure_time_absolute, observe brightness
+    change.
+  - Commit `feat(gui): exposure group widget (T-104)`.
+
+### T-105 — Per-camera GSettings persistence
+- **State**: TODO
+- **Depends on**: T-100 / T-102 (the write paths whose values we
+  persist).
+- **Description**: First persistence layer. A GSettings schema
+  `io.github.domatix.ObsbotCamControl.gschema.xml` declares a
+  single key `cameras` of type `a{sa{si}}` — a dictionary mapping
+  camera serial number to a sub-dictionary of (control name,
+  int value) pairs. On every successful `write_control`, the GUI
+  also writes the value to GSettings keyed by `(serial,
+  control_name)`. On enumeration, the GUI reads the stored map
+  and replays writes for each restored value (best-effort: if a
+  control no longer exists or the write fails the entry is left
+  untouched, logged via `eprintln!`). gschema is compiled
+  in-tree via the existing meson `glib-compile-schemas` step;
+  for `cargo run` we use `gio::SettingsSchemaSource::from_directory`
+  to point at the source schema dir so devs don't need
+  `meson install` to test persistence.
+- **Acceptance criteria**:
+  - `data/io.github.domatix.ObsbotCamControl.gschema.xml` exists.
+  - `data/meson.build` installs + compiles the schema.
+  - `crates/obsbot-gui/src/settings.rs` (new module) exposes
+    `load_for_camera(serial) -> HashMap<String, i64>` and
+    `save_for_camera(serial, control_name, value)`.
+  - `controls_view.rs` calls `load_for_camera` on page build
+    and replays writes; every value-changed callback also
+    calls `save_for_camera`.
+  - Hardware round-trip test: write a value, simulate "restart"
+    by re-reading settings, confirm replay restores the value
+    on the connected camera. (#[ignore]'d.)
+  - All four cargo gates green.
+  - **User validation pending**: change brightness in the GUI,
+    close the app, re-launch, confirm brightness is restored.
+  - Commit `feat(gui): per-camera GSettings persistence (T-105)`.
 
 ---
 

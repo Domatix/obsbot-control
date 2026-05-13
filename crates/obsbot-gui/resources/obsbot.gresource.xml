@@ -12,5 +12,6 @@
   <gresource prefix="/io/github/domatix/ObsbotCamControl">
     <file compressed="true" preprocess="xml-stripblanks">window.ui</file>
     <file compressed="true" preprocess="xml-stripblanks">controls-view.ui</file>
+    <file compressed="true" preprocess="xml-stripblanks">ptz-pad.ui</file>
   </gresource>
 </gresources>

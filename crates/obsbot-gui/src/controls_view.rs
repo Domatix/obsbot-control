@@ -39,6 +39,8 @@ use obsbot_core::{
     ControlValue,
 };
 
+use crate::ptz_pad::{build_ptz_pad, PTZ_PAD_IDS};
+
 /// Path to the controls-view shell inside the embedded `GResource`
 /// (see `build.rs` + `resources/controls-view.blp` +
 /// `resources/obsbot.gresource.xml`'s prefix).
@@ -82,11 +84,21 @@ fn build_body(cam: &CameraInfo) -> gtk::Widget {
 fn render_controls(controls: &[ControlDescriptor], path: &Path) -> adw::PreferencesPage {
     let page = adw::PreferencesPage::new();
 
+    // PTZ pad consumes a handful of Camera-class controls — mount it
+    // at the top of the page and filter those IDs out of the generic
+    // per-class render below.
+    if let Some(ptz_group) = build_ptz_pad(controls, path) {
+        page.add(&ptz_group);
+    }
+
     let mut user_group: Option<adw::PreferencesGroup> = None;
     let mut camera_group: Option<adw::PreferencesGroup> = None;
     let mut other_group: Option<adw::PreferencesGroup> = None;
 
     for ctrl in controls {
+        if PTZ_PAD_IDS.contains(&ctrl.id) {
+            continue;
+        }
         let group = match ctrl.class {
             ControlClass::User => user_group.get_or_insert_with(|| make_group("User Controls")),
             ControlClass::Camera => {
@@ -94,7 +106,11 @@ fn render_controls(controls: &[ControlDescriptor], path: &Path) -> adw::Preferen
             }
             _ => other_group.get_or_insert_with(|| make_group("Other")),
         };
-        group.add(&control_row(ctrl, path));
+        let row = control_row(ctrl, path);
+        // Generic INACTIVE grey-out — covers WB Temperature while WB
+        // Auto is on, Exposure Time while Auto Exposure is engaged, etc.
+        row.set_sensitive(ctrl.is_active);
+        group.add(&row);
     }
 
     for group in [&user_group, &camera_group, &other_group]

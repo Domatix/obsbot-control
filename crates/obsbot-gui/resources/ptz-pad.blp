@@ -1,0 +1,180 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+//
+// PTZ pad widget (T-101).
+//
+// A dedicated AdwPreferencesGroup containing a 3×3 directional button
+// grid (pan_absolute / tilt_absolute deltas), a vertical zoom slider
+// (zoom_absolute), and a focus row underneath (focus_automatic_continuous
+// switch + focus_absolute slider) that uses libadwaita rows.
+//
+// IDs surfaced for gtk::Builder::object(...) lookups in ptz_pad.rs:
+//   * ptz_group     — root AdwPreferencesGroup.
+//   * pad_grid      — 3×3 directional grid.
+//   * btn_n / btn_s / btn_e / btn_w  — cardinal direction buttons.
+//   * btn_ne / btn_nw / btn_se / btn_sw — diagonal direction buttons.
+//   * btn_reset     — center reset-to-(0,0) button.
+//   * zoom_scale    — vertical Gtk.Scale for zoom_absolute.
+//   * focus_auto_row — AdwSwitchRow for focus_automatic_continuous.
+//   * focus_abs_row  — AdwSpinRow-style row (built in code) is NOT
+//                       described here; the focus_abs slider is
+//                       constructed entirely from Rust to reuse the
+//                       T-100 scale/spin/reset pattern.
+
+using Gtk 4.0;
+using Adw 1;
+
+Adw.PreferencesGroup ptz_group {
+  title: "Pan / Tilt / Zoom";
+  description: "Direction buttons move by 5°. Press the center to reset to (0, 0).";
+
+  Gtk.Box pad_layout {
+    orientation: horizontal;
+    spacing: 24;
+    margin-top: 12;
+    margin-bottom: 12;
+    halign: center;
+
+    Gtk.Grid pad_grid {
+      column-spacing: 6;
+      row-spacing: 6;
+      halign: center;
+      valign: center;
+
+      Gtk.Button btn_nw {
+        label: "↖";
+        tooltip-text: "Up + Left";
+        width-request: 44;
+        height-request: 44;
+
+        layout {
+          column: 0;
+          row: 0;
+        }
+      }
+
+      Gtk.Button btn_n {
+        icon-name: "go-up-symbolic";
+        tooltip-text: "Tilt up 5°";
+        width-request: 44;
+        height-request: 44;
+
+        layout {
+          column: 1;
+          row: 0;
+        }
+      }
+
+      Gtk.Button btn_ne {
+        label: "↗";
+        tooltip-text: "Up + Right";
+        width-request: 44;
+        height-request: 44;
+
+        layout {
+          column: 2;
+          row: 0;
+        }
+      }
+
+      Gtk.Button btn_w {
+        icon-name: "go-previous-symbolic";
+        tooltip-text: "Pan left 5°";
+        width-request: 44;
+        height-request: 44;
+
+        layout {
+          column: 0;
+          row: 1;
+        }
+      }
+
+      Gtk.Button btn_reset {
+        icon-name: "view-restore-symbolic";
+        tooltip-text: "Reset pan / tilt to (0, 0)";
+        width-request: 44;
+        height-request: 44;
+
+        styles [
+          "suggested-action",
+        ]
+
+        layout {
+          column: 1;
+          row: 1;
+        }
+      }
+
+      Gtk.Button btn_e {
+        icon-name: "go-next-symbolic";
+        tooltip-text: "Pan right 5°";
+        width-request: 44;
+        height-request: 44;
+
+        layout {
+          column: 2;
+          row: 1;
+        }
+      }
+
+      Gtk.Button btn_sw {
+        label: "↙";
+        tooltip-text: "Down + Left";
+        width-request: 44;
+        height-request: 44;
+
+        layout {
+          column: 0;
+          row: 2;
+        }
+      }
+
+      Gtk.Button btn_s {
+        icon-name: "go-down-symbolic";
+        tooltip-text: "Tilt down 5°";
+        width-request: 44;
+        height-request: 44;
+
+        layout {
+          column: 1;
+          row: 2;
+        }
+      }
+
+      Gtk.Button btn_se {
+        label: "↘";
+        tooltip-text: "Down + Right";
+        width-request: 44;
+        height-request: 44;
+
+        layout {
+          column: 2;
+          row: 2;
+        }
+      }
+    }
+
+    Gtk.Box zoom_box {
+      orientation: vertical;
+      spacing: 6;
+      valign: center;
+
+      Gtk.Label {
+        label: "Zoom";
+
+        styles [
+          "heading",
+        ]
+      }
+
+      Gtk.Scale zoom_scale {
+        orientation: vertical;
+        inverted: true;
+        height-request: 180;
+        draw-value: true;
+        value-pos: bottom;
+        digits: 0;
+        round-digits: 0;
+      }
+    }
+  }
+}

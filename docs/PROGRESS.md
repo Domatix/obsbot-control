@@ -596,6 +596,100 @@ commit `build(gui): Blueprint pipeline (T-099)` packages the
 seven changed/added files plus `Cargo.lock` (glib-build-tools
 0.20.0 transitive deps).
 
+### [2026-05-13T23:25:00Z] [T-101] DONE — PTZ pad widget
+
+Per [[ADR-0019]] (this session) T-101 absorbs what the original
+backlog hint called T-102 "Zoom slider" — the natural place for
+zoom is inside the PTZ pad, next to the pan/tilt buttons. T-102
+re-scopes to "Menu writes + INACTIVE grey-out", documented
+upstream.
+
+End-to-end delta:
+
+* `crates/obsbot-gui/resources/ptz-pad.blp` (new, ~165 lines) —
+  Blueprint for the static pad shell: an
+  `Adw.PreferencesGroup {id=ptz_group}` with title "Pan / Tilt /
+  Zoom" + description, body is a `Gtk.Box` holding a 3×3
+  `Gtk.Grid` of `Gtk.Button`s (cardinals use `go-{up,down,
+  previous,next}-symbolic` icons, diagonals use Unicode arrows
+  `↖↗↙↘` as labels, center reset uses `view-restore-symbolic`
+  with the `suggested-action` style class) plus a vertical
+  `Gtk.Scale {id=zoom_scale}` 180 px tall, inverted (top = max),
+  drawing the value beneath.
+* `crates/obsbot-gui/resources/obsbot.gresource.xml` — new
+  `<file>` entry for `ptz-pad.ui`. `build.rs` `TEMPLATES`
+  array gains the `"ptz-pad"` slug; blueprint-compiler
+  picks it up automatically.
+* `crates/obsbot-gui/src/ptz_pad.rs` (new, ~290 lines):
+  - `PTZ_PAD_IDS` const lists the 8 V4L2 Camera-class control
+    IDs the pad owns: `pan_absolute / tilt_absolute /
+    focus_absolute / focus_automatic_continuous /
+    zoom_absolute / zoom_continuous / pan_speed / tilt_speed`.
+    `controls_view::render_controls` filters these out of
+    the generic per-class render.
+  - `pub fn build_ptz_pad(controls, path) -> Option<adw::
+    PreferencesGroup>` returns `None` when the camera does not
+    advertise the pan/tilt/zoom trio.
+  - Each directional button maintains shared `Rc<Cell<i64>>`
+    state for the current pan/tilt absolute values; click
+    handlers compute `current ± 5° × 3600 (UVC units/degree
+    per PROTOCOL §2.2)` and write via `write_control`. The
+    reset button writes 0 to both axes.
+  - Zoom slider binds a `gtk::Adjustment` matching
+    `zoom_absolute`'s range; `connect_value_changed` writes
+    via `write_control`.
+  - Focus subgroup (only mounted when the camera advertises
+    `focus_absolute`): an `AdwExpanderRow` "Focus" wraps an
+    `AdwSwitchRow` for `focus_automatic_continuous` and an
+    `AdwActionRow` whose suffix is a horizontal `gtk::Scale`
+    for `focus_absolute`. The slider greys out while auto is
+    on — explicit `set_sensitive` listener on the switch
+    plus the generic `is_active` propagation introduced
+    alongside this task.
+* `crates/obsbot-gui/src/main.rs` — `mod ptz_pad;` declared.
+* `crates/obsbot-gui/src/controls_view.rs` — `render_controls`
+  calls `build_ptz_pad` at the top, then iterates over the
+  remaining (non-PTZ) controls. Every generic row also calls
+  `row.set_sensitive(ctrl.is_active)` — the generic INACTIVE
+  grey-out promised for T-102 lands here as a free side
+  effect (just one `if`-line) because the `is_active` field
+  needed for the PTZ focus row had to be added to
+  `ControlDescriptor` anyway.
+* `crates/obsbot-core/src/controls.rs` — `ControlDescriptor`
+  gains `pub is_active: bool` populated from `!desc.flags.
+  contains(Flags::INACTIVE)`. Existing read paths are
+  unaffected — backends can still observe inactive control
+  values via `read_controls`, only the UI greys them out.
+
+Hardware validation:
+
+* `cargo test -p obsbot-core --test hardware -- --ignored` —
+  4 / 4 green (added `writes_v4l2_zoom_absolute_round_trip`:
+  reads `zoom_absolute`, writes `current ± 5`, asserts
+  read-back, restores). Brightness round-trip from T-100
+  still passes.
+* `cargo fmt --all --check` / `cargo clippy --workspace
+  --all-targets -- -D warnings` / `cargo test --workspace` —
+  all green. One clippy push-back during dev: `too_many_
+  arguments` on `wire_direction` (was 9); refactored into a
+  `DirectionCtx` struct that owns the shared state, plus
+  two doc-markdown warnings on bare `AdwSwitchRow` /
+  `AdwActionRow` mentions in doc comments — fixed by adding
+  backticks.
+
+PLAN T-101 set to DONE. Commit `feat(gui): PTZ pad widget
+(T-101)` packages the new Blueprint, gresource manifest
+update, build.rs slug list update, the new ptz_pad.rs
+module, the obsbot-core descriptor field, the hardware
+test, and the docs ledger. STATE stays at IN_PROGRESS on
+T-102 (next).
+
+**User validation queued** (accumulated for the post-T-105
+report): drag the 8 directional buttons + center reset
+button and confirm the camera frame pans/tilts; drag the
+zoom scale and confirm the frame zooms; toggle the
+"Auto-focus" switch off and drag the manual focus slider.
+
 ### [2026-05-13T22:55:00Z] [T-100] DONE — User-class V4L2 controls are writable
 
 Three-pass UX iteration in one session segment (~50 min wall

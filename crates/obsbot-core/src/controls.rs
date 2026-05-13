@@ -43,6 +43,13 @@ pub struct ControlDescriptor {
     pub name: String,
     /// Which V4L2 class the control belongs to (User, Camera, …).
     pub class: ControlClass,
+    /// Whether the driver currently considers this control writable.
+    /// Mirrors the inverse of `V4L2_CTRL_FLAG_INACTIVE` — when `false`,
+    /// the kernel silently ignores writes (e.g. `white_balance_
+    /// temperature` while `white_balance_automatic = 1`). UI consumers
+    /// should grey out inactive controls; backends can still observe
+    /// the value via [`read_controls`].
+    pub is_active: bool,
     /// Type-specific payload (current value plus range / options).
     pub kind: ControlKind,
 }
@@ -119,6 +126,7 @@ pub fn read_controls(video_path: &Path) -> Result<Vec<ControlDescriptor>> {
         out.push(ControlDescriptor {
             id: desc.id,
             class: classify(desc.id),
+            is_active: !desc.flags.contains(Flags::INACTIVE),
             kind: build_kind(&device, &desc),
             name: desc.name,
         });

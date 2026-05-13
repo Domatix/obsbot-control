@@ -19,7 +19,7 @@
 use std::path::PathBuf;
 use std::process::Command;
 
-const TEMPLATES: &[&str] = &["window", "controls-view"];
+const TEMPLATES: &[&str] = &["window", "controls-view", "ptz-pad"];
 
 fn main() {
     let manifest_dir =
