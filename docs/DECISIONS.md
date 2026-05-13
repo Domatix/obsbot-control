@@ -582,5 +582,87 @@ Three alternatives weighed:
 
 ---
 
+## ADR-0017 — Defer T-013d (Blueprint pipeline) to v0.2
+
+**Date**: 2026-05-13
+**Status**: accepted (amends [[ADR-0016]] §T-013d, amends [[PLAN.md T-013d]] and the v0.1 milestone DOD)
+**Context**: [[ADR-0016]] introduced T-013d on the premise that "T-013c
+would have many named children" once the V4L2 detail page landed,
+making the Blueprint pipeline pay for itself. In practice T-013c's
+detail page renders from a dynamic `Vec<ControlDescriptor>` (22 entries
+on the user's Tiny 2 Lite, all built from the same row factory): zero
+named children, zero static widget trees beyond the
+`AdwToolbarView + AdwHeaderBar + AdwPreferencesPage` shell — five
+builder calls in total. The "Blueprint pays for itself" condition
+the ADR-0016 reasoning depended on did not materialise.
+
+Setting up the Blueprint pipeline as a v0.1 task would mean:
+* A new build dependency on `blueprint-compiler` (user-side
+  `sudo apt install blueprint-compiler`, plus an addition to
+  `Build-Depends` for T-016's `.deb` and `makedepends` for
+  T-017's PKGBUILD).
+* A new cargo build-dep on `glib-build-tools 0.20` and a
+  `crates/obsbot-gui/build.rs` shim that runs `blueprint-compiler
+  compile` and `glib_build_tools::compile_resources`.
+* One or two `.blp` files migrating ~5 builder-chain lines from
+  the existing hand-coded GTK in `window.rs` / `controls_view.rs`
+  to `gtk::Builder::from_resource` + named-child lookups.
+* Roughly 150 lines of new code across build.rs, .blp templates,
+  GResource manifest, and the Rust-side Builder consumption.
+
+The benefit is consistency with [[CLAUDE.md §5.3]] ("UI defined in
+Blueprint compiled to .ui") for the small static shell — but §5.3
+also carves out "unless dynamic", which is the dominant shape of
+every UI the v0.1 milestone surfaces. [[CLAUDE.md Doing tasks]] is
+explicit on the matching call: "Don't add features, refactor, or
+introduce abstractions beyond what the task requires. […] Don't
+design for hypothetical future requirements. Three similar lines is
+better than a premature abstraction." Blueprint infrastructure with
+one consumer is premature; it pays for itself the moment a
+brightness/contrast slider form (T-100) or a PTZ pad (T-101)
+introduces a static widget tree with ≥3 named children.
+
+Three alternatives weighed:
+1. Land T-013d now with the minimum-viable migration (one `.blp`
+   for the window shell). Rejected — overhead exceeds benefit for
+   v0.1, and the migration burns ~150 lines of glue we'll need to
+   touch again the moment v0.2 introduces a real static form.
+2. Land T-013d now with the full migration (every static widget
+   tree to `.blp`). Rejected — even more glue, and most of the
+   current static shells are 1-3 lines that don't benefit.
+3. **Defer T-013d to v0.2** as the first task before any T-100+
+   work that introduces static widget trees. Pipeline lands
+   exactly when the first paying customer materialises.
+
+**Decision**: Adopt option 3.
+
+**Consequence**:
+- PLAN.md T-013d state moves from `TODO` to `DEFERRED`, with a
+  pointer at this ADR. The acceptance criteria are kept verbatim;
+  they will be the criteria for whatever task absorbs T-013d in
+  the v0.2 series.
+- ROADMAP.md v0.1 definition-of-done amended: drop the T-013d
+  requirement (the four sub-task split from ADR-0016 effectively
+  becomes a three-sub-task split: T-013a/b/c). v0.1 closes when
+  T-013a/b/c + T-014/T-015/T-016/T-017 are all DONE.
+- [[CLAUDE.md §5.3]] "UI defined in Blueprint" still holds as a
+  forward-looking rule. The v0.2 series MUST land the pipeline
+  before the first T-100+ task that introduces a static widget
+  tree; this is added to the v0.2 hints in PLAN.md so it is the
+  first task at the top of the v0.2 backlog.
+- T-013c's hand-coded `window.rs` shell (`AdwApplicationWindow →
+  AdwNavigationView → AdwNavigationPage("cameras") → AdwToolbarView
+  → AdwHeaderBar + AdwBin(body_slot)`) and `controls_view.rs`
+  shell (`AdwToolbarView → AdwHeaderBar + AdwPreferencesPage`)
+  remain in code for the duration of v0.1. Both are tagged as
+  "Blueprint candidates" in the inline doc-comments so the v0.2
+  pipeline task knows which trees to migrate first.
+- No commit is reverted; the rule from [[CLAUDE.md §2.1]]
+  ("never commit work-in-progress that breaks main") stays
+  satisfied — T-013a/b/c on `main` continue to compile, test, and
+  run as user-confirmed.
+
+---
+
 <!-- Append new ADRs above this line, never below. Newest ADRs go at the bottom
      of the list but new entries are added; do not edit old ones. -->

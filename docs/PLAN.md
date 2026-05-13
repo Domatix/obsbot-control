@@ -666,21 +666,28 @@
     nom transitive trees plus the `home 0.5.11` MSRV pin.
 
 ### T-013d — Blueprint pipeline
-- **State**: TODO
-- **Depends on**: T-013c (Blueprint pays for itself once the V4L2
-  form has many named children; landing it earlier is overkill —
-  see [[ADR-0016]]).
-- **Description**: Introduce `blueprint-compiler` as a build
-  dependency, a meson `custom_target` to compile `.blp` → `.ui`,
-  and a `gnome.compile_resources` call to bundle the `.ui` files
-  into a GResource the binary loads at startup. Migrate the
-  T-013a/c hand-coded UI to Blueprint templates in a separate
-  commit (no functional change).
-- **Acceptance criteria**:
-  - `blueprint-compiler` invoked successfully from `meson compile`.
+- **State**: DEFERRED to v0.2 per [[ADR-0017]]. The Blueprint-pays-
+  for-itself premise from [[ADR-0016]] did not materialise once
+  T-013c landed (the V4L2 detail page renders from a dynamic
+  `Vec<ControlDescriptor>`, zero named children). The pipeline will
+  land in v0.2 as the very first task before any T-100+ work that
+  introduces a static widget tree (slider forms, PTZ pad, etc.).
+  Acceptance criteria preserved below for the absorbing task.
+- **Depends on**: T-013c (still — the migration target stays the
+  hand-coded shells in `window.rs` and `controls_view.rs`).
+- **Description (preserved)**: Introduce `blueprint-compiler` as a
+  build dependency, a `crates/obsbot-gui/build.rs` shim that calls
+  `blueprint-compiler compile` and `glib_build_tools::
+  compile_resources`, and the GResource bundle the binary loads at
+  startup. Migrate the T-013a/c hand-coded shells to Blueprint
+  templates with `gtk::Builder::from_resource` + named-child
+  lookups.
+- **Acceptance criteria (preserved)**:
+  - `blueprint-compiler` invoked successfully from `cargo build`.
   - `obsbot-cam-control` loads UI from the embedded GResource.
   - `cargo run -p obsbot-gui` behaviour unchanged from T-013c.
-  - Commit: `build: Blueprint pipeline (T-013d)`.
+  - Commit: `build: Blueprint pipeline (T-013d)` (or the
+    equivalent v0.2 task ID).
 
 ### T-014 — Initial Flatpak manifest
 - **State**: TODO
@@ -767,6 +774,9 @@ current milestone is near completion. This avoids stale plans.
 Hints of what will come:
 
 **v0.2 hints**: T-100 series.
+- T-099 Blueprint pipeline (absorbs the deferred T-013d per
+  [[ADR-0017]]; must land before any T-100+ task that introduces
+  a static widget tree).
 - T-100 Implement V4L2 brightness/contrast/saturation/hue.
 - T-101 PTZ pad widget in GUI.
 - T-102 Zoom slider.
