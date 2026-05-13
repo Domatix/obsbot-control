@@ -25,7 +25,9 @@ the GNOME desktop, distributable through Flathub.
 
 ## 3. Target users
 
-- Linux desktop users who own an OBSBOT Tiny 2 (primary target).
+- Linux desktop users who own an **OBSBOT Tiny 2 family** unit — either
+  the regular **Tiny 2** (`3564:fef8`) or the **Tiny 2 Lite**
+  (`3564:fef9`). Both are first-class targets per [[ADR-0014]].
 - Streamers, video-conferencers, and educators who want camera presets
   controllable from a native GUI.
 - Linux distribution maintainers who want to ship OBSBOT camera support
@@ -76,9 +78,11 @@ the GNOME desktop, distributable through Flathub.
 
 ## 5. Out of scope
 
-- Cameras other than OBSBOT Tiny 2 are **best-effort, no commitment**. Code
-  must not actively break other OBSBOT models, but their features are not
-  guaranteed.
+- Cameras outside the **Tiny 2 family** (regular + Lite, see §3 and
+  [[ADR-0014]]) are **best-effort, no commitment**. Code must not
+  actively reject other OBSBOT models (Meet 2, Meet SE, original Tiny,
+  Tail Air, …), but their features are not guaranteed and the GUI will
+  only surface controls a given unit actually advertises.
 - Non-OBSBOT cameras: ignored. The app appears empty if none detected.
 - Recording: out of scope. Users record with OBS, Cheese, etc.
 - Streaming: out of scope. Users stream with OBS, Zoom, etc.
@@ -129,8 +133,13 @@ The project must satisfy the GNOME Circle criteria
 
 ## 7. Constraints
 
-- Hardware available for development: one OBSBOT Tiny 2, on Debian 13 trixie,
-  GNOME 48 on Mutter/X11, by the user.
+- Hardware available for development: one OBSBOT **Tiny 2 Lite**
+  (`3564:fef9`, bcdDevice 5.10), on Debian 13 trixie, GNOME 48 on
+  Mutter/X11, by the user. The regular **Tiny 2** (`3564:fef8`) is a
+  declared primary target ([[ADR-0014]]) but is not physically present
+  on this development machine — regular-Tiny-2-specific behavior must
+  be validated by community testers or by cross-referencing the
+  linuxtv-commits kernel patches cited in [[PROTOCOL.md §6]].
 - USB-level reverse engineering of OBSBOT Center's protocol is required for
   vendor-specific features. The user is the only one who can capture this
   traffic.
@@ -160,6 +169,7 @@ The project is successful when:
 
 - Aaron Brown's Qt6 reference: https://github.com/aaronsb/obsbot-camera-control
 - OBSBOT Tiny 2 product page: https://www.obsbot.com/store/products/tiny-2
+- OBSBOT Tiny 2 Lite product page: https://www.obsbot.com/store/products/tiny-2-lite
 - GNOME HIG: https://developer.gnome.org/hig/
 - GNOME Circle criteria: https://gitlab.gnome.org/Teams/Releng/AppOrganization/-/blob/main/AppCriteria.md
 - Linux UVC driver docs: https://kernel.org/doc/html/latest/userspace-api/media/drivers/uvcvideo.html

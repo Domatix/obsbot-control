@@ -7,13 +7,14 @@
 
 ## v0.1 — Scaffolding & Detection
 
-**Goal**: Project compiles and runs an empty window; the app detects an
-OBSBOT Tiny 2 and shows its V4L2 capabilities.
+**Goal**: Project compiles and runs an empty window; the app detects any
+unit of the OBSBOT **Tiny 2 family** (regular `3564:fef8` or Lite
+`3564:fef9` — see [[ADR-0014]]) and shows its V4L2 capabilities.
 
 **Includes**:
 - Cargo workspace + Meson build system + Flatpak manifest.
 - Empty `AdwApplicationWindow` opens.
-- USB device enumeration finds Tiny 2 by VID/PID.
+- USB device enumeration finds Tiny 2 family units by VID/PID.
 - A diagnostics view shows the device's V4L2 controls (read-only).
 - CI runs fmt, clippy, test, Flatpak build.
 
@@ -66,7 +67,10 @@ for any compliant camera, with OBSBOT as primary target.
 **Goal**: OBSBOT-specific controls working via reverse-engineered protocol.
 
 **Prerequisites**: User performs USB capture against OBSBOT Center on a
-Windows VM with their Tiny 2. Capture procedure documented in `PROTOCOL.md`.
+Windows VM with their Tiny 2 Lite (the development hardware per
+[[ADR-0014]]); a separate community capture against a regular Tiny 2
+is recommended to confirm XU selector parity. Capture procedure
+documented in `PROTOCOL.md`.
 
 **Includes**:
 - HDR toggle.
@@ -125,8 +129,9 @@ effort, ship v1.0 without it and document why.
 
 ## Beyond v1.0 (ideas, unprioritized)
 
-- Support for more OBSBOT models (Meet 2, Tiny 2 Lite, Meet SE) as community
-  reports identify quirks.
+- Support for more OBSBOT models (Meet 2, Meet SE, original Tiny, Tail
+  Air, …) as community reports identify quirks. The Tiny 2 Lite is
+  **already** a first-class target — see [[ADR-0014]].
 - GLSL filters in preview (reuse approach from `aaronsb/obsbot-camera-control`).
 - Custom preset hotkeys (global, via GNOME extensions or keyboard shortcuts).
 - Migration to GTK 5 if/when released.

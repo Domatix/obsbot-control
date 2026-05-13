@@ -13,7 +13,8 @@ GTK 4, libadwaita, and Rust. Targets GNOME Circle inclusion.
 ## Goals
 
 - Full feature parity with OBSBOT Center (the official macOS/Windows app) for
-  the OBSBOT Tiny 2, starting with a free, reverse-engineered protocol stack.
+  the OBSBOT **Tiny 2 family** (regular Tiny 2 and Tiny 2 Lite), starting
+  with a free, reverse-engineered protocol stack.
 - Strict adherence to the GNOME Human Interface Guidelines and GNOME Circle
   criteria.
 - 100% free software. No proprietary SDKs, no closed blobs.
@@ -21,8 +22,17 @@ GTK 4, libadwaita, and Rust. Targets GNOME Circle inclusion.
 
 ## Supported cameras
 
-- **OBSBOT Tiny 2** — primary development target.
-- Other UVC-compliant cameras: basic V4L2 controls may work, untested.
+- **OBSBOT Tiny 2** (`3564:fef8`) — first-class target. Validation
+  depends on community testing; the project does not own this unit.
+- **OBSBOT Tiny 2 Lite** (`3564:fef9`) — first-class target and the
+  hardware development happens against day to day.
+- Other OBSBOT models (Meet 2, Meet SE, original Tiny, Tail Air, …) —
+  best-effort: the app will list them and expose V4L2 standard controls;
+  vendor-specific features only as community captures unlock them.
+- Non-OBSBOT cameras: ignored.
+
+Rationale for the family scoping in [`docs/DECISIONS.md`](docs/DECISIONS.md)
+(ADR-0014).
 
 ## Project documentation
 

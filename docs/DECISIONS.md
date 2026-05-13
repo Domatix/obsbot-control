@@ -345,5 +345,74 @@ relocated by one task).
 
 ---
 
+## ADR-0014 — Primary target: OBSBOT Tiny 2 family (regular + Lite)
+
+**Date**: 2026-05-13
+**Status**: accepted (amends [[SPEC.md §3, §5, §7]] and surrounding
+documentation)
+**Context**: SPEC.md was authored assuming the user's reference hardware was
+the OBSBOT Tiny 2 (regular). During T-003's first hardware capture
+(`lsusb` against the user's plugged-in camera), the actual device on
+this machine was identified as **OBSBOT Tiny 2 Lite** (`3564:fef9`,
+"Remo Tech Co., Ltd. OBSBOT Tiny 2 Lite", iProduct string, bcdDevice
+5.10). The regular Tiny 2 ships as `3564:fef8` (cross-checked against
+the linuxtv-commits 2025-12 kernel patch already cited in
+[[PROTOCOL.md §6]]). The two siblings share:
+- Vendor ID `0x3564` (Remo Tech Co., Ltd., OBSBOT's parent entity).
+- USB-IF Video class (UVC 1.0 + UAC1 audio).
+- Almost identical I/O profile (camera-sensor terminal with the same
+  bmControls mask, identical processing-unit control set, one vendor
+  extension unit on the same bUnitID = 2 — to be cross-checked against
+  the regular Tiny 2's lsusb output as community captures appear).
+The Lite is positioned by OBSBOT as a feature-reduced sibling of the
+regular Tiny 2 (no LCD, weaker AI/NPU, lower max bitrate), but the
+USB protocol layer is overwhelmingly common. Treating them as one
+"family" target avoids artificial scope split, matches the available
+development hardware, and lets the codebase serve both audiences from
+day one. Three alternatives were weighed (recorded in PROGRESS for
+2026-05-13 ~10:30Z): (A) family target chosen here; (B) flip primary
+to Lite, downgrade regular to best-effort; (C) keep SPEC pointing at
+regular Tiny 2 and treat the Lite as a development proxy. (B) burdens
+the project narrative with an under-marketed model; (C) hides the
+truth that development happens against the Lite, complicating bug
+triage.
+
+**Decision**: Expand the project's primary support target to the
+**OBSBOT Tiny 2 family**, comprising:
+- **OBSBOT Tiny 2** — VID `0x3564`, PID `0xfef8`. Primary, but not
+  physically available to the project; relies on community testing.
+- **OBSBOT Tiny 2 Lite** — VID `0x3564`, PID `0xfef9`. Primary AND
+  the actual development hardware on the user's machine.
+
+Both PIDs are first-class targets for USB enumeration ([[PLAN T-011]]),
+metainfo, and roadmap milestones. Features that diverge between Lite
+and regular (e.g., the LCD that the Lite lacks) are documented per
+control as they're discovered; the GUI presents only those a given
+unit advertises.
+
+Other OBSBOT cameras (Meet 2, Meet SE, original Tiny, Tail Air,
+etc.) remain best-effort: code must not actively reject them, but
+features beyond the V4L2 standard set are unsupported until a
+community report establishes selector compatibility.
+
+**Consequence**:
+- SPEC.md §3 (target users), §4 (in scope), §5 (out of scope), §7
+  (constraints), §10 (references) updated to name the family.
+- ROADMAP.md prose adjusted where it singled out the regular Tiny 2.
+- README.md "Supported cameras" lists both PIDs and clarifies the Lite
+  is the dev hardware.
+- PROTOCOL.md §1 (Hardware identifiers) rewritten with both PIDs and
+  observed descriptor data from the Lite; speculative Tiny 2 numbers
+  remain marked as such until a regular-Tiny-2 capture lands.
+- AppStream metainfo (T-009) and `.desktop` keywords (T-009) will
+  enumerate both model names so software-center search hits both.
+- USB enumeration (T-011) filters on the set `{0x3564:0xfef8,
+  0x3564:0xfef9}`; the filter is a constant in `obsbot-core` so a
+  future model can be appended without code-path branching.
+- No churn to crate names, App ID, repo name, or GUI binary name —
+  all three are family-neutral.
+
+---
+
 <!-- Append new ADRs above this line, never below. Newest ADRs go at the bottom
      of the list but new entries are added; do not edit old ones. -->
