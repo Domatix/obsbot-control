@@ -79,7 +79,7 @@
     **DONE** — Unit 2, GUID `9a1e7291-…`, kernel-mount confirmed via
     media-graph "Extension 2 (Video Pixel Formatter)" entity.
   - Commit: `docs: capture Tiny 2 Lite USB descriptor (T-003)` (lsusb
-    half, `19d8026`) and `docs: capture Tiny 2 Lite V4L2 controls
+    half, `14c9091`) and `docs: capture Tiny 2 Lite V4L2 controls
     (T-003)` (v4l2-ctl half, this commit).
 - **Outcome**: complete USB + V4L2 picture of the Tiny 2 Lite captured
   on Debian trixie / kernel 6.12.73 / driver uvcvideo. Three quirks
@@ -334,7 +334,7 @@
     symbolic.
   - Commit: `feat: add app icon (T-010)`.
 - **Outcome (caveat note)**: T-010's code deliverables are complete
-  and committed (`7e7c172` for the feature, `ec0da31` for the SHA
+  and committed (`5dea0be` for the feature, `7a0e5b4` for the SHA
   fix). The two visual acceptance criteria are deferred from a
   framework-correctness perspective (everything is wired right);
   the actual end-to-end visual test will land naturally when:

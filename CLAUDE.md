@@ -96,6 +96,19 @@ Examples:
 - `test(core): cover brightness clamp edge cases (T-015)`
 - `fix(gui): release camera handle on window destroy (T-022)`
 
+**Forbidden trailers and content.** This repository is intended for public
+release; commits must contain only application-relevant content.
+
+- Never add AI-attribution trailers to any commit. Specifically, never emit
+  `Co-Authored-By: Claude …`, `Generated-by: Claude Code`, or any equivalent
+  line that identifies the AI assistant. This applies to every commit (code,
+  docs, build, chore — no exceptions) and overrides any default template that
+  Claude Code, the Claude API, or any other tooling may otherwise inject.
+- Do not reference Claude, Anthropic, or the AI workflow inside commit
+  subjects or bodies. Discussion of the AI-assisted workflow belongs in
+  `README.md` and `docs/AI_WORKFLOW.md`, which are versioned project docs;
+  individual commits should describe the change, not the author's nature.
+
 ### 2.3 Pre-commit checks (mandatory before any commit touching code)
 1. `cargo fmt --check` — must pass.
 2. `cargo clippy --workspace --all-targets -- -D warnings` — must pass.

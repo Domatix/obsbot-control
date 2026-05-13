@@ -219,9 +219,9 @@ criteria satisfied. T-004 set to DONE in [[PLAN.md]]. Commit
 → T-005), and this PROGRESS section. Next: propose T-005 to the user
 (stub `obsbot-core` crate); T-003 stays BLOCKED on hardware capture.
 
-### [2026-05-13T10:11:32Z] [T-004] Commit landed — 921fb57
+### [2026-05-13T10:11:32Z] [T-004] Commit landed — 298a796
 
-`build: create cargo workspace (T-004)` committed as `921fb57` on
+`build: create cargo workspace (T-004)` committed as `298a796` on
 `main` (6 files, +287/-20). Working tree clean. STATE.md updated
 to record the real SHA (was a placeholder during the commit-prep
 window). Trailing docs-only delta to follow.
@@ -763,7 +763,7 @@ hints gain a `T-099 Blueprint pipeline` entry at the top so it is
 the first task on the v0.2 backlog. v0.1 milestone DOD shrinks
 from "all of T-013a/b/c/d + T-014..T-017" to "all of T-013a/b/c +
 T-014..T-017"; T-013a/b/c are already DONE, so v0.1 closes when
-T-014..T-017 are DONE. Commit `ce6206e` records the decision.
+T-014..T-017 are DONE. Commit `c1ac3ad` records the decision.
 
 ### [2026-05-13T16:58:00Z] [T-013c] DONE — backend + GUI, drill-down user-confirmed
 
