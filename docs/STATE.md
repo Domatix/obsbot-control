@@ -8,19 +8,16 @@
 
 active_task: none
 active_task_state: idle
-last_completed_task: T-003
-last_commit: docs: capture Tiny 2 Lite USB descriptor (T-003)  # 19d8026 (lsusb half); v4l2-ctl half pending in this turn's upcoming commit
-last_step: T-003 DONE — PROTOCOL.md §1 (USB descriptor), §2 (V4L2 standard controls, 24 entries + 3 quirks), §3 (XU 2 with media-graph cross-check) all complete for the Tiny 2 Lite. Regular Tiny 2 entries flagged speculative pending community capture. Quirks Q1/Q2/Q3 raised for v0.2 GUI design.
-next_step: propose T-005 (stub `obsbot-core` crate) — it depends on T-004 (DONE) only, T-003 is now also DONE so T-011 (USB enumeration) is no longer blocked downstream.
-blockers: none for the next batch of tasks (T-005, T-006, T-007, T-008, T-009, T-010 all clear). T-013 will need the `video` group fix to actually open /dev/videoN from the GUI (already prescribed via `sudo usermod -aG video alvaro`).
+last_completed_task: T-005
+last_commit: docs: capture Tiny 2 Lite V4L2 controls (T-003)  # b5990ba (T-005 commit pending in this turn)
+last_step: T-005 DONE — `crates/obsbot-core/` scaffolded with Camera trait, CameraInfo, Capabilities (26 bool flags), supporting enums, and Error type. All four T-005 gates green (fmt-check, check --workspace, clippy with -D warnings, test = 3 unit + 1 doc). Cargo.lock now tracked; `crates/.gitkeep` removed.
+next_step: propose T-006 (stub `obsbot-cli` crate — clap-based binary with `--version`). T-006 depends only on T-005, which is now DONE.
+blockers: none.
 working_tree:
-  pre_commit_modified: [docs/PROTOCOL.md, docs/PLAN.md, docs/STATE.md, docs/PROGRESS.md]
-resume_protocol: |
-  Same or new session, from /home/alvaro/Documentos/proyectos/obsbot-control:
-    1. `claude` (auto-loads CLAUDE.md, reads STATE.md).
-    2. Say "continúa" / "siguiente tarea" — Claude proposes T-005.
+  pre_commit_modified: [docs/PLAN.md, docs/STATE.md, docs/PROGRESS.md]
+  pre_commit_deleted: [crates/.gitkeep]
+  pre_commit_untracked: [Cargo.lock, crates/obsbot-core/]
 pending_user_actions:
-  - T-013 (later, v0.1): if you have not yet logged out / logged back in
-    after `sudo usermod -aG video alvaro`, do so before T-013 so the
-    GUI can open /dev/videoN without sudo.
-updated_at: 2026-05-13T10:45:37Z
+  - T-013 (later, v0.1): log out / log back in to pick up the new
+    `video` group membership before T-013.
+updated_at: 2026-05-13T10:52:32Z

@@ -350,4 +350,76 @@ group membership before T-013). Commit
 `docs: capture Tiny 2 Lite V4L2 controls (T-003)` follows, bundling
 PROTOCOL.md + PLAN.md + STATE.md + this PROGRESS section.
 
+### [2026-05-13T10:49:16Z] [T-005] Started — scaffold obsbot-core
+
+Plan: create the first workspace member, `crates/obsbot-core/`,
+populating it minimally to satisfy [[PLAN T-005]] + [[ARCHITECTURE §3.1]]:
+  Cargo.toml — package metadata pulling from `[workspace.package]`,
+    a single `[dependencies]` block consuming `thiserror` and
+    `tracing` from `[workspace.dependencies]`.
+  src/error.rs — `Error` enum (`#[derive(Debug, Error)]`,
+    `#[non_exhaustive]`) with variants for Unsupported, OutOfRange,
+    Busy(PathBuf), Disconnected, and a transparent `Io` from
+    `std::io::Error`. `pub type Result<T> = core::result::Result<T, Error>`.
+  src/camera.rs — `CameraInfo` (vendor, product, vid, pid, serial,
+    firmware, video_path), `Capabilities` (bool struct of ~25 feature
+    flags covering SPEC.md §4.1), enums `AntiFlicker`, `ExposureMode`
+    (matching the V4L2 menu observed in PROTOCOL.md §2.2 — no
+    `ShutterPriority` variant, see §3.3 doc comment), `Fov`, and
+    `AutoFramingMode`. The `Camera` trait itself: `Send + Sync` (per
+    §3.1 verbatim), two required methods `info()` and `capabilities()`,
+    ~50 default methods returning `Err(Error::Unsupported)` covering
+    image controls / PTZ / WB / exposure / focus / anti-flicker / gain
+    / backlight + vendor XU (HDR, FOV, auto-framing, face AE/AF,
+    gesture). Default impls keep future backends concise.
+  src/lib.rs — module declarations, `pub use` re-exports, crate-level
+    doc comment.
+SPDX header + short GPL boilerplate on every .rs per [[ADR-0011]].
+Single unit test: a `DummyCamera` impl with stub `info()`/`capabilities()`
+asserts that a default method (`brightness()`) returns `Error::Unsupported`.
+Delete `crates/.gitkeep` (no longer needed — the directory acquires
+real content). Validate via the four gates listed in
+[[PLAN T-005]] acceptance criteria. Commit
+`feat(core): scaffold Camera trait and types (T-005)`.
+
+### [2026-05-13T10:51:00Z] [T-005] Clippy pedantic flagged `struct_excessive_bools`
+
+First clippy run failed: `Capabilities` has 26 bool fields and
+`clippy::struct_excessive_bools` (a pedantic-tier lint enabled by the
+crate's `[lints.clippy] pedantic = warn`) suggests refactoring to a
+state machine or two-variant enums. That advice is wrong for this
+struct: the fields are independent feature flags, not interlocking
+states. Added a focused `#[allow(clippy::struct_excessive_bools)]`
+with a multi-line justification comment citing [[ARCHITECTURE §3.1]]
+("Capabilities is a struct of bools"). Per [[CLAUDE.md §5.2]] every
+allow must carry an in-comment justification.
+
+### [2026-05-13T10:52:00Z] [T-005] All four gates green
+
+  cargo fmt --all --check                                 → exit 0
+  cargo check --workspace --all-targets                   → exit 0
+  cargo clippy -p obsbot-core --all-targets -- -D warnings → exit 0
+  cargo test -p obsbot-core                               → 3 unit + 1 doc, all pass
+
+The doc-test is the `no_run` example in the lib.rs crate-level
+comment — it compiles and links against the trait, so it's a real
+shape check, not just prose. Final code stats: 4 source files
+(Cargo.toml, lib.rs, camera.rs, error.rs), ~470 lines including
+GPL boilerplate, comments, and tests. Cargo resolved 11 transitive
+deps (thiserror 2.0.18 + tracing 0.1.44 trees), `Cargo.lock` now
+present at repo root.
+
+### [2026-05-13T10:52:32Z] [T-005] DONE — closing task and prepping commit
+
+All acceptance criteria satisfied (see [[PLAN T-005]] Outcome
+block). PLAN.md T-005 set to DONE with detailed criteria checkboxes.
+STATE.md goes idle with T-006 as the natural next task (clap-based
+CLI binary scaffold; depends only on T-005). PROGRESS.md captures
+this T-005 chronicle. Commit
+`feat(core): scaffold Camera trait and types (T-005)` follows,
+bundling: `crates/obsbot-core/{Cargo.toml, src/lib.rs, src/camera.rs,
+src/error.rs}` (new), `crates/.gitkeep` (deleted), `Cargo.lock` (new,
+ships per the [[T-004]] / `.gitignore` decision), `docs/PLAN.md`,
+`docs/STATE.md`, and `docs/PROGRESS.md`.
+
 ---

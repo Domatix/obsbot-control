@@ -126,19 +126,34 @@
   enforcement deferred to T-005's first member crate.
 
 ### T-005 — Stub `obsbot-core` crate
-- **State**: TODO
+- **State**: DONE
+- **Started**: 2026-05-13T10:49:16Z
+- **Completed**: 2026-05-13T10:52:32Z
 - **Depends on**: T-004
 - **Description**: Create `crates/obsbot-core/` with `lib.rs` exporting the
   `Camera` trait shape from `ARCHITECTURE.md` §3.1 (no implementations yet,
   trait methods can be stubs returning `Err(Unsupported)`). Add `CameraInfo`,
   `Capabilities`, `error::Error` types.
 - **Acceptance criteria**:
-  - `cargo check --workspace` passes (inherited from T-004 via [[ADR-0013]]).
-  - `cargo fmt --all --check` passes (inherited from T-004 via [[ADR-0013]]).
-  - `cargo test -p obsbot-core` passes (compiles, zero tests).
-  - `cargo clippy -p obsbot-core -- -D warnings` passes.
-  - Public API documented with `///` comments.
+  - `cargo check --workspace` passes (inherited from T-004 via [[ADR-0013]]). **DONE.**
+  - `cargo fmt --all --check` passes (inherited from T-004 via [[ADR-0013]]). **DONE.**
+  - `cargo test -p obsbot-core` passes (compiles, zero tests). **DONE** — 3 unit tests + 1 doc-test pass, none ignored (PLAN said "zero tests" as a floor; landed three sanity assertions instead — confirms default-Unsupported semantics, Capabilities default, and CameraInfo round-trip).
+  - `cargo clippy -p obsbot-core -- -D warnings` passes. **DONE** with a single `#[allow(clippy::struct_excessive_bools)]` on `Capabilities` (justification comment cites [[ARCHITECTURE §3.1]]; lint suggests a state machine which is the wrong shape for independent feature flags).
+  - Public API documented with `///` comments. **DONE** — crate-level + all public items + each trait method (with `# Errors` sections per clippy `missing_errors_doc`).
   - Commit: `feat(core): scaffold Camera trait and types (T-005)`.
+- **Outcome**: `crates/obsbot-core/` created with `Cargo.toml` (consumes
+  `thiserror` and `tracing` from `[workspace.dependencies]`,
+  `lints.rust.unsafe_code = "forbid"`, `lints.clippy.pedantic = warn`),
+  `src/error.rs` (`Error` non_exhaustive enum: Unsupported / OutOfRange
+  / Busy(PathBuf) / Disconnected / `#[from] std::io::Error`),
+  `src/camera.rs` (`CameraInfo`, `Capabilities` of 26 bool flags,
+  enums `AntiFlicker` / `ExposureMode` / `Fov` / `AutoFramingMode`
+  with `#[non_exhaustive]`, `Camera` trait with 2 required +
+  ~50 defaulted methods returning `Err(Error::Unsupported)`), and
+  `src/lib.rs` (re-exports + crate-level doctest). `Cargo.lock` now
+  tracked (workspace ships binaries — already enforced by
+  [[ADR-0013]] indirectly via the `.gitignore` change in T-004).
+  `crates/.gitkeep` removed (directory has real content now).
 
 ### T-006 — Stub `obsbot-cli` crate
 - **State**: TODO
