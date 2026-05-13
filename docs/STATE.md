@@ -8,13 +8,13 @@
 
 active_task: none
 active_task_state: idle
-last_completed_task: T-012
+last_completed_task: T-013a
 last_commit: feat(cli): list command (T-012)  # 1e516b5
-last_step: T-012 DONE — `crates/obsbot-cli/Cargo.toml` picks up the `obsbot-core` path dep that T-006 deferred; `crates/obsbot-cli/src/main.rs` becomes a `clap` subcommand router with `Commands::List` calling `obsbot_core::enumerate_cameras()` through a pure `render(&[CameraInfo]) -> String` helper. Three new unit tests (`render_zero_cameras`, `render_one_camera_missing_serial`, `render_two_cameras_indexed_and_pluralised`) pin the documented stanza format. Live smoke test against the user's plugged-in Tiny 2 Lite prints the expected single-camera stanza (3564:fef9 / /dev/video0); `obsbot-cli list --help` surfaces the six-field schema verbatim. All four cargo gates green; commit `1e516b5` on `main`.
-next_step: T-013 (diagnostics view in the GUI — hot-plug listener on top of `enumerate_cameras`), followed by T-014 (Flatpak), T-015 (CI), T-016 (.deb), T-017 (Arch) to close v0.1.
+last_step: T-013a DONE. T-013 was split via [[ADR-0016]] into T-013a (initial list, now done), T-013b (hot-plug, TODO), T-013c (V4L2 controls, TODO), T-013d (Blueprint pipeline, TODO). `crates/obsbot-gui/src/window.rs` now mounts an `AdwPreferencesPage` with one `AdwActionRow` per camera returned by `obsbot_core::enumerate_cameras()` at startup; empty-state remains an `AdwStatusPage`. User-confirmed visual: the Tiny 2 Lite shows as a row with subtitle `3564:fef9 · /dev/video0` and a camera prefix icon, inside a "Connected cameras" group. Four cargo gates green; xwininfo confirmed the same 842x662 window shape T-007 verified. Commit pending.
+next_step: commit `feat(gui): initial camera list (T-013a)`, then T-013b (hot-plug listener — polling first-pass per ADR-0016), T-013c (V4L2 control sub-page), T-013d (Blueprint pipeline), T-014..T-017 to close v0.1.
 blockers: none.
 working_tree:
-  pre_commit_modified: []
+  pre_commit_modified: [crates/obsbot-gui/src/window.rs, docs/DECISIONS.md, docs/PLAN.md, docs/STATE.md, docs/PROGRESS.md]
   pre_commit_untracked: []
   pre_commit_deleted: []
 pending_user_actions:
@@ -26,4 +26,4 @@ pending_user_actions:
     after a fresh session, file a follow-up task (the install path
     via Flatpak/distro should resolve it; we revisit only if the
     same failure persists there).
-updated_at: 2026-05-13T16:14:00Z  # T-012 commit SHA recorded
+updated_at: 2026-05-13T16:25:00Z  # T-013a DONE, commit pending

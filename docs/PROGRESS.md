@@ -569,6 +569,132 @@ preserved by `git add`), `build-aux/.gitkeep` (deleted —
 directory now has real content, matching the [[T-005]] precedent
 for `crates/`), and the three docs files.
 
+### [2026-05-13T16:18:00Z] [scope] T-013 split into T-013a/b/c/d via [[ADR-0016]]
+
+T-013 as written bundled four unrelated mechanisms (initial-scan
+camera list, hot-plug listener, V4L2 control sub-page, Blueprint
+pipeline) into one task ID, which would have made the IN_PROGRESS
+state cover several days of work and violated the "atomic functional
+change" granularity that worked well for T-001..T-012. Split into:
+
+* T-013a — initial camera list in GUI (active now; hand-coded GTK,
+  no hot-plug).
+* T-013b — hot-plug listener (first-pass polling per ADR-0016).
+* T-013c — V4L2 control sub-page (read-only).
+* T-013d — Blueprint pipeline (introduced once T-013c has a UI
+  with enough named children to make the .blp pipeline pay for
+  itself).
+
+The `video` group membership pending action graduates from a v0.1
+prerequisite to a T-013c-specific prerequisite, and is in any case
+already satisfied on this machine: `groups` returns `alvaro sudo
+video users`, `/dev/video0` is `crw-rw---- root:video`, so V4L2
+reads will work whenever T-013c arrives. T-013a / T-013b touch
+sysfs only and need no group membership at all.
+
+T-014, T-016, T-017 dependency lines updated in PLAN.md to point at
+T-013a (the moment the GUI shows a real camera) instead of the
+parent T-013.
+
+### [2026-05-13T16:25:00Z] [T-013a] DONE — gates green, user confirmed visual
+
+Implementation matched the plan exactly. Final `window.rs` shape:
+
+* `build()` unchanged at the signature level; calls
+  `enumerate_cameras()` once and hands the slice to `build_body`.
+* `build_body(cameras: &[CameraInfo]) -> gtk::Widget`: empty list →
+  `AdwStatusPage` (icon `camera-web-symbolic`, title "No OBSBOT
+  cameras detected", description "Connect an OBSBOT Tiny 2 family
+  camera via USB."); non-empty list → `AdwPreferencesPage` with one
+  `AdwPreferencesGroup` titled "Connected cameras" containing the
+  `AdwActionRow`s.
+* `camera_row(cam: &CameraInfo) -> adw::ActionRow`: title = product,
+  subtitle = `"{vid:04x}:{pid:04x} · {video_path-or-(no video node)}"`,
+  prefix icon `camera-web-symbolic`. The `(no video node)` fallback
+  is structurally unreachable today (every enumerator hit produces a
+  `Some(...)` video path) but `CameraInfo.video_path` is typed
+  `Option<PathBuf>` so the row factory has to render the `None` arm;
+  [[CLAUDE.md §5.2]] forbids `unwrap()` in production paths, so a
+  one-line fallback is the legal expression.
+
+Gate summary:
+
+```
+cargo fmt --all --check                                → exit 0
+cargo clippy --workspace --all-targets -- -D warnings  → exit 0
+cargo test --workspace                                 → 11 unit + 1
+                                                         ignored
+                                                         hardware + 1
+                                                         doctest pass
+                                                         (totals
+                                                         unchanged from
+                                                         T-012; no new
+                                                         tests in T-013a
+                                                         per CLAUDE.md
+                                                         §5.4)
+cargo build -p obsbot-gui                              → exit 0
+./target/debug/obsbot-cam-control (background)         → xwininfo found
+                                                         `0x2600004
+                                                         "Obsbot Cam
+                                                         Control"
+                                                         842x662` —
+                                                         same shape
+                                                         T-007 verified.
+```
+
+Visual acceptance via AskUserQuestion: the user selected "Fila Tiny
+2 Lite (correcto)" describing the `AdwActionRow` with subtitle
+`3564:fef9 · /dev/video0` and the camera prefix icon, inside the
+"Connected cameras" preferences group. Empty-state criterion
+deferred to incidental verification (covered by inspection — the
+only `is_empty()` branch in `build_body` mounts the
+`AdwStatusPage` with the documented copy). Process killed via
+`pkill -f obsbot-cam-control` after confirmation.
+
+PLAN.md T-013a → DONE with the Outcome block; T-013b (hot-plug),
+T-013c (V4L2 controls), T-013d (Blueprint) remain TODO. STATE.md
+returns to idle. Commit `feat(gui): initial camera list (T-013a)`
+follows, bundling: `crates/obsbot-gui/src/window.rs` (rewritten),
+`docs/DECISIONS.md` ([[ADR-0016]]), `docs/PLAN.md` (T-013 split,
+T-016 / T-017 dependency lines updated), `docs/STATE.md`, and this
+PROGRESS section.
+
+### [2026-05-13T16:18:00Z] [T-013a] Started — initial camera list in GUI
+
+Plan: single-file diff in `crates/obsbot-gui/src/window.rs`.
+
+* Pull `obsbot_core::{enumerate_cameras, CameraInfo}` at the top of
+  the module.
+* Split `build()` into the existing window-construction code plus a
+  `build_body(cameras: &[CameraInfo]) -> gtk::Widget` factory:
+    - Empty list → an `AdwStatusPage` (icon `camera-web-symbolic`,
+      title "No OBSBOT cameras detected", description "Connect an
+      OBSBOT Tiny 2 family camera via USB."). Same shape as the
+      T-007 placeholder, different copy.
+    - Non-empty list → an `AdwPreferencesPage` with a single
+      `AdwPreferencesGroup` titled "Connected cameras", containing
+      one `AdwActionRow` per camera. Row title = `cam.product`,
+      subtitle = `"<vid:pid> · <video_path>"` (e.g. `3564:fef9 ·
+      /dev/video0`); prefix icon = `camera-web-symbolic` (matches
+      the existing empty-state icon for visual continuity).
+* `build()` calls `enumerate_cameras()` once at startup and passes
+  the result to `build_body`. No hot-plug subscription, no timer —
+  that is T-013b's job.
+* `crates/obsbot-gui/src/main.rs` and `application.rs` unchanged.
+
+No new dependencies (obsbot-core path dep already in place since
+T-007; enumeration symbols re-exported from `lib.rs` by T-011).
+No new unit tests — GUI is not auto-tested per [[CLAUDE.md §5.4]],
+and the row-factory shape is small enough to read at a glance.
+
+Validation: four cargo gates (`fmt --check`, `check --workspace
+--all-targets`, `clippy --workspace --all-targets -- -D warnings`,
+`test --workspace`); then `cargo run -p obsbot-gui` and let the user
+visually confirm two paths — with the Tiny 2 Lite plugged in (real
+row shows) and unplugged (empty-state status page).
+
+Commit: `feat(gui): initial camera list (T-013a)`.
+
 ### [2026-05-13T16:12:00Z] [T-012] DONE — gates green incl. live hardware smoke test
 
 Implementation came in exactly the shape planned in the Started

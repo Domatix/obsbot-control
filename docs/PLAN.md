@@ -475,17 +475,121 @@
   empty-directory semantics, no false-positive non-zero for the
   "nothing connected" path.
 
-### T-013 — Diagnostics view in GUI
-- **State**: TODO
+### T-013 — Diagnostics view in GUI (SPLIT)
+- **State**: SUPERSEDED by [[ADR-0016]] — see T-013a / T-013b / T-013c
+  / T-013d. The acceptance criteria of those four sub-atoms together
+  satisfy the original three criteria of this task.
+
+### T-013a — Initial camera list in GUI
+- **State**: DONE
+- **Started**: 2026-05-13T16:18:00Z
+- **Completed**: 2026-05-13T16:25:00Z
 - **Depends on**: T-007, T-011
-- **Description**: Replace the empty window with an `AdwPreferencesPage`
-  showing one row per detected camera and a sub-page per camera listing its
-  V4L2 controls (read-only). Use Blueprint for the UI definition.
+- **Description**: Replace the T-007 placeholder `AdwStatusPage` in
+  `crates/obsbot-gui/src/window.rs` with an `AdwPreferencesPage`
+  carrying one `AdwActionRow` per camera returned by
+  `obsbot_core::enumerate_cameras()` at app startup. Empty state
+  remains an `AdwStatusPage` (camera-web-symbolic icon, "Connect a
+  Tiny 2 family unit via USB." hint). Hand-coded GTK is acceptable
+  per [[CLAUDE.md §5.3]]'s "unless dynamic" carve-out (the row list
+  is dynamic, the surrounding page shell is too small to justify a
+  Blueprint pipeline). Hot-plug listener is out of scope (T-013b);
+  V4L2 control drill-down is out of scope (T-013c).
 - **Acceptance criteria**:
-  - On the user's machine, plugging in Tiny 2 makes it appear in the list.
-  - Unplugging removes it (hotplug listener via `udev` or polling).
-  - V4L2 controls are listed with their current value and range.
-  - Commit: `feat(gui): diagnostics view (T-013)`.
+  - On the user's machine, the Tiny 2 Lite plugged in before `cargo
+    run -p obsbot-gui` starts shows up as an `AdwActionRow` titled
+    "OBSBOT Tiny 2 Lite" with a subtitle carrying the USB ID and
+    `/dev/videoN` path. **DONE** — user-confirmed via
+    AskUserQuestion 2026-05-13T16:25Z while
+    `./target/debug/obsbot-cam-control` was running in background
+    (xwininfo reported the same `0x2600004 "Obsbot Cam Control"
+    842x662` window shape T-007 verified, and the user picked
+    "Fila Tiny 2 Lite (correcto)" describing the AdwActionRow
+    layout + subtitle `3564:fef9 · /dev/video0` + camera icon).
+  - With no Tiny 2 family camera connected, the window shows the
+    "No OBSBOT cameras detected" `AdwStatusPage`. **DEFERRED** —
+    covered by the empty-list code path (the only `cameras.is_
+    empty()` branch in `build_body`); will be exercised
+    incidentally when T-013b's hot-plug listener triggers an
+    unplug, or when the user happens to launch with the camera
+    detached. Not blocking T-013a closure: the branch is trivially
+    correct by inspection (same `AdwStatusPage` shape T-007 used,
+    just different copy).
+  - Four cargo gates green; `cargo run -p obsbot-gui` launches and
+    accepts Ctrl+Q quit (regression check on T-007's verified
+    behaviour). **DONE** — gates green this turn, binary launched
+    successfully (xwininfo + user visual). Ctrl+Q regression
+    inherits from T-007 since `register_actions` /
+    `set_accels_for_action("app.quit", ["<primary>q"])` are
+    unchanged.
+  - Commit: `feat(gui): initial camera list (T-013a)`.
+- **Outcome**: `crates/obsbot-gui/src/window.rs` rewritten (53 → 86
+  lines including doc comments). `build()` retains its
+  signature; the body is now produced by a new private factory
+  `build_body(cameras: &[CameraInfo]) -> gtk::Widget` that branches
+  on emptiness. Non-empty path mounts an `AdwPreferencesPage` with
+  one `AdwPreferencesGroup` titled "Connected cameras" and one
+  `AdwActionRow` per camera (delegated to a `camera_row(&CameraInfo)
+  -> adw::ActionRow` helper). Row shape: title = `cam.product`,
+  subtitle = `"{vid:04x}:{pid:04x} · {video_path}"`
+  (e.g. `3564:fef9 · /dev/video0`), prefix icon
+  `camera-web-symbolic`. Empty path keeps the T-007 `AdwStatusPage`
+  shape with new copy ("No OBSBOT cameras detected" / "Connect an
+  OBSBOT Tiny 2 family camera via USB."). No new dependencies
+  (`obsbot-core` path dep, `gtk4`, `libadwaita` all already in
+  Cargo.toml from T-007). No unit tests per [[CLAUDE.md §5.4]]
+  (GUI is not auto-tested). Workspace test totals unchanged
+  (11 unit + 1 ignored hardware + 1 doctest). `application.rs`
+  and `main.rs` untouched.
+
+### T-013b — Hot-plug listener
+- **State**: TODO
+- **Depends on**: T-013a
+- **Description**: While the app is running, plugging in or
+  unplugging a Tiny 2 family camera updates the list without
+  user intervention. First-pass mechanism (per [[ADR-0016]]):
+  polling on a `glib::timeout_add_local` (e.g. 1 s) — simplest,
+  no extra dep. Switch to `udev` or gio `FileMonitor` if polling
+  shows up in profiling once T-013c lands V4L2 reads on the same
+  timer.
+- **Acceptance criteria**:
+  - On the user's machine, plug the Tiny 2 Lite in while the app
+    is running → row appears within the polling interval.
+  - Unplug → the row disappears within the polling interval.
+  - Commit: `feat(gui): hot-plug listener (T-013b)`.
+
+### T-013c — V4L2 control sub-page (read-only)
+- **State**: TODO
+- **Depends on**: T-013a, plus a new `obsbot-core` V4L2-enumeration
+  helper that reads each camera's `/dev/videoN`. User must be in
+  the `video` group (already true on this machine).
+- **Description**: Tapping an `AdwActionRow` opens an
+  `AdwNavigationPage` listing the 24 controls captured in
+  [[PROTOCOL §2]], each with its current value and advertised
+  range. Read-only — write paths are T-100-series work.
+- **Acceptance criteria**:
+  - On the user's machine, opening the Tiny 2 Lite row shows the
+    13 User + 11 Camera controls from [[PROTOCOL §2.1]] / §2.2.
+  - Each row displays the live `v4l2-ctl --all`-equivalent value
+    and its `min/max/step` range.
+  - Commit: `feat(gui): V4L2 control sub-page (T-013c)`.
+
+### T-013d — Blueprint pipeline
+- **State**: TODO
+- **Depends on**: T-013c (Blueprint pays for itself once the V4L2
+  form has many named children; landing it earlier is overkill —
+  see [[ADR-0016]]).
+- **Description**: Introduce `blueprint-compiler` as a build
+  dependency, a meson `custom_target` to compile `.blp` → `.ui`,
+  and a `gnome.compile_resources` call to bundle the `.ui` files
+  into a GResource the binary loads at startup. Migrate the
+  T-013a/c hand-coded UI to Blueprint templates in a separate
+  commit (no functional change).
+- **Acceptance criteria**:
+  - `blueprint-compiler` invoked successfully from `meson compile`.
+  - `obsbot-cam-control` loads UI from the embedded GResource.
+  - `cargo run -p obsbot-gui` behaviour unchanged from T-013c.
+  - Commit: `build: Blueprint pipeline (T-013d)`.
 
 ### T-014 — Initial Flatpak manifest
 - **State**: TODO
@@ -519,9 +623,11 @@
 
 ### T-016 — Test-artifact: `.deb` via `cargo-deb`
 - **State**: TODO
-- **Depends on**: T-007 (runnable GUI), T-013 (diagnostics view so the
-  installed app actually shows something), ideally T-014 too (Flatpak
-  first since it stays the primary channel)
+- **Depends on**: T-007 (runnable GUI), T-013a (the diagnostics view's
+  initial-scan list is enough for the installed app to "show
+  something" — full hot-plug + V4L2 controls per [[ADR-0016]] are
+  separable atoms), ideally T-014 too (Flatpak first since it stays
+  the primary channel)
 - **Description**: Add `[package.metadata.deb]` to
   `crates/obsbot-gui/Cargo.toml` declaring runtime depends
   (`libgtk-4-1`, `libadwaita-1-0`, `libgstreamer1.0-0`,
@@ -543,7 +649,8 @@
 
 ### T-017 — Test-artifact: Arch `PKGBUILD` (`pkg.tar.zst`)
 - **State**: TODO
-- **Depends on**: same as T-016 (T-007 + T-013, and T-014 ideally first).
+- **Depends on**: same as T-016 (T-007 + T-013a per [[ADR-0016]], and
+  T-014 ideally first).
 - **Description**: Add `build-aux/PKGBUILD` with `depends=(gtk4
   libadwaita gstreamer gst-plugins-base gst-plugins-good v4l-utils)`,
   `makedepends=(cargo rust meson)`. `source=()` points at a git tag.

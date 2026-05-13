@@ -15,8 +15,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-//! Main `AdwApplicationWindow`: header bar + a placeholder status page
-//! that T-013 replaces with the real diagnostics view.
+//! Main `AdwApplicationWindow`: header bar plus an `AdwPreferencesPage`
+//! listing the OBSBOT cameras enumerated at startup (T-013a). Hot-plug
+//! refresh is T-013b; V4L2 control drill-down is T-013c.
 
 // gtk-rs idiom: alias the canonical crate names to their conventional
 // short forms at the module level.
@@ -24,23 +25,19 @@ use gtk4 as gtk;
 use libadwaita as adw;
 
 use adw::prelude::*;
+use obsbot_core::{enumerate_cameras, CameraInfo};
 
-/// Build the top-level window. T-007 only wires a header bar with the
-/// app name and a placeholder status page; T-013 replaces the page with
-/// the diagnostics view.
+/// Build the top-level window. Performs a single sysfs enumeration at
+/// construction time and renders either the empty-state status page or
+/// an `AdwPreferencesPage` of camera rows.
 pub fn build(app: &adw::Application) -> adw::ApplicationWindow {
     let header = adw::HeaderBar::new();
-
-    let status = adw::StatusPage::builder()
-        .icon_name("camera-web-symbolic")
-        .title("Obsbot Cam Control")
-        .description("Scaffolding only — camera detection and controls arrive in T-013 and v0.2.")
-        .build();
+    let body = build_body(&enumerate_cameras());
 
     let layout = gtk::Box::new(gtk::Orientation::Vertical, 0);
     layout.append(&header);
-    layout.append(&status);
-    status.set_vexpand(true);
+    layout.append(&body);
+    body.set_vexpand(true);
 
     adw::ApplicationWindow::builder()
         .application(app)
@@ -49,4 +46,42 @@ pub fn build(app: &adw::Application) -> adw::ApplicationWindow {
         .default_height(540)
         .content(&layout)
         .build()
+}
+
+/// Decide which body widget to mount based on the initial enumeration.
+fn build_body(cameras: &[CameraInfo]) -> gtk::Widget {
+    if cameras.is_empty() {
+        return adw::StatusPage::builder()
+            .icon_name("camera-web-symbolic")
+            .title("No OBSBOT cameras detected")
+            .description("Connect an OBSBOT Tiny 2 family camera via USB.")
+            .build()
+            .upcast();
+    }
+
+    let page = adw::PreferencesPage::new();
+    let group = adw::PreferencesGroup::builder()
+        .title("Connected cameras")
+        .build();
+    for cam in cameras {
+        group.add(&camera_row(cam));
+    }
+    page.add(&group);
+    page.upcast()
+}
+
+/// Render a single camera entry as an `AdwActionRow`.
+fn camera_row(cam: &CameraInfo) -> adw::ActionRow {
+    let video = cam.video_path.as_ref().map_or_else(
+        || String::from("(no video node)"),
+        |p| p.display().to_string(),
+    );
+    let subtitle = format!("{:04x}:{:04x} · {video}", cam.vid, cam.pid);
+
+    let row = adw::ActionRow::builder()
+        .title(&cam.product)
+        .subtitle(&subtitle)
+        .build();
+    row.add_prefix(&gtk::Image::from_icon_name("camera-web-symbolic"));
+    row
 }

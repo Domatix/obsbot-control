@@ -488,5 +488,99 @@ Three alternatives were weighed:
 
 ---
 
+## ADR-0016 — Split T-013 into T-013a/b/c; defer Blueprint to T-013d
+
+**Date**: 2026-05-13
+**Status**: accepted (amends [[PLAN.md T-013]])
+**Context**: [[PLAN T-013]] as originally written bundles four
+sub-deliverables behind one task ID: (i) a list of detected cameras in
+the GUI, (ii) a hot-plug listener so unplugging removes the row, (iii)
+read-only V4L2 control sub-page per camera, (iv) "Use Blueprint for
+the UI definition". The closed atoms so far (T-005…T-012) have all
+been ~5–15 minute units with one obvious commit. T-013 in its
+original shape is a different scale (a backend hot-plug listener, a
+V4L2 enumeration UI, a Blueprint pipeline) and rolling them all into
+one `IN_PROGRESS` task would (a) violate the "atomic functional
+change" granularity that has worked well so far ([[CLAUDE.md §2.1]]),
+(b) leave `STATE.md` in an unusable shape if interrupted mid-task,
+and (c) couple decisions that benefit from being weighed
+independently (e.g. udev vs polling for hot-plug is unrelated to the
+V4L2 enumeration approach).
+
+Three alternatives weighed:
+1. Leave T-013 as one atom. Rejected — multiple commits inside one
+   PLAN task is the discipline-breaker [[CLAUDE.md §2.1]] flags.
+2. Rewrite T-013 in place as a checklist. Rejected — would still
+   keep one IN_PROGRESS state covering 4+ days of work, and the
+   acceptance criteria already point at three separable mechanisms.
+3. **Split via the suffixed atom pattern**: keep T-013 as a parent
+   "split into…" marker, introduce T-013a (initial scan list),
+   T-013b (hot-plug listener), T-013c (V4L2 control sub-page),
+   T-013d (Blueprint pipeline). Each atom carries its own
+   acceptance criteria, commit, and risk profile.
+
+**Decision**: Adopt option 3. The split:
+- **T-013a — Initial camera-list view in GUI**: depends on T-007 +
+  T-011. Replace the T-007 placeholder `StatusPage` with an
+  `AdwPreferencesPage` containing an `AdwPreferencesGroup` of
+  `AdwActionRow`s, one per camera returned by
+  `obsbot_core::enumerate_cameras()` at app startup. Empty-state
+  remains an `AdwStatusPage` with a "plug in a Tiny 2 family unit"
+  hint. Hand-coded GTK is acceptable per [[CLAUDE.md §5.3]]'s
+  "unless dynamic" carve-out: the entire row list is dynamic, and
+  the surrounding page shell is too small to justify standing up
+  the Blueprint pipeline. Hot-plug remains out of scope.
+- **T-013b — Hot-plug listener**: depends on T-013a. Plug in a
+  camera while the app is running → the new row appears without
+  user intervention; unplug → the row disappears. Mechanism choice
+  (`udev` crate vs polling `enumerate_cameras` on a `glib::timeout`
+  vs gio `FileMonitor` on `/sys/class/video4linux`) deferred to the
+  task itself; first-pass instinct is polling (simplest, no extra
+  dependency), revisit if it shows up in profiling.
+- **T-013c — V4L2 control sub-page (read-only)**: depends on
+  T-013a (the row to drill into) + a new `obsbot-core` enumeration
+  for V4L2 controls reading from the device path. Tapping a camera
+  row opens an `AdwNavigationPage` with the 24 controls from
+  [[PROTOCOL §2]] grouped by category, each shown with its current
+  value and advertised range. Read-only — write paths are
+  T-100-series work.
+- **T-013d — Blueprint pipeline**: depends on T-013c (the first
+  static-shape UI that actually benefits from `.blp` markup is the
+  V4L2 form, with a known set of named child widgets). Introduces
+  `blueprint-compiler` as a build dependency, a meson `custom_
+  target` to compile `.blp` → `.ui`, and a `gnome.compile_
+  resources` call to bundle the `.ui` into a GResource that the
+  binary loads via `gio::Resource::register_from_data` /
+  `include_bytes!`. The T-013a/b code that hand-coded
+  `AdwPreferencesPage` then migrates to a Blueprint template in a
+  separate commit (no functional change), preserving the rule that
+  every commit on `main` compiles and tests pass.
+
+**Consequence**:
+- PLAN.md T-013 is **superseded** by T-013a/b/c/d. The original
+  T-013 stub remains as a marker pointing at the split (the
+  acceptance criteria of the four sub-tasks together still satisfy
+  the original three criteria of T-013).
+- v0.1 milestone definition-of-done unchanged: the four sub-tasks
+  together produce the same diagnostics view T-013 promised, so
+  the milestone closes when T-013a/b/c/d are all DONE.
+- T-014 (Flatpak) and T-016 / T-017 (test packages) originally
+  depended on "T-013"; they now formally depend on T-013a (the
+  point at which the GUI shows a real camera, regardless of
+  whether hot-plug or V4L2 controls are wired). The PLAN.md
+  cross-references will be updated as those tasks become active.
+- The `video` group membership pending action [[STATE.md
+  pending_user_actions]] graduates from "v0.1 prerequisite" to a
+  prerequisite of T-013c specifically. T-013a / T-013b touch
+  sysfs only and do not need group membership; the user is
+  already in the `video` group on this machine as of the T-013
+  start probe, so the action is effectively closed for T-013c
+  too.
+- A future model added to [[ADR-0014]]'s `TINY2_FAMILY` automatically
+  flows through to T-013a/b's rendering with no GUI-side change
+  (the row factory keys off `CameraInfo` fields, not on the model).
+
+---
+
 <!-- Append new ADRs above this line, never below. Newest ADRs go at the bottom
      of the list but new entries are added; do not edit old ones. -->
