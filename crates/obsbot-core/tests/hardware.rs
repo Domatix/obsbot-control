@@ -15,7 +15,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-//! Hardware-dependent integration tests for `obsbot-core::enumerate`.
+//! Hardware-dependent integration tests for `obsbot-core::enumerate` and
+//! `obsbot-core::controls`.
 //!
 //! These tests are `#[ignore]`d by default — they require a Tiny 2 family
 //! unit physically connected to the host. The user runs them explicitly
@@ -26,7 +27,9 @@
 
 use std::path::Path;
 
-use obsbot_core::{enumerate_cameras, TINY2_FAMILY, VID_OBSBOT};
+use obsbot_core::{
+    enumerate_cameras, read_controls, ControlClass, ControlKind, TINY2_FAMILY, VID_OBSBOT,
+};
 
 #[test]
 #[ignore = "requires a Tiny 2 family camera plugged into the host"]
@@ -68,5 +71,53 @@ fn finds_connected_tiny2_family_unit() {
         cam.product.starts_with("OBSBOT"),
         "product string {:?} should start with `OBSBOT`",
         cam.product,
+    );
+}
+
+#[test]
+#[ignore = "requires a Tiny 2 family camera plugged into the host"]
+fn reads_v4l2_controls_from_connected_unit() {
+    let cams = enumerate_cameras();
+    assert!(
+        !cams.is_empty(),
+        "expected at least one Tiny 2 family camera; is one plugged in?",
+    );
+
+    let path = cams[0]
+        .video_path
+        .as_deref()
+        .expect("video_path must be set after enumeration");
+
+    let controls =
+        read_controls(path).expect("read_controls should succeed on a Tiny 2 family unit");
+
+    // Tiny 2 Lite firmware 5.10 exposes 22 controls in the V4L2 surface
+    // (12 User + 10 Camera) — cross-checked against `v4l2-ctl
+    // --list-ctrls` 2026-05-13. PROTOCOL.md §2's "13 + 11 = 24"
+    // tabulation overcounts by 2 (it appears to have counted the class
+    // headers as controls); the v4l2 query enumeration is authoritative.
+    // Use `>=` so a future firmware that exposes more does not regress.
+    assert!(
+        controls.len() >= 22,
+        "expected ≥22 controls, got {}",
+        controls.len(),
+    );
+
+    // Sanity: at least one User and one Camera class entry must show up.
+    let has_user = controls.iter().any(|c| c.class == ControlClass::User);
+    let has_camera = controls.iter().any(|c| c.class == ControlClass::Camera);
+    assert!(has_user, "no User-class controls surfaced");
+    assert!(has_camera, "no Camera-class controls surfaced");
+
+    // Brightness (User, integer) should be present on every Tiny 2
+    // family unit per PROTOCOL §2.1.
+    let brightness = controls
+        .iter()
+        .find(|c| c.name.eq_ignore_ascii_case("Brightness"))
+        .expect("Brightness control is part of the Tiny 2 family V4L2 surface");
+    assert_eq!(brightness.class, ControlClass::User);
+    assert!(
+        matches!(brightness.kind, ControlKind::Integer { .. }),
+        "Brightness must be an integer-typed control",
     );
 }

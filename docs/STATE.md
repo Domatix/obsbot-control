@@ -8,13 +8,13 @@
 
 active_task: none
 active_task_state: idle
-last_completed_task: T-013b
+last_completed_task: T-013c
 last_commit: feat(gui): hot-plug listener (T-013b)  # 27384cf
-last_step: T-013b DONE. `crates/obsbot-gui/src/window.rs` mounts the body inside an `adw::Bin` slot and installs a `glib::timeout_add_local(POLL_INTERVAL=2s, …)` source that re-enumerates and replaces the slot's child only when `Vec<CameraInfo>` differs. The closure captures `body_slot` weakly (`glib::clone!(#[weak], #[upgrade_or] ControlFlow::Break)`) so the source auto-cleans when the window dies. User-confirmed hot-plug: unplugging the Tiny 2 Lite swaps in the empty-state `AdwStatusPage` within ~2-3 s; re-plugging brings the row back. All four cargo gates green; commit `27384cf` on `main`.
-next_step: T-013c (V4L2 control sub-page — needs a new `obsbot-core` helper that reads the device's V4L2 controls via the `v4l` workspace dep and surfaces them as a list of `(name, current, min, max, step)` tuples per `CameraInfo`). After: T-013d Blueprint, T-014 Flatpak, T-015 CI, T-016 .deb, T-017 Arch.
+last_step: T-013c DONE. Backend: new `crates/obsbot-core/src/controls.rs` exposes `read_controls(path) -> Result<Vec<ControlDescriptor>>` against the `v4l 0.14` workspace dep; reshapes the v4l Description/Value types into the obsbot-core-owned `ControlDescriptor / ControlClass / ControlKind` so consumers never see the v4l crate types. Skips CtrlClass headers + DISABLED/WRITE_ONLY flags. 3 new unit tests on the `classify()` ID→class mapping; 1 new `#[ignore]`d hardware test asserts ≥22 controls + Brightness present on the user's Tiny 2 Lite. `home@0.5.11` pinned in Cargo.lock to keep the MSRV 1.85 compatible (transitive bindgen pulled in home 0.5.12 which needs rustc 1.88). GUI: `crates/obsbot-gui/src/window.rs` wraps everything in an `AdwNavigationView`; each camera row is now activatable with a `go-next-symbolic` suffix and `connect_activated` pushes the detail page returned by the new module `controls_view::build_controls_page(&cam)`. Detail page = AdwToolbarView + AdwPreferencesPage with one PreferencesGroup per V4L2 class; each control surfaces as `{name}: {current} · range {min}..={max} step {step}` / Yes-No / `{label} · N options`. Error paths render as AdwStatusPage. User-confirmed drill-down 2026-05-13T16:58Z: 22 controls show with values + ranges, back button works.
+next_step: commit `feat: V4L2 control sub-page (T-013c)`, then T-013d (Blueprint pipeline — `blueprint-compiler` apt install, meson custom_target, GResource bundle, migrate T-013a/c .ui from hand-coded to .blp templates). Then T-014 Flatpak, T-015 CI, T-016 .deb, T-017 Arch to close v0.1.
 blockers: none.
 working_tree:
-  pre_commit_modified: []
+  pre_commit_modified: [Cargo.lock, crates/obsbot-core/Cargo.toml, crates/obsbot-core/src/controls.rs (new), crates/obsbot-core/src/lib.rs, crates/obsbot-core/tests/hardware.rs, crates/obsbot-gui/src/controls_view.rs (new), crates/obsbot-gui/src/main.rs, crates/obsbot-gui/src/window.rs, docs/PLAN.md, docs/STATE.md, docs/PROGRESS.md]
   pre_commit_untracked: []
   pre_commit_deleted: []
 pending_user_actions:
@@ -26,4 +26,4 @@ pending_user_actions:
     after a fresh session, file a follow-up task (the install path
     via Flatpak/distro should resolve it; we revisit only if the
     same failure persists there).
-updated_at: 2026-05-13T16:38:00Z  # T-013b SHA recorded
+updated_at: 2026-05-13T16:58:00Z  # T-013c DONE, commit pending

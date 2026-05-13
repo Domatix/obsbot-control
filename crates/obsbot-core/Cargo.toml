@@ -19,6 +19,7 @@ module_name_repetitions = "allow"
 [dependencies]
 thiserror.workspace = true
 tracing.workspace = true
+v4l.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true

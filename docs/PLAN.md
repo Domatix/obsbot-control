@@ -583,20 +583,87 @@
   totals unchanged.
 
 ### T-013c — V4L2 control sub-page (read-only)
-- **State**: TODO
+- **State**: DONE
+- **Started**: 2026-05-13T16:40:00Z
+- **Completed**: 2026-05-13T16:58:00Z
 - **Depends on**: T-013a, plus a new `obsbot-core` V4L2-enumeration
   helper that reads each camera's `/dev/videoN`. User must be in
   the `video` group (already true on this machine).
 - **Description**: Tapping an `AdwActionRow` opens an
-  `AdwNavigationPage` listing the 24 controls captured in
+  `AdwNavigationPage` listing the V4L2 controls captured in
   [[PROTOCOL §2]], each with its current value and advertised
   range. Read-only — write paths are T-100-series work.
 - **Acceptance criteria**:
   - On the user's machine, opening the Tiny 2 Lite row shows the
-    13 User + 11 Camera controls from [[PROTOCOL §2.1]] / §2.2.
+    12 User + 10 Camera controls from [[PROTOCOL §2.1]] / §2.2
+    (note: PROTOCOL.md says "13 + 11 = 24" but `v4l2-ctl
+    --list-ctrls` and our helper both return 22 — PROTOCOL.md
+    appears to have counted the two class headers, which the
+    V4L2 enumeration does not include in the control list).
+    **DONE** — user-confirmed 2026-05-13T16:58Z via
+    AskUserQuestion ("Sub-página correcta") after physically
+    tapping the camera row.
   - Each row displays the live `v4l2-ctl --all`-equivalent value
-    and its `min/max/step` range.
-  - Commit: `feat(gui): V4L2 control sub-page (T-013c)`.
+    and its `min/max/step` range. **DONE** — same confirmation;
+    the user saw the value + range / "Yes-No" / "<label> · N
+    options" subtitles correctly rendered.
+  - Commit: `feat: V4L2 control sub-page (T-013c)`.
+- **Outcome**: Two-side change.
+  * **Backend** — `crates/obsbot-core/src/controls.rs` (new, ~190
+    lines) exposes `read_controls(video_path) -> Result<Vec<
+    ControlDescriptor>>` plus the obsbot-core-owned data types
+    (`ControlDescriptor { name, class, kind }`, `ControlClass {
+    User, Camera, Other(u32) }`, `ControlKind { Integer{current,
+    min, max, step}, Boolean{current}, Menu{current_label,
+    options}, Other(String) }`). Skips `Type::CtrlClass` entries
+    (class headers, not real controls) and any control with the
+    `DISABLED` or `WRITE_ONLY` flag. Uses `v4l 0.14` workspace
+    dep (new `[dependencies]` entry in
+    `crates/obsbot-core/Cargo.toml`); v4l 0.14's transitive
+    `home@0.5.12` requires rustc 1.88, incompatible with our
+    1.85 toolchain, so `cargo update -p home --precise 0.5.11`
+    pins the MSRV-compatible variant in `Cargo.lock` (decision
+    documented inline in the lockfile via the explicit version
+    pin; no ADR needed since the pin is a mechanical workaround,
+    not a scope change). Three new unit tests for `classify()`
+    (User / Camera / unknown class IDs) and a new `#[ignore]`d
+    hardware integration test
+    (`reads_v4l2_controls_from_connected_unit`) that runs the
+    full helper against the user's plugged-in Tiny 2 Lite,
+    asserts ≥22 controls, checks both classes are represented,
+    and confirms `Brightness` is an integer-typed User control.
+    Re-exports added to `lib.rs`.
+  * **GUI** — `crates/obsbot-gui/src/window.rs` rewritten to
+    wrap everything in an `AdwNavigationView`: the root
+    `AdwNavigationPage` holds the camera list (T-013a/b
+    behaviour preserved); each `AdwActionRow` is now
+    `activatable(true)`, gets a `go-next-symbolic` suffix icon,
+    and `connect_activated` pushes the detail page returned by
+    `controls_view::build_controls_page(&cam)` onto the
+    nav-view. New module `crates/obsbot-gui/src/controls_view.rs`
+    (~130 lines) builds the detail page: an `AdwToolbarView`
+    with its own `AdwHeaderBar` (back button handled
+    automatically by `NavigationView`) plus an
+    `AdwPreferencesPage` with one `AdwPreferencesGroup` per V4L2
+    class (User Controls / Camera Controls / Other). Each
+    control renders as an `AdwActionRow` with
+    `title=ctrl.name` and a subtitle that varies by kind:
+    `"{current} · range {min}..={max} step {step}"` for
+    integers, `"Yes"` / `"No"` for booleans, `"{label} · {n}
+    options"` for menus, and `"({type_name})"` for compound /
+    unsupported types. Error paths (no video node, empty list,
+    `read_controls` failure) render as `AdwStatusPage` rather
+    than panicking. Synchronous read on the main thread (~100 ms
+    for the 22 controls on the user's hardware — async lift
+    deferred until profiling demands it). `non_exhaustive` enum
+    consumption required wildcard arms in both the class match
+    and the kind match (downstream-crate rule from rustc); kept
+    explicit for clarity.
+  * Workspace test totals: 14 unit (8 enumerate + 3 controls + 3
+    camera) + 2 ignored hardware + 1 doctest + 3 CLI = 23 tests,
+    all green. `Cargo.lock` picks up the `v4l 0.14` /
+    `v4l2-sys-mit 0.3` / `bindgen 0.65` / clang-sys / regex /
+    nom transitive trees plus the `home 0.5.11` MSRV pin.
 
 ### T-013d — Blueprint pipeline
 - **State**: TODO

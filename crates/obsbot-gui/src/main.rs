@@ -23,6 +23,7 @@
 //! controls arrive from T-013 onwards.
 
 mod application;
+mod controls_view;
 mod window;
 
 /// The reverse-DNS App ID resolved in ADR-0012.

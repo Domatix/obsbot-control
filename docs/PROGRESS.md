@@ -596,6 +596,171 @@ T-014, T-016, T-017 dependency lines updated in PLAN.md to point at
 T-013a (the moment the GUI shows a real camera) instead of the
 parent T-013.
 
+### [2026-05-13T16:58:00Z] [T-013c] DONE — backend + GUI, drill-down user-confirmed
+
+Implementation came in with three in-flight design / environment
+deltas worth a paper trail beyond the inline comments:
+
+1. **`home@0.5.12` blocked the v4l dep chain on MSRV 1.85.** When
+   I added `v4l.workspace = true` to `obsbot-core/Cargo.toml`,
+   `cargo check` failed with `home@0.5.12 requires rustc 1.88`.
+   The dep chain is `obsbot-core → v4l → v4l2-sys-mit → bindgen →
+   which → home`. Two options weighed: (a) bump our MSRV to 1.88
+   (would invalidate [[ADR-0003]]'s 1.83 minimum and orphan Debian
+   trixie's stock `rustc 1.85` — bad for distro packaging T-016)
+   or (b) `cargo update -p home --precise 0.5.11` to pin the
+   pre-1.88 variant. Chose (b). The pin lives in `Cargo.lock`;
+   no ADR needed since it's a mechanical workaround, not a scope
+   change, and reverts naturally when we eventually do bump MSRV.
+
+2. **PROTOCOL §2's "13+11=24" overcount.** First hardware-test
+   run failed at `assert!(controls.len() >= 24, …)` with
+   `got 22`. Cross-checked via `v4l2-ctl --list-ctrls -d
+   /dev/video0` and got the same 22 (12 User + 10 Camera). The
+   2-control gap is in PROTOCOL.md §2's tabulation — it appears
+   to have counted the `User Controls` and `Camera Controls`
+   class headers as controls. `v4l2-ctl` and the V4L2 kernel
+   enumeration both agree on 22; the kernel is authoritative.
+   Test threshold relaxed to `>= 22` with an inline comment
+   pointing at the discrepancy. PROTOCOL.md edit deferred (it's
+   a docs-tier fix; do it bundled with T-013d or a later docs
+   pass).
+
+3. **`non_exhaustive` consumption ergonomics.** Both
+   `ControlClass` and `ControlKind` carry `#[non_exhaustive]`
+   (by design — future variants must be a non-breaking add).
+   The GUI's `match` on `ctrl.class` and `ctrl.kind` in
+   `controls_view.rs` therefore needs wildcard arms for the
+   compiler's exhaustiveness check, even though `Other(_)` /
+   `Other(String)` already catch the open cases. Two `_ => …`
+   arms added explicitly (one with `Other(_)`-style fallback,
+   one with `(unsupported)` text) — visible and intentional,
+   not a clippy suppression.
+
+Final shape:
+
+* **`crates/obsbot-core/src/controls.rs`** (new, ~190 lines).
+  Public surface:
+  ```
+  pub struct ControlDescriptor { name, class, kind }
+  pub enum ControlClass { User, Camera, Other(u32) }
+  pub enum ControlKind {
+      Integer { current, min, max, step },
+      Boolean { current },
+      Menu { current_label, options },
+      Other(String),
+  }
+  pub fn read_controls(video_path: &Path) -> Result<Vec<ControlDescriptor>>
+  ```
+  Private helpers: `classify(id)` (3 unit tests), `build_kind`,
+  `read_integer`. All four types have `#[derive(Debug, Clone,
+  PartialEq, Eq)]` so consumers can diff snapshots. `Result`
+  surface inherits from `crate::Error`: open / ioctl failures
+  collapse into `Error::Io(io::Error)` via the existing `#[from]`
+  on the error enum.
+* **`crates/obsbot-core/tests/hardware.rs`** picks up
+  `reads_v4l2_controls_from_connected_unit` (`#[ignore]`d).
+  Asserts ≥22 controls, both classes present, Brightness is an
+  integer-typed User control. Run via `cargo test -p obsbot-core
+  -- --ignored` → 2 passed (the T-011 enumerate test stays
+  green).
+* **`crates/obsbot-gui/src/controls_view.rs`** (new, ~130 lines).
+  `build_controls_page(&CameraInfo) -> adw::NavigationPage`.
+  Wraps an `AdwToolbarView` (its own `AdwHeaderBar` — the back
+  button is auto-provided by the outer `AdwNavigationView`) with
+  an `AdwPreferencesPage` of grouped controls (User / Camera /
+  Other). Error paths render as `AdwStatusPage` so the UI never
+  panics on a partial read.
+* **`crates/obsbot-gui/src/window.rs`** rewritten (~150 lines).
+  Top-level structure is now `AdwApplicationWindow → AdwNavigation
+  View → root NavigationPage("cameras") → ToolbarView → Bin
+  (body_slot)`. The hot-plug timer's closure also weak-captures
+  `nav_view` so the camera-row factory can wire `connect_
+  activated` to `nav_view.push(&build_controls_page(&cam))`
+  without an Rc cycle. Each camera row becomes
+  `activatable(true)` with a `go-next-symbolic` suffix icon to
+  hint at the drill-down.
+
+Gate summary:
+
+```
+cargo fmt --all --check                                → exit 0
+cargo clippy --workspace --all-targets -- -D warnings  → exit 0
+cargo test --workspace                                 → 14 unit
+                                                         (8 enumerate
+                                                          + 3 controls
+                                                          + 3 camera
+                                                          ↑ obsbot-core)
+                                                         + 2 ignored
+                                                         hardware
+                                                         + 1 doctest
+                                                         + 3 CLI render
+                                                         = 23 total
+                                                         pass
+cargo test -p obsbot-core --test hardware -- --ignored → 2 passed
+                                                         (the new
+                                                         controls test
+                                                         joined the
+                                                         T-011 enumerate
+                                                         test)
+cargo build -p obsbot-gui                              → exit 0
+./target/debug/obsbot-cam-control (background)         → maps the
+                                                         842x662
+                                                         window with
+                                                         drill-down
+                                                         wired in.
+```
+
+User-confirmed drill-down via AskUserQuestion: "Sub-página
+correcta" — the user tapped the Tiny 2 Lite row, saw the 22
+controls grouped under "User Controls" / "Camera Controls" with
+their live values + ranges in the subtitles, and confirmed the
+back button works.
+
+PLAN.md T-013c → DONE with the Outcome block. STATE.md returns to
+idle with T-013d (Blueprint pipeline) named as the next task. Commit
+`feat: V4L2 control sub-page (T-013c)` follows, bundling:
+`Cargo.lock` (v4l + transitives + home pin), `crates/obsbot-core/
+Cargo.toml`, `crates/obsbot-core/src/controls.rs` (new),
+`crates/obsbot-core/src/lib.rs`, `crates/obsbot-core/tests/
+hardware.rs`, `crates/obsbot-gui/src/main.rs`, `crates/obsbot-gui/
+src/controls_view.rs` (new), `crates/obsbot-gui/src/window.rs`,
+plus the three docs files.
+
+### [2026-05-13T16:40:00Z] [T-013c] Started — V4L2 control sub-page
+
+Plan: two-side change.
+
+* Backend (`obsbot-core`): new module `controls.rs` exposing
+  `read_controls(video_path: &Path) -> Result<Vec<ControlDescriptor>>`
+  built on top of `v4l 0.14` (workspace dep). Reshape the v4l
+  crate's `Description` / `Value` types into obsbot-core-owned
+  `ControlDescriptor { name, class, kind }` so consumers never
+  depend on the v4l API directly. Skip `CtrlClass` entries and
+  any flag-disabled / write-only controls. Re-export from
+  `lib.rs`. Add `v4l.workspace = true` to obsbot-core's
+  `[dependencies]`. Three unit tests on the `classify()` helper
+  (User / Camera / unknown class IDs) plus a new `#[ignore]`d
+  hardware integration test asserting the 24 controls from
+  PROTOCOL §2.
+* GUI (`obsbot-gui`): wrap the existing camera list in an
+  `AdwNavigationView`. Each `AdwActionRow` becomes `activatable
+  (true)` and `connect_activated` pushes the detail page returned
+  by a new module `controls_view::build_controls_page(&cam)` onto
+  the nav-view. The detail page = `AdwToolbarView + AdwHeaderBar +
+  AdwPreferencesPage` with one `AdwPreferencesGroup` per V4L2
+  class. Each control shown as an `AdwActionRow` with the
+  value + range / "Yes-No" / "<label> · N options" in the subtitle.
+
+Synchronous read on the GTK main thread for the first pass — the
+~24 ioctls take well under 100 ms on the user's hardware. Async
+lift deferred to a future task if profiling demands it. No new
+unit tests on the GUI side (GUI is not auto-tested per
+[[CLAUDE.md §5.4]]); acceptance is the user tapping the row and
+confirming the controls appear with sensible values.
+
+Commit: `feat: V4L2 control sub-page (T-013c)`.
+
 ### [2026-05-13T16:36:00Z] [T-013b] DONE — gates green, both hot-plug paths verified
 
 Implementation came in as planned. Final `window.rs` adds 32 lines

@@ -15,11 +15,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-//! Main `AdwApplicationWindow`: header bar plus an `adw::Bin` slot that
-//! holds the camera-list body. T-013a builds the list once at startup;
-//! T-013b adds a polling hot-plug listener that re-enumerates every
-//! `POLL_INTERVAL_SECS` and re-mounts the body when the snapshot changes.
-//! V4L2 control drill-down is T-013c.
+//! Main `AdwApplicationWindow`: an `AdwNavigationView` rooting on the
+//! camera list. T-013a builds the list once at startup; T-013b adds a
+//! polling hot-plug listener that re-mounts the list body when the
+//! enumeration changes; T-013c makes each row activatable and pushes
+//! the V4L2 control sub-page built by `controls_view::build_controls_
+//! page` on activation.
 
 // gtk-rs idiom: alias the canonical crate names to their conventional
 // short forms at the module level.
@@ -32,6 +33,8 @@ use std::time::Duration;
 use adw::prelude::*;
 use obsbot_core::{enumerate_cameras, CameraInfo};
 
+use crate::controls_view::build_controls_page;
+
 /// Hot-plug poll interval. Two seconds matches GNOME Settings' rough
 /// device-panel latency while keeping the sysfs syscall load trivial.
 const POLL_INTERVAL: Duration = Duration::from_secs(2);
@@ -39,45 +42,57 @@ const POLL_INTERVAL: Duration = Duration::from_secs(2);
 /// Build the top-level window. Mounts the initial body and starts the
 /// hot-plug polling source bound to the window's lifetime.
 pub fn build(app: &adw::Application) -> adw::ApplicationWindow {
-    let header = adw::HeaderBar::new();
-    let initial = enumerate_cameras();
+    let nav_view = adw::NavigationView::new();
+
     let body_slot = adw::Bin::new();
-    body_slot.set_child(Some(&build_body(&initial)));
+    let initial = enumerate_cameras();
+    body_slot.set_child(Some(&build_body(&initial, &nav_view)));
     body_slot.set_vexpand(true);
 
-    let layout = gtk::Box::new(gtk::Orientation::Vertical, 0);
-    layout.append(&header);
-    layout.append(&body_slot);
+    let toolbar = adw::ToolbarView::new();
+    toolbar.add_top_bar(&adw::HeaderBar::new());
+    toolbar.set_content(Some(&body_slot));
 
-    let window = adw::ApplicationWindow::builder()
+    let root = adw::NavigationPage::builder()
+        .title("Obsbot Cam Control")
+        .tag("cameras")
+        .child(&toolbar)
+        .build();
+    nav_view.add(&root);
+
+    start_hotplug_poll(&body_slot, &nav_view, initial);
+
+    adw::ApplicationWindow::builder()
         .application(app)
         .title("Obsbot Cam Control")
         .default_width(720)
         .default_height(540)
-        .content(&layout)
-        .build();
-
-    start_hotplug_poll(&body_slot, initial);
-
-    window
+        .content(&nav_view)
+        .build()
 }
 
 /// Install the polling source. The slot is captured weakly so the timer
 /// auto-removes itself when the window (and therefore the slot) dies.
-fn start_hotplug_poll(body_slot: &adw::Bin, initial: Vec<CameraInfo>) {
+fn start_hotplug_poll(
+    body_slot: &adw::Bin,
+    nav_view: &adw::NavigationView,
+    initial: Vec<CameraInfo>,
+) {
     let snapshot = RefCell::new(initial);
     glib::timeout_add_local(
         POLL_INTERVAL,
         glib::clone!(
             #[weak]
             body_slot,
+            #[weak]
+            nav_view,
             #[upgrade_or]
             glib::ControlFlow::Break,
             move || {
                 let latest = enumerate_cameras();
                 let mut prev = snapshot.borrow_mut();
                 if *prev != latest {
-                    body_slot.set_child(Some(&build_body(&latest)));
+                    body_slot.set_child(Some(&build_body(&latest, &nav_view)));
                     *prev = latest;
                 }
                 glib::ControlFlow::Continue
@@ -87,7 +102,7 @@ fn start_hotplug_poll(body_slot: &adw::Bin, initial: Vec<CameraInfo>) {
 }
 
 /// Decide which body widget to mount based on the current enumeration.
-fn build_body(cameras: &[CameraInfo]) -> gtk::Widget {
+fn build_body(cameras: &[CameraInfo], nav_view: &adw::NavigationView) -> gtk::Widget {
     if cameras.is_empty() {
         return adw::StatusPage::builder()
             .icon_name("camera-web-symbolic")
@@ -102,14 +117,15 @@ fn build_body(cameras: &[CameraInfo]) -> gtk::Widget {
         .title("Connected cameras")
         .build();
     for cam in cameras {
-        group.add(&camera_row(cam));
+        group.add(&camera_row(cam, nav_view));
     }
     page.add(&group);
     page.upcast()
 }
 
-/// Render a single camera entry as an `AdwActionRow`.
-fn camera_row(cam: &CameraInfo) -> adw::ActionRow {
+/// Render a single camera entry as an activatable `AdwActionRow` that
+/// pushes the V4L2 detail page when tapped.
+fn camera_row(cam: &CameraInfo, nav_view: &adw::NavigationView) -> adw::ActionRow {
     let video = cam.video_path.as_ref().map_or_else(
         || String::from("(no video node)"),
         |p| p.display().to_string(),
@@ -119,7 +135,19 @@ fn camera_row(cam: &CameraInfo) -> adw::ActionRow {
     let row = adw::ActionRow::builder()
         .title(&cam.product)
         .subtitle(&subtitle)
+        .activatable(true)
         .build();
     row.add_prefix(&gtk::Image::from_icon_name("camera-web-symbolic"));
+    row.add_suffix(&gtk::Image::from_icon_name("go-next-symbolic"));
+
+    let cam_owned = cam.clone();
+    row.connect_activated(glib::clone!(
+        #[weak]
+        nav_view,
+        move |_| {
+            nav_view.push(&build_controls_page(&cam_owned));
+        }
+    ));
+
     row
 }

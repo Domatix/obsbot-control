@@ -60,11 +60,13 @@
 #![warn(missing_docs)]
 
 pub mod camera;
+pub mod controls;
 pub mod enumerate;
 pub mod error;
 
 pub use camera::{
     AntiFlicker, AutoFramingMode, Camera, CameraInfo, Capabilities, ExposureMode, Fov,
 };
+pub use controls::{read_controls, ControlClass, ControlDescriptor, ControlKind};
 pub use enumerate::{enumerate_cameras, enumerate_cameras_in, TINY2_FAMILY, VID_OBSBOT};
 pub use error::{Error, Result};
