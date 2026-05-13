@@ -20,6 +20,7 @@
 
 // gtk-rs idiom: alias the canonical crate names to their conventional
 // short forms at the module level.
+use gtk4 as gtk;
 use libadwaita as adw;
 
 use adw::prelude::*;
@@ -35,7 +36,14 @@ pub fn run(app_id: &str) -> glib::ExitCode {
         .resource_base_path("/io/github/domatix/ObsbotCamControl/")
         .build();
 
-    app.connect_startup(|app| {
+    let icon_name = app_id.to_owned();
+    app.connect_startup(move |app| {
+        // Sets the icon for every window the app creates so GTK can
+        // paint it in the Wayland window-list / X11 WM_HINTS even
+        // before the user has run `meson install`. GNOME Shell still
+        // resolves the overview icon via the `.desktop` file (T-009);
+        // both paths converge on the same hicolor entry T-010 installs.
+        gtk::Window::set_default_icon_name(&icon_name);
         register_actions(app);
     });
 

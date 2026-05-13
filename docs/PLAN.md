@@ -300,7 +300,10 @@
   `# subdir('po')` hook stays as a comment.
 
 ### T-010 — Add icon (placeholder OK)
-- **State**: TODO
+- **State**: IN_PROGRESS
+- **Started**: 2026-05-13T13:00:58Z
+- **Code-complete**: 2026-05-13T13:18:54Z (visual confirmation pending
+  with the user, like T-007).
 - **Depends on**: T-009
 - **Description**: Add a placeholder icon (scalable SVG) at the correct path
   (`data/icons/scalable/apps/io.github.domatix.ObsbotCamControl.svg`) and a
@@ -308,9 +311,38 @@
   better-designed icon is a later concern; this just needs to be a recognizable
   camera shape in Adwaita style.
 - **Acceptance criteria**:
-  - Icon renders in GNOME Shell after `cargo run -p obsbot-gui`.
-  - Symbolic icon respects current accent color.
+  - Icon renders in GNOME Shell after `cargo run -p obsbot-gui`. **PENDING
+    USER** — code path in place (`gtk::Window::set_default_icon_name`
+    primes the icon for window decorations; `meson install` drops the
+    SVG under `share/icons/hicolor/scalable/apps/`; `.desktop` and
+    `metainfo` from T-009 already advertise the App ID as the icon
+    name). Visual smoke-test deferred to the user, matching the T-007
+    precedent (Claude cannot read the framebuffer).
+  - Symbolic icon respects current accent color. **PENDING USER** —
+    `data/icons/symbolic/apps/<app-id>-symbolic.svg` uses
+    `fill="currentColor"`; verifiable when a symbolic surface (About
+    dialog, AdwAvatar fallback, GNOME Shell notification) renders it.
   - Commit: `feat: add app icon (T-010)`.
+- **Code-complete outcome**: two SVGs land under `data/icons/`:
+  the scalable variant (~1.0 KB, 128×128 viewBox, Adwaita palette
+  blues `#3584e4` / `#1a5fb4`, lens stack of four concentric circles
+  with a white highlight ellipse, red tally LED at the top right,
+  mounting neck + base rectangle below — recognisable as a webcam at
+  every cache size GTK builds) and the symbolic variant (~480 B,
+  16×16 viewBox, single compound path with `fill="currentColor"`).
+  `data/meson.build` gains two `install_data` calls landing them at
+  `share/icons/hicolor/{scalable,symbolic}/apps/` and a
+  `gnome.post_install(gtk_update_icon_cache: true,
+  update_desktop_database: true)` so a real (non-DESTDIR) install
+  refreshes the hicolor cache and the desktop database in one shot.
+  `crates/obsbot-gui/src/application.rs` adds a
+  `gtk::Window::set_default_icon_name(app_id)` inside the existing
+  `connect_startup` closure (the `app_id` slice is moved into the
+  closure via `.to_owned()` since GTK callbacks require `'static`).
+  All four cargo gates (`fmt --check`, `clippy -D warnings`, `test
+  --workspace`, `check`) plus the two meson tests stay green; install
+  under `/tmp/install-test` produces five files (T-008 binary + the
+  two T-009 metadata files + the two T-010 icons).
 
 ### T-011 — Implement USB enumeration for Tiny 2
 - **State**: TODO

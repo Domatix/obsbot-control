@@ -54,3 +54,26 @@ if desktop_file_validate.found()
     args: [desktop_file],
   )
 endif
+
+# Application icons (T-010). The regular SVG is a placeholder Adwaita-
+# palette webcam silhouette; the symbolic variant uses `currentColor`
+# so GTK can recolor it for sidebars, About dialogs, and notifications.
+# Filenames follow GTK's icon-theme convention (basename = App ID for
+# the regular, basename = App ID + `-symbolic` for the symbolic).
+install_data(
+  'icons' / 'scalable' / 'apps' / '@0@.svg'.format(app_id),
+  install_dir: datadir / 'icons' / 'hicolor' / 'scalable' / 'apps',
+)
+install_data(
+  'icons' / 'symbolic' / 'apps' / '@0@-symbolic.svg'.format(app_id),
+  install_dir: datadir / 'icons' / 'hicolor' / 'symbolic' / 'apps',
+)
+
+# Refresh the hicolor cache + the desktop database after install so
+# GNOME Shell starts resolving the new icon and `.desktop` entry
+# without requiring a session restart.
+gnome = import('gnome')
+gnome.post_install(
+  gtk_update_icon_cache: true,
+  update_desktop_database: true,
+)

@@ -569,6 +569,87 @@ preserved by `git add`), `build-aux/.gitkeep` (deleted —
 directory now has real content, matching the [[T-005]] precedent
 for `crates/`), and the three docs files.
 
+### [2026-05-13T13:18:54Z] [T-010] Code-complete — gates green, awaiting user-visual
+
+Cargo gates: `fmt --all --check` exit 0; `clippy --workspace
+--all-targets -- -D warnings` exit 0 (the new `gtk::Window::
+set_default_icon_name` call did not trip any lint, including the
+move-by-value of `icon_name: String` into the `connect_startup`
+closure); `test --workspace` 3 unit + 1 doc-test pass, 0 ignored.
+
+Meson gates: `setup` resolves cleanly with both helper tools now
+detected (`gtk4-update-icon-cache` at `/usr/bin/gtk4-update-icon-
+cache`, `update-desktop-database` at `/usr/bin/update-desktop-
+database`); `test -C builddir` 2/2 OK (the validate-desktop and
+validate-metainfo cases from T-009 stay unchanged); `install -C
+builddir --destdir /tmp/install-test` drops the two new SVGs at
+`share/icons/hicolor/{scalable,symbolic}/apps/` and reports the
+correct "Skipping custom install script because DESTDIR is set"
+log lines for both post-install hooks — those will fire when an
+actual system install runs the same `meson install`.
+
+The installed tree is now five files:
+  /tmp/install-test/usr/local/bin/obsbot-cam-control                                                (T-008)
+  /tmp/install-test/usr/local/share/applications/<id>.desktop                                       (T-009)
+  /tmp/install-test/usr/local/share/icons/hicolor/scalable/apps/<id>.svg                            (T-010)
+  /tmp/install-test/usr/local/share/icons/hicolor/symbolic/apps/<id>-symbolic.svg                   (T-010)
+  /tmp/install-test/usr/local/share/metainfo/<id>.metainfo.xml                                      (T-009)
+
+`/tmp/install-test/usr/local/bin/obsbot-cam-control --help` still
+returns the GLib option-group help in exit 0 — confirms the
+`set_default_icon_name` call does not break the binary's early-exit
+paths (it lives inside `connect_startup` and `--help` shortcuts out
+of that).
+
+PLAN.md T-010 set to IN_PROGRESS with the code-complete outcome
+block; the two acceptance criteria are marked PENDING USER (visual
+confirmation only — Claude cannot read the framebuffer). STATE.md
+records `awaiting_user_visual` so the next session knows T-010 is
+not yet DONE; the user-action list explains the simplest manual
+verification (`meson install --destdir ~/.local-icontest` +
+`XDG_DATA_DIRS` override + `cargo run`). Once the user confirms,
+PLAN can flip to DONE without further code changes. Commit
+`feat: add app icon (T-010)` follows.
+
+### [2026-05-13T13:00:58Z] [T-010] Started — placeholder app icon (regular + symbolic)
+
+Plan: two SVGs under `data/icons/`:
+  * `scalable/apps/io.github.domatix.ObsbotCamControl.svg` — 128×128
+    viewBox, Adwaita-palette webcam shape (rounded-rect body in two
+    blues `#3584e4` / `#1c71d8`, dark lens disc with a subtle highlight,
+    small red tally LED, slim stand at the bottom). Recognizable as
+    a camera at the typical 32×32 / 64×64 / 128×128 sizes GNOME
+    requests from the icon cache.
+  * `symbolic/apps/io.github.domatix.ObsbotCamControl-symbolic.svg` —
+    16×16 viewBox, single compound path with `fill="currentColor"`
+    so GTK swaps in the active text/accent color when the icon shows
+    in an About dialog, sidebar header, or shell notification.
+
+The naming follows GTK's icon-theme convention: the regular icon's
+basename equals the App ID; the symbolic icon's basename equals the
+App ID + `-symbolic`. Both land at `share/icons/hicolor/{scalable,
+symbolic}/apps/` after `meson install`.
+
+`data/meson.build` gains two `install_data` calls and a
+`gnome.post_install(gtk_update_icon_cache: true,
+update_desktop_database: true)`. The post-install bumps the
+hicolor cache so GNOME Shell starts resolving the icon for the
+already-installed `.desktop` (T-009) without a desktop restart.
+
+`crates/obsbot-gui/src/application.rs` gains a
+`gtk::Window::set_default_icon_name(APP_ID)` call early in
+`run()`. This sets the default for any window the app creates so
+the icon appears in the Wayland window-list / X11 WM_HINTS even
+before the user installs anything system-wide. Combined with the
+already-set `resource_base_path` (anticipation from T-007), the
+path is also primed for a future GResource bundle that embeds the
+icon directly into the binary.
+
+i18n / gettext infrastructure stays deferred (no string changes
+here either). The acceptance criterion "renders in GNOME Shell"
+is visual and hardware-side: validated by the user after install,
+exactly as T-007's "window appears" check was.
+
 ### [2026-05-13T12:54:51Z] [T-009] DONE — both validators green, install paths confirmed
 
 `meson setup builddir` resolved everything cleanly (gtk4 4.18.6,
