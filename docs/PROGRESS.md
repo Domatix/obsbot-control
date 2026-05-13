@@ -292,4 +292,62 @@ Splitting per ADR-0008 (commit granularity):
   2. `docs: capture Tiny 2 Lite USB descriptor (T-003)` —
      `docs/PROTOCOL.md`, `docs/PLAN.md`, `docs/STATE.md`, `docs/PROGRESS.md`.
 
+### [2026-05-13T10:40:00Z] [T-003] V4L2 captures landed — four files in /tmp
+
+User ran the `sudo usermod -aG video alvaro` + four `sudo v4l2-ctl`
+redirects from PROTOCOL.md §2. Files in `/tmp/`:
+  obsbot-v4l2-all-0.txt    (90 lines — full /dev/video0 dump)
+  obsbot-v4l2-all-1.txt    (34 lines — /dev/video1, metadata node)
+  obsbot-v4l2-ctrls-0.txt  (34 lines — control table)
+  obsbot-v4l2-ctrls-1.txt  (0 lines — metadata node has no controls)
+Driver `uvcvideo` 6.12.73, bus `usb-0000:00:14.0-7` (matches sysfs
+`1-7`), hardware revision `0x00000510 (1296)` = decimal match for the
+descriptor's `bcdDevice 5.10` (corroborates the "firmware 5.10"
+hypothesis in §1.1, but doesn't *prove* it's the firmware revision
+rather than a hardware revision label; formal confirmation would need
+OBSBOT Center's own version readout, deferred). Media-graph confirms
+the kernel mounts XU 2 as entity `Extension 2 (Video Pixel Formatter)`
+linked to the capture node via pad `0x100000a` — `UVCIOC_CTRL_QUERY`
+will work against `bUnitID=2` once selector semantics are known.
+
+### [2026-05-13T10:42:00Z] [T-003] PROTOCOL.md §2 populated — 24 controls + 3 quirks
+
+§2.1 (User Controls) tabulates 13 entries: brightness/contrast/
+saturation/hue (all 0..100), gain (1..64), red/blue_balance (0..2048),
+white_balance_automatic + white_balance_temperature (2000..10000 K),
+power_line_frequency menu {Disabled, 50, 60}, sharpness, backlight_
+compensation. §2.2 (Camera Controls) tabulates 11 entries:
+auto_exposure menu {Auto, Manual, Aperture Priority — note absent
+value 2 = Shutter Priority}, exposure_time_absolute (1..2500),
+pan/tilt_absolute (±130° / ±90° in UVC's degrees × 3600 units, step
+3600 = 1°), focus_absolute + focus_automatic_continuous, zoom_absolute,
+zoom_continuous, pan_speed (−1..160), tilt_speed (−1..120).
+
+§2.3 documents 3 observed quirks the v0.2 GUI design must accommodate:
+  Q1 — power_line_frequency default=3 outside menu max=2 (use 0
+       Disabled as canonical default, ignore device-reported default).
+  Q2 — zoom_continuous can read back beyond its advertised max=100
+       (snapshot showed value=245). GUI clamps display; whether to
+       surface this control at all is a T-102 decision.
+  Q3 — gamma absent from PROCESSING_UNIT bmControls; treat as
+       XU-only on this family until proven otherwise.
+
+§2.4 leaves a TODO for `v4l2-ctl --list-formats-ext` (full format /
+size / framerate matrix) which can wait until v0.3 / T-200 preview
+work needs it. §1.1 unchanged; §3.1 gained a cross-check sentence
+that the kernel mounts XU 2 (media-graph confirmation).
+
+### [2026-05-13T10:45:37Z] [T-003] DONE — closing task and prepping commit
+
+All three acceptance criteria satisfied for the Lite ([[PLAN T-003]]
+Outcome). Regular Tiny 2 entries remain speculative; that gap is
+recorded in PROTOCOL.md §1.2 and §3.2 and does not block T-003
+closure given the family scope of [[ADR-0014]] (a community capture
+will close it later). T-003 set to DONE in [[PLAN.md]]. STATE.md
+goes idle (no active task), pending_user_actions trimmed to a single
+optional reminder (log out / log back in to pick up the new `video`
+group membership before T-013). Commit
+`docs: capture Tiny 2 Lite V4L2 controls (T-003)` follows, bundling
+PROTOCOL.md + PLAN.md + STATE.md + this PROGRESS section.
+
 ---

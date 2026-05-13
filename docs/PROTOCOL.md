@@ -147,12 +147,25 @@ Source for the PID claim: kernel patch tested on Tiny 2 (linuxtv-commits
 
 ## 2. V4L2 standard controls
 
-**Status**: pending — to be captured with `v4l2-ctl --all
---list-ctrls-menus` on each of `/dev/video0` and `/dev/video1` (both
-nodes belong to the same physical Tiny 2 Lite on the user's machine —
-verified via `/sys/class/video4linux/videoN` → `1-7:1.0` USB path).
+Captured 2026-05-13 from the user's Tiny 2 Lite on Debian trixie,
+kernel 6.12.73, driver `uvcvideo`. The device exposes two V4L2 nodes
+backed by the same physical camera (USB path `1-7`):
 
-Capture procedure (re-runnable; outputs land in `/tmp/`):
+| Node          | Role                          | Default format / size       |
+|---------------|-------------------------------|------------------------------|
+| `/dev/video0` | Video capture (frames)        | `MJPG` 1920×1080 @ 30 fps    |
+| `/dev/video1` | Metadata capture (UVC headers)| `UVCH` payload, 10240 B/buf  |
+
+The metadata node is created automatically by `uvcvideo` to expose UVC
+Payload Header Metadata frames; it carries no user-facing controls
+(consistent with `/tmp/obsbot-v4l2-ctrls-1.txt` being empty in the
+T-003 capture). The capture sub-graph reported by `v4l2-ctl --all` on
+`/dev/video0` links to media entity `Extension 2 (Video Pixel
+Formatter)` — that entity is the kernel's mount of the vendor XU
+documented in §3.1 (`bUnitID = 2`, GUID `9a1e7291-…`), confirming the
+XU is reachable through `UVCIOC_CTRL_QUERY`.
+
+Capture procedure (re-runnable; outputs in `/tmp/`):
 
 ```
 sudo v4l2-ctl -d /dev/video0 --all              > /tmp/obsbot-v4l2-all-0.txt
@@ -161,29 +174,90 @@ sudo v4l2-ctl -d /dev/video1 --all              > /tmp/obsbot-v4l2-all-1.txt
 sudo v4l2-ctl -d /dev/video1 --list-ctrls-menus > /tmp/obsbot-v4l2-ctrls-1.txt
 ```
 
-(Once the user is added to the `video` group via
-`sudo usermod -aG video alvaro` and the next login picks it up, the
-`sudo` prefix becomes unnecessary.)
+Once `sudo usermod -aG video alvaro` takes effect (next login), the
+`sudo` prefix becomes unnecessary.
 
-Expected categories, inferred from §1.1's INPUT_TERMINAL and
-PROCESSING_UNIT bmControls and from the linuxtv-commits 2025-12 kernel
-patch:
+The `Media Driver Info` block reports `Hardware revision: 0x00000510
+(1296)` which decimal-matches `bcdDevice = 5.10` in §1.1, corroborating
+the firmware-version hypothesis (still not formally confirmed against
+OBSBOT Center's own version readout).
 
-- `V4L2_CID_BRIGHTNESS`, `_CONTRAST`, `_HUE`, `_SATURATION`, `_SHARPNESS`,
-  `_GAMMA` (Gamma TBD — not advertised in PU bmControls, may be
-  XU-only).
-- `V4L2_CID_WHITE_BALANCE_TEMPERATURE` + `_AUTO_WHITE_BALANCE`.
-- `V4L2_CID_BACKLIGHT_COMPENSATION`, `_GAIN`, `_POWER_LINE_FREQUENCY`.
-- `V4L2_CID_EXPOSURE_AUTO`, `_EXPOSURE_ABSOLUTE`, `_EXPOSURE_AUTO_PRIORITY`.
-- `V4L2_CID_FOCUS_ABSOLUTE` + `_FOCUS_AUTO`.
-- `V4L2_CID_ZOOM_ABSOLUTE`, `_ZOOM_CONTINUOUS`.
-- `V4L2_CID_PAN_ABSOLUTE`, `_TILT_ABSOLUTE`, `_PAN_SPEED`, `_TILT_SPEED`
-  (PTZ speed handling fixed by the linuxtv-commits 2025-12 patch on the
-  regular Tiny 2; the Lite shares the descriptor shape so the same
-  semantics should hold).
+### 2.1 User Controls (`V4L2_CID_USER_CLASS_BASE`)
 
-Concrete `min`/`max`/`step`/`default` ranges live in the captured tables
-above once filled.
+13 controls, all UVC-standard, served by `uvcvideo` from the
+PROCESSING_UNIT bmControls advertised in §1.1.
+
+| V4L2 ID      | Name                          | Type | Range / values                  | Default | Notes                                                                  |
+|--------------|-------------------------------|------|----------------------------------|---------|------------------------------------------------------------------------|
+| `0x00980900` | `brightness`                  | int  | 0..100, step 1                   | 50      |                                                                        |
+| `0x00980901` | `contrast`                    | int  | 0..100, step 1                   | 50      |                                                                        |
+| `0x00980902` | `saturation`                  | int  | 0..100, step 1                   | 50      |                                                                        |
+| `0x00980903` | `hue`                         | int  | 0..100, step 1                   | 50      |                                                                        |
+| `0x0098090c` | `white_balance_automatic`     | bool | {0,1}                            | 1       | When 1, freezes red_balance + blue_balance + white_balance_temperature |
+| `0x0098090e` | `red_balance`                 | int  | 0..2048, step 1                  | 1024    | `flags=inactive` while auto WB is on                                   |
+| `0x0098090f` | `blue_balance`                | int  | 0..2048, step 1                  | 1024    | `flags=inactive` while auto WB is on                                   |
+| `0x00980913` | `gain`                        | int  | 1..64, step 1                    | 1       |                                                                        |
+| `0x00980918` | `power_line_frequency`        | menu | 0=Disabled, 1=50 Hz, 2=60 Hz     | **3** ⚠ | Kernel reports `default=3` even though the menu max is 2 — see §2.3 (quirk Q1) |
+| `0x0098091a` | `white_balance_temperature`   | int  | 2000..10000 K, step 100          | 5000    | `flags=inactive` while auto WB is on                                   |
+| `0x0098091b` | `sharpness`                   | int  | 0..100, step 1                   | 50      |                                                                        |
+| `0x0098091c` | `backlight_compensation`      | int  | 0..18, step 1                    | 9       |                                                                        |
+
+Note: the PROCESSING_UNIT bmControls (§1.1) advertises a "White Balance
+Component" pair (red_balance / blue_balance) **and** a "White Balance
+Temperature" control simultaneously. Most consumer UVC devices only
+expose one or the other; OBSBOT exposes both, gated by the same
+`white_balance_automatic` switch. The GUI (T-103 in v0.2) should group
+them under a single "White balance" section with a sub-toggle.
+
+### 2.2 Camera Controls (`V4L2_CID_CAMERA_CLASS_BASE`)
+
+11 controls covering AE / focus / PTZ, served from the INPUT_TERMINAL
+(Camera Sensor) bmControls in §1.1.
+
+| V4L2 ID      | Name                           | Type | Range / values                                   | Default | Notes                                                                                                                       |
+|--------------|--------------------------------|------|--------------------------------------------------|---------|-----------------------------------------------------------------------------------------------------------------------------|
+| `0x009a0901` | `auto_exposure`                | menu | 0=Auto, 1=Manual, 3=Aperture Priority            | 0       | Menu value 2 is absent — UVC reserves it for "Shutter Priority", not implemented by this firmware                             |
+| `0x009a0902` | `exposure_time_absolute`       | int  | 1..2500, step 1 (× 100 μs)                       | 330     | `flags=inactive` while `auto_exposure ∈ {0, 3}` (Auto / Aperture Priority)                                                  |
+| `0x009a0908` | `pan_absolute`                 | int  | −468000..468000, step 3600 (UVC: degrees × 3600) | 0       | ±130° in 1° increments                                                                                                       |
+| `0x009a0909` | `tilt_absolute`                | int  | −324000..324000, step 3600                       | 0       | ±90° in 1° increments                                                                                                        |
+| `0x009a090a` | `focus_absolute`               | int  | 0..100, step 1                                   | 0       | `flags=inactive` while `focus_automatic_continuous = 1`                                                                      |
+| `0x009a090c` | `focus_automatic_continuous`   | bool | {0,1}                                            | 1       |                                                                                                                              |
+| `0x009a090d` | `zoom_absolute`                | int  | 0..100, step 1                                   | 0       |                                                                                                                              |
+| `0x009a090f` | `zoom_continuous`              | int  | 0..100, step 1                                   | 100     | Captured `value=245` exceeds the advertised max — see §2.3 (quirk Q2)                                                          |
+| `0x009a0920` | `pan_speed`                    | int  | −1..160, step 1                                  | 20      | Signed: −1 likely "no speed / idle", positive = magnitude. Matches the linuxtv-commits 2025-12 patch semantics (see §6).     |
+| `0x009a0921` | `tilt_speed`                   | int  | −1..120, step 1                                  | 20      | Same signed convention as pan_speed.                                                                                          |
+
+### 2.3 Observed quirks
+
+- **Q1 — `power_line_frequency` default outside menu range.** Kernel
+  reports `default=3` for a menu that only declares values
+  `{0, 1, 2}`. `v4l2-ctl --get-ctrl power_line_frequency` returns
+  `value=0 (Disabled)`. Source: most likely the device's
+  `wDefault` byte in the `GET_DEF` UVC request returns 3, while
+  `bControlSize` only declares three menu items. The GUI should not
+  treat the kernel-reported default as canonical for this control;
+  use `0 (Disabled)` as the fallback default and let the user pick
+  50/60 Hz explicitly.
+- **Q2 — `zoom_continuous` value can exceed the advertised range.**
+  Snapshot at capture time read `value=245` against `min=0, max=100`.
+  Two hypotheses: (a) `zoom_continuous` semantically encodes a
+  *speed* in the device's native units, with the V4L2 mapping rolling
+  through saturation rather than clamping (the OBSBOT firmware
+  accepts the wider range and reports it back); (b) a uvcvideo
+  conversion bug for this specific selector. The GUI clamps display
+  to `0..100` and writes via `zoom_absolute` for static targets;
+  whether to surface `zoom_continuous` at all is a T-102 decision.
+- **Q3 — gamma is not advertised** despite SPEC.md §4.1 listing it.
+  The PROCESSING_UNIT bmControls in §1.1 has no gamma bit. Treat
+  gamma as XU-only on this family until disproven; if a vendor XU
+  selector carries it, document under §3.
+
+### 2.4 Streaming formats and frame sizes
+
+Default at capture time: `MJPG 1920×1080 @ 30 fps`. A separate
+`v4l2-ctl --list-formats-ext` capture is recommended before
+implementing the preview pipeline (v0.3 / T-200+), so the full
+{MJPG, YUYV} × {sizes} × {framerates} matrix is locked down. Pending.
 
 ---
 
@@ -196,6 +270,12 @@ ioctl (see [[ARCHITECTURE §3.3]] for the wrapper).
 ### 3.1 Tiny 2 Lite XU table
 
 Source: `lsusb -v -d 3564:fef9` on the user's machine, 2026-05-13.
+Cross-check: `v4l2-ctl -d /dev/video0 --all` reports a media-graph
+entity `Extension 2 (Video Pixel Formatter)` linked to the capture
+node via pad `0x100000a` (see §2). That entity is the kernel's mount
+of this XU, which means `UVCIOC_CTRL_QUERY` against `bUnitID=2` will
+function once the per-selector semantics in the next table are
+populated.
 
 | Property            | Value                                              |
 |---------------------|----------------------------------------------------|

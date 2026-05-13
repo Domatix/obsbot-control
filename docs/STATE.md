@@ -6,26 +6,21 @@
 
 ---
 
-active_task: T-003
-active_task_state: in_progress_partial
-last_completed_task: T-004
-last_commit: build: create cargo workspace (T-004)  # 921fb57
-last_step: T-003 lsusb half DONE — captured `3564:fef9` Tiny 2 Lite descriptor (XU bUnitID=2, GUID 9a1e7291-…); ADR-0014 expands primary target to Tiny 2 family (regular + Lite); SPEC.md, ROADMAP.md, README.md, PROTOCOL.md §1/§3, PLAN.md T-003 updated. v4l2-ctl half pending — needs user to run `usermod -aG video alvaro` (persistent fix) plus the four `sudo v4l2-ctl` captures in /tmp.
-next_step: user runs the v4l2-ctl block; Claude reads /tmp/obsbot-v4l2-*.txt, fills PROTOCOL.md §2, closes T-003 with a follow-up commit, then proposes T-005.
-blockers: T-003 v4l2-ctl half blocked on user-side `sudo usermod -aG video alvaro` + four `sudo v4l2-ctl` redirects (PROTOCOL.md §2 has the exact block).
+active_task: none
+active_task_state: idle
+last_completed_task: T-003
+last_commit: docs: capture Tiny 2 Lite USB descriptor (T-003)  # 19d8026 (lsusb half); v4l2-ctl half pending in this turn's upcoming commit
+last_step: T-003 DONE — PROTOCOL.md §1 (USB descriptor), §2 (V4L2 standard controls, 24 entries + 3 quirks), §3 (XU 2 with media-graph cross-check) all complete for the Tiny 2 Lite. Regular Tiny 2 entries flagged speculative pending community capture. Quirks Q1/Q2/Q3 raised for v0.2 GUI design.
+next_step: propose T-005 (stub `obsbot-core` crate) — it depends on T-004 (DONE) only, T-003 is now also DONE so T-011 (USB enumeration) is no longer blocked downstream.
+blockers: none for the next batch of tasks (T-005, T-006, T-007, T-008, T-009, T-010 all clear). T-013 will need the `video` group fix to actually open /dev/videoN from the GUI (already prescribed via `sudo usermod -aG video alvaro`).
 working_tree:
-  clean_expected_after_two_commits: true
-  pre_commit_modified: [docs/DECISIONS.md, docs/SPEC.md, docs/ROADMAP.md, README.md, docs/PROTOCOL.md, docs/PLAN.md, docs/STATE.md, docs/PROGRESS.md]
+  pre_commit_modified: [docs/PROTOCOL.md, docs/PLAN.md, docs/STATE.md, docs/PROGRESS.md]
 resume_protocol: |
   Same or new session, from /home/alvaro/Documentos/proyectos/obsbot-control:
-    1. `claude` (Claude Code auto-loads CLAUDE.md and reads this STATE.md).
-    2. Say "continúa" — Claude resumes T-003 by reading the v4l2-ctl
-       outputs from /tmp/ if present, else asks the user to run the block
-       in PROTOCOL.md §2.
+    1. `claude` (auto-loads CLAUDE.md, reads STATE.md).
+    2. Say "continúa" / "siguiente tarea" — Claude proposes T-005.
 pending_user_actions:
-  - T-003: run `sudo usermod -aG video alvaro` (then log out / log back
-    in) so Claude can read /dev/videoN without sudo from here on.
-  - T-003: run the four `sudo v4l2-ctl` redirects from PROTOCOL.md §2
-    once, so /tmp/obsbot-v4l2-*.txt exist for Claude to parse into the
-    V4L2 controls table.
-updated_at: 2026-05-13T10:22:12Z
+  - T-013 (later, v0.1): if you have not yet logged out / logged back in
+    after `sudo usermod -aG video alvaro`, do so before T-013 so the
+    GUI can open /dev/videoN without sudo.
+updated_at: 2026-05-13T10:45:37Z

@@ -52,8 +52,9 @@
   past PROGRESS entries and ADR-0009/ADR-0010 left intact (append-only).
 
 ### T-003 — Capture and document Tiny 2 family USB descriptor
-- **State**: IN_PROGRESS (lsusb half DONE, v4l2-ctl half pending — see notes)
+- **State**: DONE
 - **Started**: 2026-05-12T11:00:00Z
+- **Completed**: 2026-05-13T10:45:00Z
 - **Depends on**: T-001
 - **Description**: Capture `lsusb -v` and `v4l2-ctl --all` and
   `v4l2-ctl --list-ctrls-menus` output for the user's connected Tiny 2
@@ -70,15 +71,24 @@
   - `docs/PROTOCOL.md` has a "Hardware identifiers" section with the
     `lsusb -v` capture for each Tiny 2 family PID for which data is
     available (Lite = direct capture; regular Tiny 2 = community
-    capture, marked speculative until then).
-    **Done for the Lite.**
+    capture, marked speculative until then). **DONE** — PROTOCOL.md §1.1.
   - `docs/PROTOCOL.md` has a table of V4L2 controls exposed and their
-    ranges (`/dev/video0` and `/dev/video1`). **Pending v4l2-ctl run.**
+    ranges (`/dev/video0` and `/dev/video1`). **DONE** — PROTOCOL.md §2
+    (24 controls: 13 User + 11 Camera; metadata node carries none).
   - All XU unit IDs and GUIDs of the captured device documented.
-    **Done for the Lite (Unit 2, GUID `9a1e7291-…`).**
+    **DONE** — Unit 2, GUID `9a1e7291-…`, kernel-mount confirmed via
+    media-graph "Extension 2 (Video Pixel Formatter)" entity.
   - Commit: `docs: capture Tiny 2 Lite USB descriptor (T-003)` (lsusb
-    half) and a follow-up `docs: capture Tiny 2 Lite V4L2 controls
-    (T-003)` (v4l2-ctl half).
+    half, `19d8026`) and `docs: capture Tiny 2 Lite V4L2 controls
+    (T-003)` (v4l2-ctl half, this commit).
+- **Outcome**: complete USB + V4L2 picture of the Tiny 2 Lite captured
+  on Debian trixie / kernel 6.12.73 / driver uvcvideo. Three quirks
+  flagged for the v0.2 GUI design: power_line_frequency default outside
+  menu range, zoom_continuous saturating beyond its advertised max,
+  gamma absent from PU bmControls (XU-only candidate). [[ADR-0014]]
+  scope decision (Tiny 2 family) supersedes the original "Tiny 2 only"
+  framing. Per-selector XU semantics intentionally deferred to v0.4 /
+  T-300+ Wireshark work.
 
 ### T-004 — Set up Cargo workspace
 - **State**: DONE
