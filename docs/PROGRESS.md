@@ -569,6 +569,23 @@ preserved by `git add`), `build-aux/.gitkeep` (deleted —
 directory now has real content, matching the [[T-005]] precedent
 for `crates/`), and the three docs files.
 
+### [2026-05-13T15:59:15Z] [session-end] Clean checkpoint at end of session
+
+User asked to wrap the session and resume in a new one. No active
+task, no partial work, no uncommitted changes. Three v0.1 tasks
+closed this session (T-009 AppStream metainfo + `.desktop`, T-010
+placeholder icon — with visual confirmation deferred to T-014
+Flatpak / next GNOME login, T-011 USB enumeration for the Tiny 2
+family with the `#[ignore]`d hardware integration test confirmed
+green against the user's plugged-in Tiny 2 Lite). Six v0.1 tasks
+remain: T-012 (CLI `list`), T-013 (diagnostics view), T-014
+(Flatpak), T-015 (CI), T-016 (.deb test artifact), T-017 (Arch
+test artifact). Next session resumes with T-012, which is a thin
+wrapper over `obsbot_core::enumerate_cameras` behind a `clap`
+subcommand on `obsbot-cli`. Tiny fix-up commit follows to leave
+this checkpoint marker; STATE.md `updated_at` bumps to this
+timestamp.
+
 ### [2026-05-13T15:53:49Z] [T-011] DONE — gates green incl. real-hardware integration test
 
 `crates/obsbot-core/src/enumerate.rs` lands the four public symbols
