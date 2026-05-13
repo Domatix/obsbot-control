@@ -434,6 +434,41 @@ roadmap hints):
 **Last commit in v0.1.0**: ahead of this entry's commit by one
 ADR-0018 + this PROGRESS update. Tag will land on that commit.
 
+### [2026-05-13T20:55:00Z] [session-end] Clean checkpoint after v0.1.0 ship
+
+Annotated tag `v0.1.0` (`0f688b0` → `5e005fd`) created with the
+multi-line release-notes message, pushed to `github.com/Domatix/
+obsbot-control` (PRIVATE). `git ls-remote --tags origin`
+confirms: `refs/tags/v0.1.0` and `refs/tags/v0.1.0^{}` both
+present (annotated tag + dereferenced commit pointer, standard
+shape). `origin/main` and local `main` both at `5e005fd`. The
+local-only safety branch `backup-pre-rewrite-2026-05-13`
+(`6eb8f1e`) stays off the remote.
+
+Session deliverables (in chronological order):
+
+* T-016 closed (DONE). User-validated `.deb` install / launch
+  proxy (`--help`) / remove sequence on Debian trixie. Commit
+  `4e68390` for closure on top of code-complete `1980bf0`.
+* GitHub remote brought online as PRIVATE under Domatix.
+  Commit `4636662` records the transition; user's stance is
+  to keep this repo as the development source-of-truth and
+  split a separate public release repo at v1.0 (app files
+  only, single initial commit) — no ADR, operational choice.
+* T-017 closed (DONE-with-caveat). PKGBUILD + build-arch.sh +
+  README Arch section + a side meson.build fix mapping
+  `buildtype=plain` to cargo's release profile (arch-meson's
+  default). Static validation green; downstream makepkg+pacman
+  run deferred to Arch stakeholder. Commit `ea58595`.
+* ADR-0018 + v0.1.0 milestone close. Commit `5e005fd`, tagged
+  `v0.1.0` annotated, pushed.
+
+Next session entry point: T-099 (Blueprint pipeline) per
+[[ADR-0017]]. PLAN.md "Backlog" section lists it at the top of
+the v0.2 hints. After T-099 lands, the T-100 series brings
+control-write features (sliders, PTZ pad, zoom, WB,
+exposure) — that's v0.2's user-visible value.
+
 
 
 ### [2026-05-12T00:00:00Z] [bootstrap] Project scaffolding generated

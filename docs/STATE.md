@@ -9,13 +9,13 @@
 active_task: none
 active_task_state: idle
 last_completed_task: T-017
-last_milestone: v0.1.0
-last_commit: build(arch): test-artifact PKGBUILD (T-017)  # ea58595 (milestone close commit pending in this turn)
-last_step: v0.1.0 milestone closed per CLAUDE.md §7. 17 tasks DONE (2 with caveat: T-010, T-017), T-013 SUPERSEDED, T-013d DEFERRED to v0.2, T-015 BLOCKED but explicitly deferred to v0.1.1 / v0.2 per [[ADR-0018]] (this session). Gates green: cargo fmt/clippy/test pass, Flatpak builds, .deb installs/launches/removes cleanly (user-verified T-016), PKGBUILD statically validates against arch-meson simulation. README current with all three distribution channels documented (Flatpak + .deb + Arch). About to commit ADR-0018 + this STATE + the milestone PROGRESS entry, then `git tag v0.1.0` annotated and `git push --tags`.
-next_step: after tag lands, session-end checkpoint. v0.2 entry point will be T-099 (Blueprint pipeline) per [[ADR-0017]] — that's the first task to pick up next session when ready to start v0.2.
-blockers: T-015 deferred (ADR-0018); will re-evaluate when public release repo lands.
+last_milestone: v0.1.0  # tag 5e005fd, pushed to origin
+last_commit: docs: cut v0.1.0 milestone (ADR-0018)  # 5e005fd, tagged v0.1.0
+last_step: v0.1.0 shipped. Annotated tag pushed to `github.com/Domatix/obsbot-control` (PRIVATE). T-017 (Arch PKGBUILD) closed DONE-with-caveat; downstream `makepkg`+`pacman` run is the Arch stakeholder's job. ADR-0018 amends CLAUDE.md §7 to accept "explicitly-deferred via ADR" alongside strict DONE, justifying the tag while T-015 stays BLOCKED on public-repo move. v0.1 work delivers `obsbot-cli list` + `obsbot-cam-control` GUI (hot-plug list + read-only V4L2 drill-down) across three distribution channels (Flatpak, .deb, Arch). Session-end clean.
+next_step: v0.2 entry point is T-099 (Blueprint pipeline, absorbed from T-013d per [[ADR-0017]]). Must land before any T-100+ task introducing a static widget tree (slider forms, PTZ pad, zoom). After T-099, the T-100 series picks up control-write features.
+blockers: none active. T-015 deferred per ADR-0018; lands in v0.1.1 or v0.2 when the public release repo enables it.
 working_tree:
-  pre_commit_modified: [docs/DECISIONS.md, docs/PROGRESS.md, docs/STATE.md]
+  pre_commit_modified: [docs/STATE.md]
   pre_commit_untracked: []
   pre_commit_deleted: []
 pending_user_actions:
@@ -33,5 +33,5 @@ pending_user_actions:
     verify clean removal. Any issues land in v0.1.1.
   - Public release repo / Flathub prep (v1.0 area): split out per
     the strategy noted in the GitHub-remote-online PROGRESS
-    entry; that unlocks T-015 (CI + badge) for v0.1.1 or v0.2.
-updated_at: 2026-05-13T20:50:00Z  # v0.1.0 milestone close
+    entry; that unlocks T-015 (CI + badge) for v0.1.1 / v0.2.
+updated_at: 2026-05-13T20:55:00Z  # session-end, v0.1.0 shipped
