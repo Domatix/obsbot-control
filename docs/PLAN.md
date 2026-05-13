@@ -718,6 +718,63 @@
 
 ---
 
+## v0.3 — Live Preview (planned)
+
+### T-200 — Embedded preview pane in the per-camera controls page
+- **State**: TODO
+- **Depends on**: v0.2.0 shipped (this task only makes sense
+  once T-101..T-111's controls are validated).
+- **Description**: User-requested placement decision for the
+  v0.3 milestone (ROADMAP §v0.3 "Live Preview" was previously
+  unspecified on WHERE the preview lives). The preview pane
+  has to be embedded **inside the per-camera controls
+  `AdwNavigationPage`** so the user can tweak brightness /
+  WB / exposure / PTZ and see the effect live, without
+  launching Cheese / OBS / `v4l2-ctl --stream-mmap` as a
+  side process. Approach: a GStreamer pipeline
+  `v4l2src device=/dev/videoN ! videoconvert !
+  gtk4paintablesink` whose paintable is bound to a
+  `gtk::Picture` placed at the top of the controls page,
+  above the PTZ pad. A toggle (probably in the header bar of
+  the per-camera page, near the back button) starts and
+  stops the pipeline; default-off so the page still loads
+  fast on cold open.
+- **Acceptance criteria (draft — refine when starting)**:
+  - Workspace deps gain `gstreamer`, `gstreamer-video`,
+    `gstreamer-app` (already pinned in `[workspace.
+    dependencies]`; just add the actual `.workspace = true`
+    in `crates/obsbot-gui/Cargo.toml`).
+  - `crates/obsbot-gui/src/preview.rs` (new module) exposes
+    `pub struct PreviewPipeline` with `start(path)`,
+    `stop()`, `paintable() -> gdk::Paintable`.
+  - `controls_view::build_body` mounts a `gtk::Picture`
+    bound to the paintable above the PTZ pad. Aspect-
+    ratio-aware sizing (Picture's `content-fit:
+    "Contain"`).
+  - Header-bar toggle button — labelled with `view-preview-
+    symbolic` or similar — wires `connect_toggled` to
+    `pipeline.start()` / `pipeline.stop()`.
+  - Camera-busy detection: if `v4l2src` fails to open the
+    device (already streaming elsewhere), the failure is
+    surfaced as a toast via `settings::surface_error`
+    (T-108 already wires the overlay).
+  - Pipeline is torn down cleanly on page navigation away,
+    on hot-plug REMOVE (T-110), and on window close.
+  - GSettings key `preview-default-on` (boolean) added to
+    the schema — persisted per session, default `false`.
+  - Hardware test (`#[ignore]`d) that constructs the
+    pipeline, runs it for a fraction of a second, asserts
+    it reached `PLAYING` state.
+  - All four cargo gates green; Flatpak manifest gains the
+    GStreamer plugin packages needed for `v4l2src` and
+    `gtk4paintablesink`.
+- **Out of scope for T-200** (split into separate v0.3 tasks
+  when this one lands): snapshot-to-file, post-process
+  filters (greyscale / sepia / invert per SPEC §4.2),
+  resizable preview-pane vs always-fullwidth-top placement.
+
+---
+
 ## Closed milestone: v0.1 — Scaffolding & Detection (v0.1.0)
 
 ### T-001 — Initialize git repository and validate scaffolding

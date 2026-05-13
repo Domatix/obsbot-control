@@ -596,6 +596,44 @@ commit `build(gui): Blueprint pipeline (T-099)` packages the
 seven changed/added files plus `Cargo.lock` (glib-build-tools
 0.20.0 transitive deps).
 
+### [2026-05-14T02:55:00Z] [session-end] Clean checkpoint after T-106..T-111 + v0.3 seed
+
+User ended the session after the T-111 validation-driven fix
+landed and asked to seed one v0.3 task before closing.
+
+T-200 added to PLAN.md as the first v0.3 task — pins the UX
+placement decision for ROADMAP §v0.3's "Live Preview"
+milestone: the GStreamer / `gtk4paintablesink` preview must
+live **inside the per-camera controls page** (above the PTZ
+pad) rather than as a separate dialog / window, so the user
+can tweak brightness / WB / exposure / PTZ and see the
+effect live without launching Cheese / OBS / `v4l2-ctl
+--stream-mmap` as a side process. Acceptance criteria are
+draft-level — they get refined when T-200 is actually
+started, after v0.2.0 ships.
+
+State at session close:
+* `active_task: none`, `active_task_state: idle`.
+* `last_commit: 9fde97d fix(gui): refresh row sensitivity
+  after gate writes (T-111)`.
+* Six commits on `main` this session (a688714 T-106 →
+  9fde97d T-111), none pushed (private repo + explicit
+  no-push agreement).
+* Working tree clean.
+* `pending_user_actions` carries 10 items the user will walk
+  through in the next session, plus the carry-over T-010
+  GNOME-Shell icon paint and the still-optional T-017 Arch
+  PKGBUILD smoke. The T-103 / T-104 / T-102 validation
+  failures from this session (D, E, F.12) collapse into one
+  re-test on T-111.
+* No open ADRs. No SPEC / ROADMAP changes pending. v0.3
+  scope is now hinted at via T-200 + the existing ROADMAP
+  §v0.3 bullets.
+
+Next session resumes per CLAUDE.md §0 — read STATE / SPEC /
+ROADMAP / PLAN + last 3 PROGRESS entries, summarize, await
+the user's validation report or their direction.
+
 ### [2026-05-14T02:45:00Z] [T-111] DONE — sensitivity refresh after gate writes (validation-driven fix)
 
 User started the validation pass right after the
