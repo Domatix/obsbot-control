@@ -4,7 +4,8 @@
     "runtime-version": "48",
     "sdk": "org.gnome.Sdk",
     "sdk-extensions": [
-        "org.freedesktop.Sdk.Extension.rust-stable"
+        "org.freedesktop.Sdk.Extension.rust-stable",
+        "org.freedesktop.Sdk.Extension.llvm19"
     ],
     "command": "obsbot-cam-control",
     "finish-args": [
@@ -14,12 +15,14 @@
         "--device=all"
     ],
     "build-options": {
-        "append-path": "/usr/lib/sdk/rust-stable/bin",
+        "append-path": "/usr/lib/sdk/rust-stable/bin:/usr/lib/sdk/llvm19/bin",
+        "prepend-ld-library-path": "/usr/lib/sdk/llvm19/lib",
         "build-args": [
             "--share=network"
         ],
         "env": {
-            "CARGO_HOME": "/run/build/obsbot-cam-control/cargo"
+            "CARGO_HOME": "/run/build/obsbot-cam-control/cargo",
+            "LIBCLANG_PATH": "/usr/lib/sdk/llvm19/lib"
         }
     },
     "modules": [

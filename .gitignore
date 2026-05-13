@@ -17,6 +17,7 @@ subprojects/*/
 # Flatpak
 .flatpak-builder/
 flatpak-build-dir/
+build-flatpak/
 repo/
 *.flatpak
 

@@ -690,8 +690,9 @@
     equivalent v0.2 task ID).
 
 ### T-014 — Initial Flatpak manifest
-- **State**: IN_PROGRESS
+- **State**: DONE
 - **Started**: 2026-05-13T17:05:00Z
+- **Completed**: 2026-05-13T17:55:00Z
 - **Depends on**: T-008, T-009, T-010
 - **Description**: Create
   `build-aux/io.github.domatix.ObsbotCamControl.json` for `flatpak-builder`.
@@ -700,9 +701,59 @@
 - **Acceptance criteria**:
   - `flatpak-builder --user --install --force-clean build-flatpak
     build-aux/io.github.domatix.ObsbotCamControl.json` succeeds.
+    **DONE** — third attempt succeeded after two manifest fixes
+    (see Outcome). Final invocation completed in ~3 minutes
+    (cargo-warm cache; first run had a cold cargo build at
+    ~5 minutes).
   - `flatpak run io.github.domatix.ObsbotCamControl` opens the diagnostics
-    window from T-013.
+    window from T-013. **DONE** — user-confirmed
+    2026-05-13T17:55Z via AskUserQuestion ("Funciona igual que el
+    build local"): the camera row, drill-down detail page with the
+    22 V4L2 controls, and hot-plug all work identically to the
+    native binary. `--device=all` correctly grants `/dev/video0`
+    access from the sandbox.
   - Commit: `build: initial Flatpak manifest (T-014)`.
+- **Outcome**: `build-aux/io.github.domatix.ObsbotCamControl.json`
+  declares the canonical GNOME-Circle shape (runtime
+  `org.gnome.Platform//48` + sdk `org.gnome.Sdk//48`, command
+  `obsbot-cam-control`, `--share=ipc + --socket=wayland +
+  --socket=fallback-x11 + --device=all` finish-args, meson
+  buildsystem module sourcing the local repo dir). Three in-flight
+  fixes that the live build pipeline forced and that are now
+  captured in the manifest + repo state:
+  * **`org.freedesktop.Sdk.Extension.llvm19` added as a second
+    `sdk-extensions` entry.** `obsbot-core` pulls `v4l 0.14` which
+    transitively builds via `v4l2-sys-mit + bindgen`; bindgen
+    needs `libclang.so` at build time, and the GNOME 48 SDK alone
+    does not surface one. The standard fix is the freedesktop
+    LLVM SDK extension. `build-options` now `append-path`s
+    `/usr/lib/sdk/llvm19/bin`, `prepend-ld-library-path`s
+    `/usr/lib/sdk/llvm19/lib`, and exports
+    `LIBCLANG_PATH=/usr/lib/sdk/llvm19/lib`. Picked llvm19
+    (not 18 / 20) as the stable mid-ground for the 24.08 runtime
+    family.
+  * **SPDX / project comments removed from both T-010 SVGs.**
+    Flatpak's `flatpak-validate-icon` (run during the
+    `export → finish` stage) rejected the symbolic SVG with
+    `Format not recognized`. Bisected by diffing against a
+    minimal-valid SVG: the three SVG comments sitting between the
+    XML declaration and the `<svg>` root element were the
+    trigger. The scalable SVG had the same shape and passed at
+    128×128, but the symbolic loader at 16×16 was stricter. Both
+    files cleaned (per-file license info isn't required for SVGs;
+    the project LICENSE at the root covers them).
+  * **`.gitignore` extended with `build-flatpak/`.**
+    `flatpak-builder ... build-flatpak ...` writes the working
+    repo there; ignoring it keeps `git status` clean across
+    repeated builds.
+- **Notes / deferred work**:
+  - The Flatpak install surfaced a `Info: org.gnome.Platform 48
+    is end-of-life` warning (GNOME 48 EOL'd 2026-03-24; today is
+    ~50 days past). The runtime still works for local-build
+    verification, and Flathub submission is a v1.0 goal, so we
+    don't bump now — but a future task (`T-200`s area or
+    pre-v1.0 readiness check) will need to migrate to the
+    then-current supported GNOME runtime.
 
 ### T-015 — Set up CI (deferred until repo is public)
 - **State**: TODO

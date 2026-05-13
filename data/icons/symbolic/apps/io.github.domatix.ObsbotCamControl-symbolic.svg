@@ -1,8 +1,4 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
-<!-- Copyright (C) 2026 Domatix and contributors -->
-<!-- Symbolic variant (T-010). Single compound path; `currentColor` lets
-     GTK swap in the active text / accent color. -->
 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
   <path fill="currentColor" d="M2 3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V4a1 1 0 0 0-1-1H2zm0 1h12v6H2V4zm6 1a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm0 1a1 1 0 1 1 0 2 1 1 0 0 1 0-2zm4.5-.5a.5.5 0 1 0 0 1 .5.5 0 0 0 0-1zM7 12v1H5v1h6v-1H9v-1H7z"/>
 </svg>

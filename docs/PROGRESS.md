@@ -596,6 +596,79 @@ T-014, T-016, T-017 dependency lines updated in PLAN.md to point at
 T-013a (the moment the GUI shows a real camera) instead of the
 parent T-013.
 
+### [2026-05-13T17:55:00Z] [T-014] DONE — three fixes after first runtime probe
+
+User ran the apt + flatpak install sequence and ~1-2 GB of GNOME 48
+runtime+SDK + rust-stable extension downloaded cleanly. First
+`flatpak-builder` invocation then surfaced two manifest issues; a
+third minor fix (gitignore) appeared during cleanup. All three are
+in the manifest / repo state now.
+
+**Fix 1 — `libclang.so` missing from the GNOME 48 SDK sandbox.**
+First build failed at `v4l2-sys-mit-0.3.0` build-script with
+`bindgen-0.65.1: Unable to find libclang`. Root cause: the GNOME
+SDK ships clang binaries but not the libclang shared library
+bindgen looks for. Standard Flathub pattern for Rust+bindgen apps
+is to add `org.freedesktop.Sdk.Extension.llvmNN` as a second
+sdk-extension and export `LIBCLANG_PATH`. Available extensions for
+runtime 24.08 are llvm18 / llvm19 / llvm20 (probed via `flatpak
+search org.freedesktop.Sdk.Extension.llvm`); picked llvm19 as the
+stable mid-ground. The manifest now adds
+`"org.freedesktop.Sdk.Extension.llvm19"` to `sdk-extensions`, and
+the `build-options` block grows:
+
+* `append-path`: `/usr/lib/sdk/rust-stable/bin:/usr/lib/sdk/llvm19/bin`
+* `prepend-ld-library-path`: `/usr/lib/sdk/llvm19/lib`
+* `env.LIBCLANG_PATH`: `/usr/lib/sdk/llvm19/lib`
+
+**Fix 2 — Flatpak's icon validator rejected the symbolic SVG.**
+Second build cleared the compile + meson install phases but failed
+at the `Exporting … to repo` stage with `flatpak-validate-icon:
+"Format not recognized"` on the symbolic SVG. The scalable SVG
+(same author, same shape, same toolchain) passed at 128×128.
+Bisected the difference by writing a minimal-valid `<svg>` and
+diffing against ours: the three SVG comments sitting between the
+`<?xml ... ?>` declaration and the `<svg>` root element trigger
+the validator's stricter symbolic loader at 16×16, even though the
+regular SVG loader at 128×128 accepts the same shape. The
+comments restated SPDX/copyright info that already lives in the
+project LICENSE file and the docs, so they were aspirational
+rather than load-bearing. Both files cleaned (defense-in-depth on
+the scalable side too); the body of each is now strictly
+`<?xml...?>` → `<svg>` → drawing → `</svg>`. Manual
+`flatpak-validate-icon --sandbox` confirmed both pass at
+128×128 / 16×16 respectively before re-running the build.
+
+**Fix 3 — `.gitignore` for the flatpak-builder output dir.**
+`flatpak-builder ... build-flatpak ...` writes its working ostree
+repo to `build-flatpak/`. Already had `.flatpak-builder/` ignored
+(the cache dir) but not the output dir. Single-line addition.
+
+Third `flatpak-builder` run succeeded end-to-end in ~3 minutes
+(cargo cache warm; first cold-cache run was closer to 5 minutes).
+The app installs as `io.github.domatix.ObsbotCamControl 0.1.0
+master` in the user's flatpak. `flatpak run io.github.domatix.
+ObsbotCamControl` opens the same `842x662 "Obsbot Cam Control"`
+window xwininfo has seen since T-007. User-confirmed via
+AskUserQuestion: the camera row, drill-down with 22 V4L2 controls,
+and hot-plug all work identically to the native binary — confirming
+`--device=all` is the right finish-arg for V4L2 access from the
+sandbox.
+
+**EOL warning noted, deferred.** The Flatpak install surfaced a
+prominent `Info: org.gnome.Platform 48 is end-of-life` warning
+(GNOME 48 EOL'd 2026-03-24, ~50 days ago as of today). The runtime
+still functions for local-build verification and Flathub
+submission is a v1.0 goal, so we don't bump now. A future task
+(pre-v1.0 readiness check) will migrate to the then-current
+supported GNOME runtime. Recorded in T-014's outcome and STATE.md.
+
+PLAN.md T-014 → DONE. STATE.md returns to idle. v0.1 remaining:
+T-015 (CI — BLOCKED until repo public per its own PLAN note),
+T-016 (.deb test artifact), T-017 (Arch PKGBUILD). The three
+fixes go in a single follow-up commit (manifest + SVGs + gitignore
++ docs).
+
 ### [2026-05-13T17:05:00Z] [T-014] Started — initial Flatpak manifest
 
 Pre-flight probe: neither `flatpak` nor `flatpak-builder` is

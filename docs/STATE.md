@@ -6,16 +6,16 @@
 
 ---
 
-active_task: T-014
-active_task_state: in_progress
-last_completed_task: T-013c
-last_commit: docs: defer T-013d Blueprint pipeline to v0.2 (ADR-0017)  # ce6206e
-last_step: T-013d deferred to v0.2 via [[ADR-0017]] (ADR-0016's "T-013c will have many named children" premise didn't materialise; the V4L2 detail page renders from a dynamic Vec<ControlDescriptor> with zero named children, so the Blueprint pipeline overhead is premature now and will land in v0.2 as new T-099). T-014 (Flatpak manifest) started. flatpak and flatpak-builder are not installed on the host, so the manifest will be written + cargo gates checked locally, with runtime validation flagged PENDING_USER (needs ~1-2 GB GNOME 48 runtime/SDK download via `flatpak install`).
-next_step: write `build-aux/io.github.domatix.ObsbotCamControl.json` (GNOME 48 runtime, --device=all + --socket=wayland/x11 + --share=ipc, rust-stable SDK extension, source from local dir, meson buildsystem), update README to point at the manifest, run cargo gates (no functional code change so should stay green), commit `build: initial Flatpak manifest (T-014)`. Acceptance criteria for `flatpak-builder` succeeding + `flatpak run` opening the diagnostics window remain PENDING_USER until they install the Flatpak environment.
-blockers: T-014 runtime validation requires user-side `sudo apt install flatpak flatpak-builder` and `flatpak install --user flathub org.gnome.Platform//48 org.gnome.Sdk//48 org.freedesktop.Sdk.Extension.rust-stable//24.08` (the rust-stable extension is hosted under freedesktop). Not blocking the manifest commit.
+active_task: none
+active_task_state: idle
+last_completed_task: T-014
+last_commit: build: initial Flatpak manifest (T-014)  # 39d5d6f
+last_step: T-014 DONE. flatpak + flatpak-builder + GNOME 48 runtime/SDK + rust-stable SDK extension installed by the user. First flatpak-builder run failed (bindgen couldn't find libclang inside the sandbox); fix = `org.freedesktop.Sdk.Extension.llvm19//24.08` added as a second sdk-extension + `LIBCLANG_PATH=/usr/lib/sdk/llvm19/lib` in build-options.env. Second run failed at the export stage (`flatpak-validate-icon: Format not recognized` on the symbolic SVG); fix = remove the SPDX/copyright SVG comments between the XML declaration and the `<svg>` root from both T-010 icons (bisected to those comments; the symbolic loader is stricter than the regular SVG loader at 16x16). Third run succeeded; the app installs as `io.github.domatix.ObsbotCamControl 0.1.0 master`. User-confirmed via `flatpak run`: camera row, drill-down with 22 controls, and hot-plug all work identically to the native binary; `--device=all` grants /dev/video0 access from the sandbox. Initial commit `39d5d6f` already on `main`; the three fixes go in a follow-up commit.
+next_step: commit the three T-014 fixes (manifest llvm19 + SVG cleanup + .gitignore), record T-014 SHA, then T-015 (CI workflows — BLOCKED until repo is public per its PLAN note), T-016 (.deb test artifact), T-017 (Arch PKGBUILD) to close v0.1. Bumping GNOME 48 to a supported runtime (EOL'd 2026-03-24) becomes a pre-v1.0 readiness task — note recorded in T-014 outcome.
+blockers: none for T-016/T-017. T-015 is BLOCKED on repo being public on GitHub.
 working_tree:
-  pre_commit_modified: [docs/PLAN.md, docs/STATE.md, docs/PROGRESS.md]
-  pre_commit_untracked: [build-aux/io.github.domatix.ObsbotCamControl.json]
+  pre_commit_modified: [.gitignore, build-aux/io.github.domatix.ObsbotCamControl.json, data/icons/scalable/apps/io.github.domatix.ObsbotCamControl.svg, data/icons/symbolic/apps/io.github.domatix.ObsbotCamControl-symbolic.svg, docs/PLAN.md, docs/STATE.md, docs/PROGRESS.md]
+  pre_commit_untracked: []
   pre_commit_deleted: []
 pending_user_actions:
   - T-013 (later, v0.1): log out / log back in to pick up the new
@@ -26,4 +26,4 @@ pending_user_actions:
     after a fresh session, file a follow-up task (the install path
     via Flatpak/distro should resolve it; we revisit only if the
     same failure persists there).
-updated_at: 2026-05-13T17:05:00Z  # T-014 started, T-013d deferred
+updated_at: 2026-05-13T17:55:00Z  # T-014 DONE, fixes commit pending
