@@ -596,6 +596,69 @@ commit `build(gui): Blueprint pipeline (T-099)` packages the
 seven changed/added files plus `Cargo.lock` (glib-build-tools
 0.20.0 transitive deps).
 
+### [2026-05-14T00:40:00Z] [session-checkpoint] Autonomous T-101..T-105 run closed
+
+User asked for 5 tasks (T-101..T-105) executed autonomously
+in one go, with accumulated validation to be reviewed after
+the stop. All five tasks DONE; gates green; commits on
+`main` (no push — repo is private and no push was requested).
+
+Commit ledger for this run:
+* `0bb49b4` feat(gui): PTZ pad widget (T-101)
+* `c204ffd` feat(core+gui): menu writes and INACTIVE grey-out
+  (T-102) — INACTIVE grey-out half already landed with T-101
+  because the PTZ focus row needed `is_active`.
+* `b3e6040` feat(gui): white balance group widget (T-103)
+* `2d67ba8` feat(gui): exposure group widget (T-104)
+* `d7a13a8` feat(gui): per-camera GSettings persistence (T-105)
+
+Plus one cross-task ADR commit at the start:
+* ADR-0019 (T-102 re-scope: "Zoom slider" → "Menu writes +
+  INACTIVE grey-out"; Zoom slider absorbed into T-101's pad)
+  — landed within the T-101 commit alongside the PLAN entries
+  for all five tasks.
+
+Test surface after the run:
+* `cargo fmt --all --check` — exit 0.
+* `cargo clippy --workspace --all-targets -- -D warnings` —
+  no warnings.
+* `cargo test --workspace` — 14 unit + 1 doctest +
+  1 new `settings::tests::dict_key_separates_serial_and_name`,
+  all green. 5 hardware tests `#[ignore]`d in non-`--ignored`
+  runs.
+* `cargo test -p obsbot-core --test hardware -- --ignored` —
+  5 / 5 green against the connected Tiny 2 Lite (existing
+  brightness round-trip + new `zoom_absolute` from T-101 +
+  `power_line_frequency` from T-102).
+
+v0.2 backlog status:
+* T-099 Blueprint pipeline — DONE (previous session)
+* T-100 User Int/Bool writes — DONE (previous session)
+* T-101 PTZ pad (absorbs Zoom slider) — DONE
+* T-102 Menu writes + INACTIVE grey-out — DONE
+* T-103 WB group widget — DONE
+* T-104 Exposure group widget — DONE
+* T-105 GSettings persistence — DONE
+* T-106 About dialog — TODO (only v0.2 task left after this run)
+
+User-validation checklist (accumulated, presented in STATE's
+`pending_user_actions` for the next session):
+1. T-101 — directional PTZ buttons + zoom slider + manual
+   focus.
+2. T-102 — power_line_frequency dropdown + WB
+   Auto-on-greys-WB-Temperature dance.
+3. T-103 — confirm WB controls live inside the dedicated
+   "White balance" group with description text.
+4. T-104 — Exposure group, Manual mode unlocks exposure time
+   slider, Auto re-greys it.
+5. T-105 — round-trip persistence: change brightness,
+   close app, re-launch, confirm restored.
+
+No commit pending for this checkpoint — STATE/PROGRESS doc
+updates ship as part of the next user-driven turn (or a
+manual docs-only commit if the user wants the checkpoint
+permanent).
+
 ### [2026-05-14T00:35:00Z] [T-105] DONE — Per-camera GSettings persistence
 
 Last of the five autonomous-run tasks. Saves the last-set value

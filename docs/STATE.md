@@ -8,19 +8,41 @@
 
 active_task: none
 active_task_state: idle
-last_completed_task: T-100
+last_completed_task: T-105
 last_milestone: v0.1.0  # tag 5e005fd
-last_commit: docs: session-end checkpoint after T-099 (v0.2 at 12%)  # f550064 (pending T-100 commit at end of this turn)
-last_step: T-100 DONE. obsbot_core::controls now has `id: u32` on `ControlDescriptor`, `default` on `ControlKind::Integer/Boolean`, a `ControlValue` enum, and `write_control(&Path, u32, ControlValue) -> Result<()>` backed by `v4l::Device::set_control`. obsbot-gui's controls_view replaces the read-only AdwActionRow for User-class controls: Integer → AdwActionRow with `gtk::Scale` (drag bar with a tick mark at the default) + `gtk::SpinButton` (manual entry, shares the same Adjustment so it stays in sync) + flat `edit-undo-symbolic` reset button (tooltip "Reset to default (N)"); Boolean → `AdwSwitchRow` with the default in the subtitle. Camera-class and menu controls remain read-only (T-101 PTZ pad, T-103 WB, T-104 exposure cover those). All four gates green (fmt/clippy/test/hardware-3). User confirmed live brightness/contrast/saturation/hue + WB Temperature (after toggling WB Auto off — documented V4L2 interlock per PROTOCOL §2.3) on the Tiny 2 Lite.
-next_step: T-101 — PTZ pad widget. Camera-class controls (`V4L2_CID_PAN_ABSOLUTE`, `_TILT_ABSOLUTE`, `_ZOOM_ABSOLUTE` plus their continuous variants if the driver advertises them) are already enumerated by `read_controls` and currently rendered read-only. T-101 introduces a dedicated PTZ pad — likely a Blueprint template (`ptz-pad.blp`) since the layout is genuinely static (3×3 directional grid + zoom slider on the side + speed adjustment) — and a `pan_tilt(pan_delta, tilt_delta, duration)` plus `set_zoom(level)` helper in obsbot_core. Also worth keeping the generic User-class scale/spin/reset pattern available for any future User Integer that wasn't named explicitly (Gamma, Sharpness, Backlight Compensation — already work today via the generic path).
+last_commit: feat(gui): per-camera GSettings persistence (T-105)  # d7a13a8
+last_step: Autonomous run T-101..T-105 closed. v0.2 milestone status — T-099 + T-100 (last session) + T-101 (PTZ pad) + T-102 (Menu writes + INACTIVE grey-out) + T-103 (White balance group widget) + T-104 (Exposure group widget) + T-105 (GSettings persistence) all DONE. v0.2 backlog remaining: T-106 About dialog, plus the symbolic-icon + Adwaita-styling polish bullet (mostly delivered already), plus any UX cleanups the user's validation pass surfaces. ADR-0019 documents the re-scope of T-102 from "Zoom slider" to "Menu writes + INACTIVE grey-out" (Zoom slider absorbed into T-101's pad). Gates: fmt / clippy / 14 unit + 1 doctest + 1 settings unit-test = 16 native tests passing; 5 / 5 hardware tests pass under `cargo test -- --ignored`. Commits since last STATE update: 0bb49b4 (T-101), c204ffd (T-102), b3e6040 (T-103), 2d67ba8 (T-104), d7a13a8 (T-105).
+next_step: Stop. The user requested 5 tasks (T-101..T-105) and then a pause. Next time we resume, T-106 (About dialog with credits + license info, the last "v0.2 hint" task) and any UX adjustments surfaced by the user's validation pass are the natural follow-ons. After T-106 + validation we can evaluate v0.2.0 tag-readiness per CLAUDE.md §7.
 blockers: none.
 working_tree:
-  pre_commit_modified: [docs/PLAN.md, docs/STATE.md, docs/PROGRESS.md, crates/obsbot-core/src/{controls.rs,lib.rs}, crates/obsbot-core/tests/hardware.rs, crates/obsbot-gui/src/controls_view.rs]
+  pre_commit_modified: []
   pre_commit_untracked: []
   pre_commit_deleted: []
 pending_user_actions:
-  - T-010 (next time you log in): observe whether GNOME Shell now
-    paints our webcam icon when you launch the app.
+  # All five tasks of this run share one validation pass — list collected
+  # for the user to walk through in a single GUI session.
+  - T-101: drag the 8 PTZ buttons + center-reset, confirm pan/tilt;
+    drag the vertical zoom slider, confirm the frame zooms; toggle
+    "Auto-focus" off and drag "Manual focus" — focus distance changes.
+  - T-102: find "Power Line Frequency" in the User Controls section,
+    change between Disabled / 50 Hz / 60 Hz (visible effect is subtle
+    — usually just no error is enough). Toggle "White Balance,
+    Automatic" off, then on; confirm the "White Balance Temperature"
+    row greys out / wakes up automatically (generic INACTIVE handler).
+  - T-103: confirm the four WB controls now live inside a dedicated
+    "White balance" group with a description text, near the top of
+    the page, instead of scattered in the User Controls section.
+  - T-104: in the "Exposure" group, change "Exposure, Auto" to
+    "Manual"; drag "Exposure Time, Absolute" — preview gets darker
+    or brighter. Switch back to "Auto"; confirm the exposure time
+    slider greys out.
+  - T-105: pick any non-default value (e.g. brightness = 75), close
+    the GUI, re-launch, drill into the camera — the slider should
+    come up at 75 and the camera image should reflect it. Cleanup
+    afterwards (optional): `gsettings reset-recursively io.github.
+    domatix.ObsbotCamControl`.
+  - T-010 (still): observe whether GNOME Shell paints our webcam icon
+    when you launch the app.
   - T-017 (Arch stakeholder, whenever): build/install/remove the
     PKGBUILD on Arch.
-updated_at: 2026-05-13T22:55:00Z  # T-100 DONE, gates green, ready for commit
+updated_at: 2026-05-14T00:40:00Z  # five-task autonomous run closed, awaiting user validation
