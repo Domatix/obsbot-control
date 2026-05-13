@@ -596,6 +596,125 @@ T-014, T-016, T-017 dependency lines updated in PLAN.md to point at
 T-013a (the moment the GUI shows a real camera) instead of the
 parent T-013.
 
+### [2026-05-13T16:36:00Z] [T-013b] DONE — gates green, both hot-plug paths verified
+
+Implementation came in as planned. Final `window.rs` adds 32 lines
+to the T-013a shape:
+
+* `const POLL_INTERVAL: Duration = Duration::from_secs(2);` —
+  defined as `Duration` rather than `u32` so the call site uses
+  `timeout_add_local` (Duration-typed) instead of the seconds
+  helper, which keeps sub-second tuning a one-line change.
+* `start_hotplug_poll(body_slot: &adw::Bin, initial:
+  Vec<CameraInfo>)` factored out of `build()` for readability.
+  Closure shape:
+
+  ```rust
+  glib::timeout_add_local(
+      POLL_INTERVAL,
+      glib::clone!(
+          #[weak] body_slot,
+          #[upgrade_or] glib::ControlFlow::Break,
+          move || {
+              let latest = enumerate_cameras();
+              let mut prev = snapshot.borrow_mut();
+              if *prev != latest {
+                  body_slot.set_child(Some(&build_body(&latest)));
+                  *prev = latest;
+              }
+              glib::ControlFlow::Continue
+          }
+      ),
+  );
+  ```
+
+* `build_body` and `camera_row` unchanged from T-013a; the body
+  factory is now called from two places (initial mount + on-change
+  re-mount), and that's the whole point of the refactor.
+
+Gate summary:
+
+```
+cargo fmt --all --check                                → exit 0
+cargo clippy --workspace --all-targets -- -D warnings  → exit 0
+cargo test --workspace                                 → 11 unit + 1
+                                                         ignored
+                                                         hardware + 1
+                                                         doctest pass
+                                                         (totals
+                                                         unchanged)
+cargo build -p obsbot-gui                              → exit 0
+./target/debug/obsbot-cam-control (background)         → maps the
+                                                         842x662
+                                                         window
+                                                         (xwininfo
+                                                         confirmed
+                                                         by the
+                                                         prior run
+                                                         shape)
+```
+
+Hot-plug acceptance via AskUserQuestion: the user selected "Ambos
+cambios funcionan" — unplugging the Tiny 2 Lite swapped in the
+empty-state `AdwStatusPage` within ~2-3 s, re-plugging restored the
+camera row. Closure-internal weak ref behaved as expected (no
+crashes after window close; pkill produced the normal exit 144).
+
+PLAN.md T-013b → DONE. STATE.md returns to idle with T-013c (V4L2
+control sub-page) named as the next task. Commit `feat(gui):
+hot-plug listener (T-013b)` follows, bundling
+`crates/obsbot-gui/src/window.rs` plus the three docs files.
+
+### [2026-05-13T16:30:00Z] [T-013b] Started — hot-plug listener (polling first-pass)
+
+Plan: refactor `crates/obsbot-gui/src/window.rs` so the body widget
+is mounted inside a stable `adw::Bin` slot, and a `glib::timeout_
+add_seconds_local` polls `enumerate_cameras()` every 2 s diffing the
+latest snapshot against a captured `RefCell<Vec<CameraInfo>>`. When
+the snapshot changes, the slot's child is replaced via
+`Bin::set_child(Some(&build_body(&latest)))` — full rebuild on
+change, no rebuild on no-change (avoids visual flicker for the
+steady state).
+
+Key design decisions:
+
+* **`adw::Bin` slot**, not a swap inside the existing `gtk::Box`.
+  `Bin` is libadwaita's canonical single-child container; calling
+  `set_child(Some(&new))` unparents the previous child cleanly. The
+  alternative — `gtk::Box::remove(&old); gtk::Box::append(&new)` —
+  requires holding a reference to `old`, which the timer closure
+  would have to thread alongside the slot. The Bin approach keeps
+  the timer state to two values (the slot weak ref and the snapshot).
+* **Weak capture via `glib::clone!`**. The `body_slot` is captured
+  with `#[weak]` and `#[upgrade_or] glib::ControlFlow::Break`, so
+  when the window (and therefore the slot) is destroyed, the
+  closure auto-returns Break and the GLib source is removed — no
+  manual `SourceId::remove()` plumbing needed. The
+  `RefCell<Vec<CameraInfo>>` snapshot is captured by move (it's not
+  a GObject and doesn't need weak semantics).
+* **2 s poll interval**. Two seconds feels like the right hot-plug
+  UX target (matches GNOME Settings' Devices panel rough latency)
+  while keeping the syscall load tiny (one `read_dir` plus a few
+  `canonicalize` / `read_to_string` per detected video node).
+  Promoted to a `const POLL_INTERVAL_SECS: u32 = 2;` so future
+  tuning is one-line.
+* **Equality check leans on `Vec<CameraInfo>: PartialEq`**. T-005's
+  `#[derive(PartialEq, Eq)]` on `CameraInfo` makes the full-Vec
+  comparison correct and cheap (1-2 elements typically). Replacing
+  the child only when it changes avoids the visual flicker that
+  would come from rebuilding on every tick.
+* **Move to udev / FileMonitor deferred** per [[ADR-0016]] — re-
+  evaluate after T-013c lands V4L2 reads on the same timer (those
+  open `/dev/videoN` and read controls, which is heavier than the
+  sysfs walk).
+
+No new dependencies. No unit tests per [[CLAUDE.md §5.4]] (GUI is
+not auto-tested). Acceptance is physical: user plugs and unplugs
+the Tiny 2 Lite while the app runs and confirms the
+appearance / disappearance.
+
+Commit: `feat(gui): hot-plug listener (T-013b)`.
+
 ### [2026-05-13T16:25:00Z] [T-013a] DONE — gates green, user confirmed visual
 
 Implementation matched the plan exactly. Final `window.rs` shape:

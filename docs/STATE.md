@@ -8,13 +8,13 @@
 
 active_task: none
 active_task_state: idle
-last_completed_task: T-013a
+last_completed_task: T-013b
 last_commit: feat(gui): initial camera list (T-013a)  # 6e8b861
-last_step: T-013a DONE. T-013 was split via [[ADR-0016]] into T-013a (initial list, now done), T-013b (hot-plug, TODO), T-013c (V4L2 controls, TODO), T-013d (Blueprint pipeline, TODO). `crates/obsbot-gui/src/window.rs` now mounts an `AdwPreferencesPage` with one `AdwActionRow` per camera returned by `obsbot_core::enumerate_cameras()` at startup; empty-state remains an `AdwStatusPage`. User-confirmed visual: the Tiny 2 Lite shows as a row with subtitle `3564:fef9 · /dev/video0` and a camera prefix icon, inside a "Connected cameras" group. Four cargo gates green; xwininfo confirmed the same 842x662 window shape T-007 verified. Commit `6e8b861` on `main`.
-next_step: T-013b (hot-plug listener — polling first-pass per [[ADR-0016]]: a `glib::timeout_add_local` on ~1 s diffing the latest `enumerate_cameras()` against the previous snapshot, adding/removing `AdwActionRow`s in place). After: T-013c V4L2 controls, T-013d Blueprint, T-014 Flatpak, T-015 CI, T-016 .deb, T-017 Arch.
+last_step: T-013b DONE. `crates/obsbot-gui/src/window.rs` mounts the body inside an `adw::Bin` slot and installs a `glib::timeout_add_local(POLL_INTERVAL=2s, …)` source that re-enumerates and replaces the slot's child only when `Vec<CameraInfo>` differs. The closure captures `body_slot` weakly (`glib::clone!(#[weak], #[upgrade_or] ControlFlow::Break)`) so the source auto-cleans when the window dies. User-confirmed hot-plug: unplugging the Tiny 2 Lite swaps in the empty-state `AdwStatusPage` within ~2-3 s; re-plugging brings the row back. All four cargo gates green; commit pending.
+next_step: commit `feat(gui): hot-plug listener (T-013b)`, then T-013c (V4L2 control sub-page — needs a new `obsbot-core` helper that reads the device's V4L2 controls via the `v4l` workspace dep and surfaces them as a list of `(name, current, min, max, step)` tuples per `CameraInfo`). After: T-013d Blueprint, T-014 Flatpak, T-015 CI, T-016 .deb, T-017 Arch.
 blockers: none.
 working_tree:
-  pre_commit_modified: []
+  pre_commit_modified: [crates/obsbot-gui/src/window.rs, docs/PLAN.md, docs/STATE.md, docs/PROGRESS.md]
   pre_commit_untracked: []
   pre_commit_deleted: []
 pending_user_actions:
@@ -26,4 +26,4 @@ pending_user_actions:
     after a fresh session, file a follow-up task (the install path
     via Flatpak/distro should resolve it; we revisit only if the
     same failure persists there).
-updated_at: 2026-05-13T16:28:00Z  # T-013a SHA recorded
+updated_at: 2026-05-13T16:36:00Z  # T-013b DONE, commit pending

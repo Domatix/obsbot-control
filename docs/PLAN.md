@@ -543,20 +543,44 @@
   and `main.rs` untouched.
 
 ### T-013b — Hot-plug listener
-- **State**: TODO
+- **State**: DONE
+- **Started**: 2026-05-13T16:30:00Z
+- **Completed**: 2026-05-13T16:36:00Z
 - **Depends on**: T-013a
 - **Description**: While the app is running, plugging in or
   unplugging a Tiny 2 family camera updates the list without
   user intervention. First-pass mechanism (per [[ADR-0016]]):
-  polling on a `glib::timeout_add_local` (e.g. 1 s) — simplest,
-  no extra dep. Switch to `udev` or gio `FileMonitor` if polling
+  polling on a `glib::timeout_add_local` (2 s) — simplest, no
+  extra dep. Switch to `udev` or gio `FileMonitor` if polling
   shows up in profiling once T-013c lands V4L2 reads on the same
   timer.
 - **Acceptance criteria**:
   - On the user's machine, plug the Tiny 2 Lite in while the app
     is running → row appears within the polling interval.
+    **DONE** — user-confirmed 2026-05-13T16:36Z via
+    AskUserQuestion ("Ambos cambios funcionan"); the row
+    reappeared within ~2-3 s of re-plugging.
   - Unplug → the row disappears within the polling interval.
+    **DONE** — same confirmation; the empty-state `AdwStatusPage`
+    appeared within ~2-3 s of unplugging.
   - Commit: `feat(gui): hot-plug listener (T-013b)`.
+- **Outcome**: `crates/obsbot-gui/src/window.rs` extended to mount
+  the body inside a stable `adw::Bin` slot and install a
+  `glib::timeout_add_local(POLL_INTERVAL, …)` source (2 s) that
+  re-enumerates and replaces the slot's child only when
+  `Vec<CameraInfo>` differs from the previous tick. The closure
+  captures `body_slot` weakly via `glib::clone!(#[weak], #[upgrade_
+  or] ControlFlow::Break)`, so the source auto-cleans when the
+  window dies (no manual `SourceId::remove()` plumbing). The
+  `RefCell<Vec<CameraInfo>>` snapshot is captured by move (it's
+  not a GObject). Steady-state cost: one `read_dir` plus a few
+  `canonicalize` / `read_to_string` per detected video node per
+  2 s tick on the GTK main thread (negligible for 1-2 cameras).
+  `start_hotplug_poll(&Bin, Vec<CameraInfo>)` factored out of
+  `build()` for readability; `build_body` and `camera_row` are
+  unchanged from T-013a. No new dependencies; no unit tests per
+  [[CLAUDE.md §5.4]] (GUI is not auto-tested). Workspace test
+  totals unchanged.
 
 ### T-013c — V4L2 control sub-page (read-only)
 - **State**: TODO

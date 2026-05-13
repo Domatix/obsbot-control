@@ -15,40 +15,78 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-//! Main `AdwApplicationWindow`: header bar plus an `AdwPreferencesPage`
-//! listing the OBSBOT cameras enumerated at startup (T-013a). Hot-plug
-//! refresh is T-013b; V4L2 control drill-down is T-013c.
+//! Main `AdwApplicationWindow`: header bar plus an `adw::Bin` slot that
+//! holds the camera-list body. T-013a builds the list once at startup;
+//! T-013b adds a polling hot-plug listener that re-enumerates every
+//! `POLL_INTERVAL_SECS` and re-mounts the body when the snapshot changes.
+//! V4L2 control drill-down is T-013c.
 
 // gtk-rs idiom: alias the canonical crate names to their conventional
 // short forms at the module level.
 use gtk4 as gtk;
 use libadwaita as adw;
 
+use std::cell::RefCell;
+use std::time::Duration;
+
 use adw::prelude::*;
 use obsbot_core::{enumerate_cameras, CameraInfo};
 
-/// Build the top-level window. Performs a single sysfs enumeration at
-/// construction time and renders either the empty-state status page or
-/// an `AdwPreferencesPage` of camera rows.
+/// Hot-plug poll interval. Two seconds matches GNOME Settings' rough
+/// device-panel latency while keeping the sysfs syscall load trivial.
+const POLL_INTERVAL: Duration = Duration::from_secs(2);
+
+/// Build the top-level window. Mounts the initial body and starts the
+/// hot-plug polling source bound to the window's lifetime.
 pub fn build(app: &adw::Application) -> adw::ApplicationWindow {
     let header = adw::HeaderBar::new();
-    let body = build_body(&enumerate_cameras());
+    let initial = enumerate_cameras();
+    let body_slot = adw::Bin::new();
+    body_slot.set_child(Some(&build_body(&initial)));
+    body_slot.set_vexpand(true);
 
     let layout = gtk::Box::new(gtk::Orientation::Vertical, 0);
     layout.append(&header);
-    layout.append(&body);
-    body.set_vexpand(true);
+    layout.append(&body_slot);
 
-    adw::ApplicationWindow::builder()
+    let window = adw::ApplicationWindow::builder()
         .application(app)
         .title("Obsbot Cam Control")
         .default_width(720)
         .default_height(540)
         .content(&layout)
-        .build()
+        .build();
+
+    start_hotplug_poll(&body_slot, initial);
+
+    window
 }
 
-/// Decide which body widget to mount based on the initial enumeration.
+/// Install the polling source. The slot is captured weakly so the timer
+/// auto-removes itself when the window (and therefore the slot) dies.
+fn start_hotplug_poll(body_slot: &adw::Bin, initial: Vec<CameraInfo>) {
+    let snapshot = RefCell::new(initial);
+    glib::timeout_add_local(
+        POLL_INTERVAL,
+        glib::clone!(
+            #[weak]
+            body_slot,
+            #[upgrade_or]
+            glib::ControlFlow::Break,
+            move || {
+                let latest = enumerate_cameras();
+                let mut prev = snapshot.borrow_mut();
+                if *prev != latest {
+                    body_slot.set_child(Some(&build_body(&latest)));
+                    *prev = latest;
+                }
+                glib::ControlFlow::Continue
+            }
+        ),
+    );
+}
+
+/// Decide which body widget to mount based on the current enumeration.
 fn build_body(cameras: &[CameraInfo]) -> gtk::Widget {
     if cameras.is_empty() {
         return adw::StatusPage::builder()
