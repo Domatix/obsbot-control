@@ -144,8 +144,8 @@ effort, ship v1.0 without it and document why.
 
 | Tag        | Milestone                | Status   |
 |------------|--------------------------|----------|
-| `v0.1.0`   | Scaffolding & Detection  | active   |
-| `v0.2.0`   | V4L2 Standard Controls   | planned  |
+| `v0.1.0`   | Scaffolding & Detection  | shipped (2026-05-13) |
+| `v0.2.0`   | V4L2 Standard Controls   | active   |
 | `v0.3.0`   | Live Preview             | planned  |
 | `v0.4.0`   | Vendor XU                | planned  |
 | `v0.5.0`   | Auto-Framing             | risky    |

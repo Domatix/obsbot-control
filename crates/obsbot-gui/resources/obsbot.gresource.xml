@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  SPDX-License-Identifier: GPL-3.0-or-later
+
+  Embedded UI resources (T-099). The .ui files referenced here are
+  produced by `build.rs` from the matching .blp templates in this
+  directory; glib-build-tools::compile_resources packs them into
+  `obsbot.gresource` inside OUT_DIR, and the binary registers it
+  via `gio::resources_register_include!` at application startup.
+-->
+<gresources>
+  <gresource prefix="/io/github/domatix/ObsbotCamControl">
+    <file compressed="true" preprocess="xml-stripblanks">window.ui</file>
+    <file compressed="true" preprocess="xml-stripblanks">controls-view.ui</file>
+  </gresource>
+</gresources>

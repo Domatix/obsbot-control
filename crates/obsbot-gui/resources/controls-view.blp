@@ -1,0 +1,37 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+//
+// Static shell of the per-camera V4L2 controls drill-down (T-099).
+//
+// Pushed onto the parent NavigationView every time the user taps a
+// camera row in window.blp. The dynamic body — either a
+// PreferencesPage grouping V4L2 controls by class, or a
+// StatusPage with the error message — is mounted at runtime by
+// `controls_view.rs` into the `body_slot` Adw.Bin below.
+//
+// IDs surfaced for `gtk::Builder::object(...)` lookups:
+//   * page       — root Adw.NavigationPage. Code sets
+//                  page.title = cam.product and page.tag =
+//                  "controls-{vid:04x}-{pid:04x}" per push so
+//                  back-navigation gestures match what T-013c
+//                  established.
+//   * body_slot  — Adw.Bin holding the dynamic controls body.
+
+using Gtk 4.0;
+using Adw 1;
+
+Adw.NavigationPage page {
+  // Title and tag are overridden per push from controls_view.rs;
+  // the values here are placeholders that exist only to satisfy
+  // Blueprint's "no empty string property" lint at compile time.
+  title: "Controls";
+  tag: "controls";
+
+  child: Adw.ToolbarView {
+    [top]
+    Adw.HeaderBar {}
+
+    content: Adw.Bin body_slot {
+      vexpand: true;
+    };
+  };
+}

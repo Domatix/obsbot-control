@@ -1,0 +1,44 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+//
+// Static shell of the main window (T-099).
+//
+// Only the constant tree is described here — the dynamic body
+// (camera list or "no cameras" StatusPage) is mounted at runtime
+// from `window.rs` into the `body_slot` Adw.Bin below.
+//
+// IDs surfaced for `gtk::Builder::object(...)` lookups in code:
+//   * window     — root Adw.ApplicationWindow (binds to the
+//                  Adw.Application at startup).
+//   * nav_view   — Adw.NavigationView used as the window content
+//                  so each camera drill-down pushes a fresh page
+//                  on top of the "cameras" root.
+//   * body_slot  — Adw.Bin filled with the dynamic body
+//                  (PreferencesPage with rows, or StatusPage if
+//                  the enumeration is empty). T-013b's hot-plug
+//                  poll replaces the bin's child every interval
+//                  when the enumeration changes.
+
+using Gtk 4.0;
+using Adw 1;
+
+Adw.ApplicationWindow window {
+  title: "Obsbot Cam Control";
+  default-width: 720;
+  default-height: 540;
+
+  content: Adw.NavigationView nav_view {
+    Adw.NavigationPage {
+      title: "Obsbot Cam Control";
+      tag: "cameras";
+
+      child: Adw.ToolbarView {
+        [top]
+        Adw.HeaderBar {}
+
+        content: Adw.Bin body_slot {
+          vexpand: true;
+        };
+      };
+    }
+  };
+}

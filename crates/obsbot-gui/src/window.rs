@@ -39,36 +39,33 @@ use crate::controls_view::build_controls_page;
 /// device-panel latency while keeping the sysfs syscall load trivial.
 const POLL_INTERVAL: Duration = Duration::from_secs(2);
 
+/// Path to the window's Blueprint-compiled UI inside the embedded
+/// `GResource` (see `build.rs` + `resources/window.blp` + the prefix
+/// in `resources/obsbot.gresource.xml`).
+const WINDOW_UI: &str = "/io/github/domatix/ObsbotCamControl/window.ui";
+
 /// Build the top-level window. Mounts the initial body and starts the
 /// hot-plug polling source bound to the window's lifetime.
 pub fn build(app: &adw::Application) -> adw::ApplicationWindow {
-    let nav_view = adw::NavigationView::new();
+    let builder = gtk::Builder::from_resource(WINDOW_UI);
+    let window: adw::ApplicationWindow = builder
+        .object("window")
+        .expect("window.ui missing object 'window'");
+    let nav_view: adw::NavigationView = builder
+        .object("nav_view")
+        .expect("window.ui missing object 'nav_view'");
+    let body_slot: adw::Bin = builder
+        .object("body_slot")
+        .expect("window.ui missing object 'body_slot'");
 
-    let body_slot = adw::Bin::new();
+    window.set_application(Some(app));
+
     let initial = enumerate_cameras();
     body_slot.set_child(Some(&build_body(&initial, &nav_view)));
-    body_slot.set_vexpand(true);
-
-    let toolbar = adw::ToolbarView::new();
-    toolbar.add_top_bar(&adw::HeaderBar::new());
-    toolbar.set_content(Some(&body_slot));
-
-    let root = adw::NavigationPage::builder()
-        .title("Obsbot Cam Control")
-        .tag("cameras")
-        .child(&toolbar)
-        .build();
-    nav_view.add(&root);
 
     start_hotplug_poll(&body_slot, &nav_view, initial);
 
-    adw::ApplicationWindow::builder()
-        .application(app)
-        .title("Obsbot Cam Control")
-        .default_width(720)
-        .default_height(540)
-        .content(&nav_view)
-        .build()
+    window
 }
 
 /// Install the polling source. The slot is captured weakly so the timer

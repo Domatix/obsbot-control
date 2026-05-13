@@ -29,17 +29,26 @@ use libadwaita as adw;
 use adw::prelude::*;
 use obsbot_core::{read_controls, CameraInfo, ControlClass, ControlDescriptor, ControlKind};
 
+/// Path to the controls-view shell inside the embedded `GResource`
+/// (see `build.rs` + `resources/controls-view.blp` +
+/// `resources/obsbot.gresource.xml`'s prefix).
+const CONTROLS_UI: &str = "/io/github/domatix/ObsbotCamControl/controls-view.ui";
+
 /// Build the detail `AdwNavigationPage` for one camera.
 pub fn build_controls_page(cam: &CameraInfo) -> adw::NavigationPage {
-    let toolbar = adw::ToolbarView::new();
-    toolbar.add_top_bar(&adw::HeaderBar::new());
-    toolbar.set_content(Some(&build_body(cam)));
+    let builder = gtk::Builder::from_resource(CONTROLS_UI);
+    let page: adw::NavigationPage = builder
+        .object("page")
+        .expect("controls-view.ui missing object 'page'");
+    let body_slot: adw::Bin = builder
+        .object("body_slot")
+        .expect("controls-view.ui missing object 'body_slot'");
 
-    adw::NavigationPage::builder()
-        .title(&cam.product)
-        .child(&toolbar)
-        .tag(format!("controls-{:04x}-{:04x}", cam.vid, cam.pid))
-        .build()
+    page.set_title(&cam.product);
+    page.set_tag(Some(&format!("controls-{:04x}-{:04x}", cam.vid, cam.pid)));
+    body_slot.set_child(Some(&build_body(cam)));
+
+    page
 }
 
 fn build_body(cam: &CameraInfo) -> gtk::Widget {

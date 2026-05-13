@@ -469,6 +469,133 @@ the v0.2 hints. After T-099 lands, the T-100 series brings
 control-write features (sliders, PTZ pad, zoom, WB,
 exposure) — that's v0.2's user-visible value.
 
+## 2026-05-13 (v0.2 kickoff)
+
+### [2026-05-13T21:00:00Z] [T-099] Started — Blueprint pipeline
+
+User came back from break, observed the v0.1.0 read-only
+diagnostics view, and asked "por dónde seguimos?". Confirmed
+that read-only is intentional for v0.1 (ROADMAP "Does NOT
+include: any camera control") and that v0.2 (T-100 series) is
+where the GUI starts writing controls. Asked the user via
+`AskUserQuestion` whether to start with the recommended path
+(T-099 → T-100) or skip Blueprint and amend ADR-0017. User
+picked the recommended path.
+
+PLAN.md gains a real v0.2 section with T-099 promoted from the
+backlog hints list to a proper task entry. v0.1's PLAN section
+moved to "Closed milestone" heading so its tasks still resolve
+their `[[T-XYZ]]` backreferences. ROADMAP version-mapping table
+flipped: v0.1.0 = "shipped (2026-05-13)", v0.2.0 = "active".
+
+Plan for T-099:
+
+1. **System dep** — `sudo apt install blueprint-compiler` (Debian
+   trixie ships `0.16.0-3` in main; verified via apt-cache
+   policy). Waiting on user (needs sudo).
+
+2. **`.blp` templates** under `crates/obsbot-gui/resources/`:
+   * `window.blp` — describes the static shell of the main
+     window: `Adw.ApplicationWindow {id=window} → Adw.
+     NavigationView {id=nav_view} → Adw.NavigationPage {tag=
+     cameras} → Adw.ToolbarView → Adw.HeaderBar + Adw.Bin
+     {id=body_slot, vexpand=true}`. The dynamic body (camera
+     list or empty StatusPage, depending on `&[CameraInfo]`)
+     stays code-built — zero Blueprint payoff for Vec-driven
+     trees per [[ADR-0017]]'s reasoning.
+   * `controls-view.blp` — describes the static shell of one
+     drill-down page: `Adw.NavigationPage {id=page} → Adw.
+     ToolbarView → Adw.HeaderBar + Adw.Bin {id=body_slot}`.
+     Per-call code sets `page.title = cam.product`,
+     `page.tag = controls-{vid:04x}-{pid:04x}`, and
+     `body_slot.child = <V4L2 control rows or error
+     StatusPage>`.
+
+3. **`build.rs`** at `crates/obsbot-gui/build.rs`:
+   * For each `.blp` template: invoke `blueprint-compiler
+     compile --output <OUT_DIR>/<name>.ui <name>.blp`, with
+     `cargo:rerun-if-changed` on the source.
+   * Call `glib_build_tools::compile_resources(&[<OUT_DIR>],
+     "resources/obsbot.gresource.xml", "obsbot.gresource")`
+     to produce the embedded GResource.
+
+4. **`resources/obsbot.gresource.xml`** — declares
+   `<gresource prefix="/io/github/domatix/ObsbotCamControl">`
+   containing the two `.ui` files (compressed,
+   xml-stripblanks).
+
+5. **Cargo.toml** — `[build-dependencies] glib-build-tools =
+   "0.20"` (matches our `glib`/`gio` pin).
+
+6. **Rust changes**:
+   * `main.rs` (or `application.rs`) registers the embedded
+     resource via `gio::resources_register_include!("obsbot.
+     gresource")` before `adw::Application::new`.
+   * `window.rs`'s `build()` loads `gtk::Builder::from_resource
+     ("/io/github/domatix/ObsbotCamControl/window.ui")`, looks
+     up `window` / `nav_view` / `body_slot` via `builder.
+     object(...)`, then runs the existing hot-plug + body
+     mounting logic against those handles. The `camera_row`
+     helper stays untouched (dynamic).
+   * `controls_view.rs`'s `build_controls_page(cam)` loads a
+     fresh Builder from the controls-view resource, sets
+     title + tag on the page, mounts the dynamic V4L2 body in
+     `body_slot`. The `control_row` / `render_controls`
+     helpers stay untouched.
+
+7. **Validation** — `cargo fmt --check` / `cargo check
+   --workspace --all-targets` / `cargo clippy -D warnings` /
+   `cargo test --workspace`; `meson compile -C builddir`;
+   `cargo run -p obsbot-gui` plus user-confirmation that the
+   window, hot-plug, drill-down, and back-navigation all
+   behave identically to T-013c.
+
+8. **Close** — PLAN T-099 DONE + outcome. Single commit
+   `build(gui): Blueprint pipeline (T-099)`. Push to origin.
+
+### [2026-05-13T21:20:00Z] [T-099] DONE — Blueprint pipeline live
+
+Pipeline end-to-end:
+
+* `blueprint-compiler 0.16.0` installed via `sudo apt install`
+  (Debian trixie main package, no third-party repo needed).
+* `cargo build -p obsbot-gui` cold: 1m 13s. The build script
+  ran blueprint-compiler twice and `glib-build-tools::compile_
+  resources` once. Outputs land under `target/debug/build/
+  obsbot-gui-*/out/` as `window.ui`, `controls-view.ui`,
+  `obsbot.gresource`.
+* `strings target/debug/obsbot-cam-control | grep '/io/github/
+  domatix/ObsbotCamControl/' | wc -l` returns `3` — the binary
+  embeds the GResource paths.
+* `cargo run -p obsbot-gui` opens the window;
+  `xwininfo -tree -root` shows `0x2c00004 "Obsbot Cam Control"
+  842x662` — same dimensions T-013a measured. User confirmed
+  "Idéntico" via AskUserQuestion (T-013c behaviour preserved:
+  camera row, drill-down, V4L2 controls page, back navigation,
+  Ctrl+Q all work).
+* All four cargo gates green. Two minor fixups during the
+  validation pass:
+  - clippy `doc-markdown` flagged `GResource` (no backticks)
+    in two doc-comments → backticks added.
+  - `cargo fmt --check` re-flowed the
+    `let manifest_dir = PathBuf::from(...)` in `build.rs` →
+    `cargo fmt --all` applied.
+* `meson compile -C builddir` (release profile) also works:
+  produces a fresh 511 KB stripped PIE binary
+  (BuildID `68e638f94619a4e3680211a1a7bb7ab79e4a414c` —
+  different from the v0.1.0 binary's
+  `fa64d7791b85be1af964f4b3cd2411842acb80aa` because the new
+  GResource bytes are now linked in).
+
+PLAN T-099 set to DONE with detailed Outcome (Blueprint
+templates + build.rs + GResource registration + the two
+window/controls_view refactors). STATE goes idle with T-100
+(first writable V4L2 controls — brightness/contrast/
+saturation/hue sliders) as the natural follow-on. Single
+commit `build(gui): Blueprint pipeline (T-099)` packages the
+seven changed/added files plus `Cargo.lock` (glib-build-tools
+0.20.0 transitive deps).
+
 
 
 ### [2026-05-12T00:00:00Z] [bootstrap] Project scaffolding generated

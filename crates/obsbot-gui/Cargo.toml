@@ -34,6 +34,12 @@ libadwaita.workspace = true
 glib.workspace = true
 gio.workspace = true
 
+# Build script (T-099) compiles Blueprint templates and bundles
+# the resulting .ui files into a GResource. `glib-build-tools`
+# tracks the `glib` / `gio` 0.20 pin from the workspace.
+[build-dependencies]
+glib-build-tools = "0.20"
+
 # cargo-deb metadata (T-016).
 #
 # Produces the convenience `.deb` per [[docs/DECISIONS.md ADR-0015]].

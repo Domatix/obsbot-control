@@ -31,6 +31,12 @@ use crate::window;
 /// Build the `adw::Application`, register actions, and enter the `GLib`
 /// main loop.
 pub fn run(app_id: &str) -> glib::ExitCode {
+    // Register the embedded GResource bundle produced by build.rs
+    // before any code tries to load `.ui` templates from it
+    // (window.rs / controls_view.rs).
+    gio::resources_register_include!("obsbot.gresource")
+        .expect("failed to register embedded GResource");
+
     let app = adw::Application::builder()
         .application_id(app_id)
         .resource_base_path("/io/github/domatix/ObsbotCamControl/")

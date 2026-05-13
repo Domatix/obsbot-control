@@ -7,7 +7,126 @@
 
 ---
 
-## Current milestone: v0.1 — Scaffolding & Detection
+## Current milestone: v0.2 — V4L2 Standard Controls
+
+> v0.1.0 shipped 2026-05-13 (tag `v0.1.0`, commit `5e005fd`). The
+> milestone definition lives in [[ROADMAP.md v0.2]]. PLAN tasks
+> below are filled in as they become active (per the project's
+> "no stale plans" rule in the Backlog section).
+
+### T-099 — Blueprint pipeline (absorbs deferred T-013d)
+- **State**: DONE
+- **Started**: 2026-05-13T21:00:00Z
+- **Completed**: 2026-05-13T21:20:00Z
+- **Depends on**: T-013c (the hand-coded shells we migrate; v0.1 closed).
+- **Description**: Introduce `blueprint-compiler` as a build-time
+  dependency, a `crates/obsbot-gui/build.rs` shim that compiles
+  `.blp` → `.ui` and bundles the result into a GResource via
+  `glib_build_tools::compile_resources`, and the registered
+  GResource the binary loads at startup. Migrate the two T-013c
+  shells (the `AdwApplicationWindow` + `NavigationView` +
+  `NavigationPage(cameras)` + `ToolbarView` + `HeaderBar` + body
+  slot in `window.rs`, and the `NavigationPage` + `ToolbarView`
+  + `HeaderBar` + body slot in `controls_view.rs`) to Blueprint
+  templates loaded via `gtk::Builder::from_resource` + named-
+  child lookup. The dynamic content per camera / per control
+  stays code-built (zero benefit from Blueprint for trees that
+  are `Vec<...>`-driven, per [[ADR-0017]]'s reasoning). This
+  task MUST land before T-100 because the slider widgets, PTZ
+  pad, and About dialog from T-100+ all benefit from
+  template-defined shapes.
+- **Acceptance criteria**:
+  - `blueprint-compiler` invoked successfully from `cargo build`
+    via the new `build.rs`. **DONE** — first `cargo build -p
+    obsbot-gui` after installing `blueprint-compiler 0.16.0` on
+    the Debian trixie host succeeded in 1m 13s cold;
+    `target/debug/build/obsbot-gui-*/out/` contains both the
+    intermediate `window.ui` + `controls-view.ui` and the
+    packed `obsbot.gresource`. Incremental rebuild after small
+    Rust changes finishes in <1 s (blueprint-compiler only
+    re-runs when `.blp` sources change, via
+    `cargo:rerun-if-changed`).
+  - `obsbot-cam-control` loads its UI from the embedded
+    `GResource`. **DONE** — `strings target/debug/obsbot-cam-
+    control | grep '/io/github/domatix/ObsbotCamControl/' | wc
+    -l` returns `3` (the two .ui paths used by Builder lookups
+    plus the gresource prefix string). The
+    `gio::resources_register_include!("obsbot.gresource")`
+    call at the top of `application::run` bakes the
+    GResource bytes into the binary; `gtk::Builder::from_
+    resource("/io/github/domatix/ObsbotCamControl/window.ui")`
+    and the matching `controls-view.ui` lookup both succeed
+    at runtime (no `expect()` panic surfaced).
+  - `cargo run -p obsbot-gui` behaviour unchanged from T-013c.
+    **DONE** — user-confirmed 2026-05-13T21:20Z via
+    AskUserQuestion ("Idéntico"). `xwininfo -tree -root`
+    reports `0x2c00004 "Obsbot Cam Control" 842x662` —
+    exactly the same window dimensions T-013a observed.
+  - All four cargo gates green. **DONE** — `cargo fmt --all
+    --check`, `cargo check --workspace --all-targets`,
+    `cargo clippy --workspace --all-targets -- -D warnings`,
+    `cargo test --workspace` all exit 0. (One detour: clippy
+    `doc-markdown` flagged `GResource` in two doc-comments as
+    "item missing backticks" — fixed both occurrences inline;
+    rustfmt re-flowed the `let manifest_dir = PathBuf::from
+    (...)` in `build.rs` once `cargo fmt --all` ran.)
+  - Commit: `build(gui): Blueprint pipeline (T-099)`.
+- **Outcome**: four-file delta plus the meson side-fix-free
+  refactor of two existing modules.
+  * **`crates/obsbot-gui/resources/window.blp`** — describes the
+    static shell of the main window (`Adw.ApplicationWindow
+    {id=window}` → `Adw.NavigationView {id=nav_view}` →
+    `Adw.NavigationPage {tag="cameras"}` → `Adw.ToolbarView` →
+    `Adw.HeaderBar` + `Adw.Bin {id=body_slot, vexpand=true}`).
+    Dynamic content (camera list rows / empty `StatusPage`)
+    stays code-built — zero Blueprint payoff for `Vec`-driven
+    trees per [[ADR-0017]]'s reasoning.
+  * **`crates/obsbot-gui/resources/controls-view.blp`** —
+    describes the static shell of one drill-down page
+    (`Adw.NavigationPage {id=page}` → `Adw.ToolbarView` →
+    `Adw.HeaderBar` + `Adw.Bin {id=body_slot, vexpand=true}`).
+    Placeholder `title: "Controls"` / `tag: "controls"` get
+    overridden per-push by `controls_view.rs` (`page.set_
+    title(&cam.product)`, `page.set_tag(Some(&format!
+    ("controls-{:04x}-{:04x}", …)))`).
+  * **`crates/obsbot-gui/resources/obsbot.gresource.xml`** —
+    `<gresource prefix="/io/github/domatix/ObsbotCamControl">`
+    declaring both `.ui` files with `compressed="true"
+    preprocess="xml-stripblanks"` so the embedded bundle stays
+    small.
+  * **`crates/obsbot-gui/build.rs`** (~50 lines) — invokes
+    `blueprint-compiler compile --output OUT_DIR/<name>.ui
+    resources/<name>.blp` per template (with
+    `cargo:rerun-if-changed`), then calls
+    `glib_build_tools::compile_resources(&[&out_dir],
+    "resources/obsbot.gresource.xml", "obsbot.gresource")`.
+    `glib-build-tools = "0.20"` is the new `[build-
+    dependencies]` entry in obsbot-gui's `Cargo.toml`,
+    matching the workspace `glib` / `gio` 0.20 pin.
+  * **`crates/obsbot-gui/src/application.rs`** — gains a
+    `gio::resources_register_include!("obsbot.gresource")`
+    call at the top of `run()`, before `adw::Application::
+    builder()` so the GResource is available when GTK starts
+    asking for `.ui` paths.
+  * **`crates/obsbot-gui/src/window.rs`** — `build()` now
+    `gtk::Builder::from_resource(WINDOW_UI)`'s the window +
+    nav_view + body_slot, then runs the existing
+    `start_hotplug_poll` / `build_body` / `camera_row`
+    helpers unchanged. ~30 lines of constructor builder-
+    chain code removed.
+  * **`crates/obsbot-gui/src/controls_view.rs`** —
+    `build_controls_page()` likewise loads from the
+    controls-view resource and patches title + tag per
+    camera. ~10 lines removed.
+  No new Rust dependencies (gtk4 already exports
+  `gtk::Builder`; `gio` already in `[dependencies]`).
+  Workspace test totals unchanged. `Cargo.lock` picks up
+  `glib-build-tools 0.20.0` (build-only, doesn't enter the
+  runtime dep graph).
+
+---
+
+## Closed milestone: v0.1 — Scaffolding & Detection (v0.1.0)
 
 ### T-001 — Initialize git repository and validate scaffolding
 - **State**: DONE
@@ -984,10 +1103,7 @@ current milestone is near completion. This avoids stale plans.
 
 Hints of what will come:
 
-**v0.2 hints**: T-100 series.
-- T-099 Blueprint pipeline (absorbs the deferred T-013d per
-  [[ADR-0017]]; must land before any T-100+ task that introduces
-  a static widget tree).
+**v0.2 hints** (T-099 now active above):
 - T-100 Implement V4L2 brightness/contrast/saturation/hue.
 - T-101 PTZ pad widget in GUI.
 - T-102 Zoom slider.
