@@ -117,6 +117,39 @@ obsbot-cam-control                              # launches the GUI
 sudo apt remove obsbot-cam-control              # removes everything
 ```
 
+### Test packages (Arch `pkg.tar.zst`)
+
+> **Scope** ([ADR-0015](docs/DECISIONS.md)): same as the `.deb` —
+> convenience artifact for the Arch tester, **not** an AUR-grade
+> package. Build, install, remove; no commitment to track Arch
+> packaging policy churn.
+
+On an Arch (or Arch-derivative) host:
+
+```sh
+./build-aux/build-arch.sh
+```
+
+The shim runs `makepkg -f --skipchecksums` against
+[`build-aux/PKGBUILD`](build-aux/PKGBUILD) and drops the resulting
+`obsbot-cam-control-0.1.0-1-x86_64.pkg.tar.zst` under
+`build-aux/dist/`.
+
+Install / uninstall:
+
+```sh
+sudo pacman -U ./build-aux/dist/obsbot-cam-control-*-x86_64.pkg.tar.zst
+obsbot-cam-control                              # launches the GUI
+sudo pacman -R obsbot-cam-control               # removes everything
+```
+
+Build dependencies pulled from official repos:
+`base-devel rust meson clang pkgconf gtk4 libadwaita`.
+
+On a non-Arch host the shim exits with an error pointing at a
+`docker run … archlinux:latest …` recipe — see the script for
+the exact command.
+
 ## License
 
 Copyright © 2026 Domatix and contributors.

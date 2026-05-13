@@ -233,6 +233,135 @@ and this repo is private; GitHub Actions does run on private repos, but the
 README-badge + Flathub-prep parts of T-015 want public visibility. Re-evaluate
 when the public release repo lands.
 
+### [2026-05-13T20:30:00Z] [T-017] Started — Arch `PKGBUILD` test artifact
+
+Last task standing in v0.1 (T-015 stays BLOCKED on public-repo move).
+Goal: mirror T-016's `.deb` story on Arch — a convenience
+`pkg.tar.zst` for the Arch stakeholder mentioned in [[ADR-0015]],
+not an AUR-grade package. Same scope contract: "test artifact",
+README labels it as such, README points at the Flatpak as the
+supported channel.
+
+Plan for this turn:
+
+1. **`build-aux/PKGBUILD`** — pkgname=`obsbot-cam-control`
+   ([[ADR-0012]] kebab-case App-ID tail, matches the `.deb` and
+   the installed binary name). pkgver=0.1.0 / pkgrel=1.
+   `depends=('gtk4' 'libadwaita')` — auto-tested via the `ldd`
+   surface in [[T-016]]: every other shared lib is transitive
+   through Arch's `gtk4` package (glib2, pango, cairo, gdk-pixbuf,
+   harfbuzz, fontconfig, …). No gstreamer dep yet (preview
+   pipeline is T-200+). `makedepends=('rust' 'meson' 'clang'
+   'pkgconf')` — `clang` is for the `libclang` bindgen needs in
+   `v4l2-sys-mit` (same constraint that pushed us to add the
+   `org.freedesktop.Sdk.Extension.llvm19` to the Flatpak manifest
+   in [[T-014]]'s outcome). `pkgconf` for the `gtk4-sys` /
+   `libadwaita-sys` link-flag discovery. `source=()` empty: we
+   build from the local checkout (the stakeholder gets the
+   PKGBUILD inside the repo via `git clone`; no need to round-
+   trip through a tarball URL while the repo is private and
+   pre-tag). build() uses `arch-meson "$startdir/.." build` so
+   the standard Arch prefix flags get applied and the meson
+   source dir is the repo root.
+
+2. **`build-aux/build-arch.sh`** — same shape as `build-deb.sh`.
+   On Arch: `cd build-aux && makepkg -f --skipchecksums` (no
+   source so checksums are trivially empty), then move the
+   `.pkg.tar.zst` into `build-aux/dist/`. On non-Arch: print a
+   clear error pointing at the container recipe and the Arch
+   stakeholder hand-off; exit non-zero so we don't pretend the
+   build happened.
+
+3. **README** — Arch sub-section under "Test packages"
+   mirroring the `.deb` shape (build / install / launch / remove
+   commands).
+
+4. **Validation** — bash -n on both shell scripts; manual
+   PKGBUILD review against Arch packaging conventions (Arch
+   wiki's "Creating packages" reference). No `makepkg` run on
+   this host (host is Debian; no docker/podman either). Per
+   T-017 acceptance text ("run by CI or a contributor on
+   Arch"), the actual makepkg verification is the Arch
+   stakeholder's deliverable — same user-driven pattern as
+   T-016's `apt install` gate.
+
+5. **Close** — PLAN.md DONE-with-caveat (code-complete; downstream
+   makepkg run pending) or IN_PROGRESS-pending depending on how
+   the static checks land. STATE idle. Single commit
+   `build(arch): test-artifact PKGBUILD (T-017)`.
+
+6. **Milestone v0.1** — once T-017 lands, evaluate per CLAUDE.md
+   §7. Tag `v0.1.0` if criteria met; the BLOCKED T-015 is
+   external-process and doesn't gate the tag (its PLAN note
+   makes that explicit).
+
+### [2026-05-13T20:40:00Z] [T-017] DONE-with-caveat — PKGBUILD shipped, downstream makepkg run deferred
+
+Three artefacts land:
+
+* **`build-aux/PKGBUILD`** (~50 lines, comments inline) —
+  pkgname `obsbot-cam-control`, depends `gtk4 libadwaita`,
+  makedepends `rust meson clang pkgconf`, `source=()` empty
+  (builds from `$startdir/..`), `options=('!debug' '!lto')` so
+  makepkg doesn't fight cargo's existing release-profile lto +
+  strip. build() uses `arch-meson "$startdir/.." build` and
+  package() runs `meson install --destdir` plus an explicit
+  LICENSE drop at `/usr/share/licenses/$pkgname/LICENSE` for
+  symmetry with cargo-deb's `/usr/share/doc/$pkgname/copyright`.
+* **`build-aux/build-arch.sh`** (~70 lines) — mirrors
+  `build-deb.sh`. Detects host via `/etc/os-release`'s
+  `ID` / `ID_LIKE` (matches `arch`, `manjaro`, `endeavouros`,
+  `cachyos`, anything else with `arch` in ID_LIKE); on Arch
+  runs `makepkg --force --skipchecksums --noconfirm`, moves
+  the result to `build-aux/dist/`. On non-Arch prints a clean
+  error with a copy-pasteable `docker run …` recipe and exits
+  64. Verified on the current Debian trixie host: exit 64 with
+  the expected diagnostic.
+* **README "Test packages (Arch)" sub-section** — mirrors the
+  `.deb` doc shape.
+
+Side change to `meson.build`: the buildtype→cargo-profile mapping
+now treats `plain` as release (was falling through to debug).
+`arch-meson` runs `meson setup` with `--buildtype=plain` by
+default; without this fix the Arch package would have shipped the
+debug binary. Semantically correct in pure-meson terms too —
+`plain` is "optimised, distro-controlled flags". Verified: default
+`meson setup builddir` still produces release (same SHA-1 BuildID
+`fa64d7791b85be1af964f4b3cd2411842acb80aa` as the binary the
+T-016 `.deb` ships).
+
+Validation done:
+
+* `bash -n` clean on both `PKGBUILD` and `build-arch.sh`.
+* All PKGBUILD fields introspect correctly under `bash -c 'set +H;
+  source PKGBUILD; …'` (history-expansion-disabled to handle the
+  `!debug` / `!lto` options-array entries — bash interactive
+  trips on them, makepkg parses fine).
+* Full arch-meson invocation simulated locally with the actual
+  flag set Arch's wrapper applies. Setup picks the release
+  profile, compile takes 1m 31s and emits the same stripped PIE
+  binary the `.deb` ships (BuildID-identical). `meson install
+  --destdir=` produces the freedesktop-standard layout: binary at
+  `usr/bin/obsbot-cam-control`, `.desktop` at
+  `usr/share/applications/`, AppStream metainfo at
+  `usr/share/metainfo/`, two SVGs at
+  `usr/share/icons/hicolor/{scalable,symbolic}/apps/`.
+* `cargo fmt --check`, `cargo clippy --workspace --all-targets --
+  -D warnings`, `cargo test --workspace` all green.
+
+Deferred (per task acceptance text and ADR-0015):
+
+* The literal `makepkg -f` run on Arch — host is Debian with no
+  docker/podman, so the deliverable is the PKGBUILD itself; the
+  actual artifact production is the Arch stakeholder's job.
+  Symmetric with T-016's user-driven `apt install/remove` gate.
+* `sudo pacman -U <pkg>` install + launch + remove validation —
+  same downstream destination.
+
+PLAN T-017 set to DONE-with-caveat (mirrors T-010's "framework
+correct, end-of-line verification deferred" closure shape). STATE
+goes idle. Next: evaluate v0.1 milestone per CLAUDE.md §7.
+
 
 
 ### [2026-05-12T00:00:00Z] [bootstrap] Project scaffolding generated

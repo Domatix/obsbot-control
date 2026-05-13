@@ -47,7 +47,15 @@ datadir   = prefix / get_option('datadir')
 localedir = prefix / get_option('localedir')
 
 # Map meson buildtype → cargo profile.
-if get_option('buildtype') == 'release' or get_option('buildtype') == 'minsize'
+#
+# `plain` lands here as release too: in meson semantics it means
+# "no meson-managed flags; respect distro CFLAGS / CARGOFLAGS",
+# which for a pure-cargo build aligns with cargo's optimised
+# profile. `arch-meson` (T-017) defaults to `--buildtype=plain`,
+# so this mapping lets the Arch PKGBUILD ship the release binary
+# without a `-Dbuildtype=release` override.
+buildtype = get_option('buildtype')
+if buildtype == 'release' or buildtype == 'minsize' or buildtype == 'plain'
   rust_profile = 'release'
 else
   rust_profile = 'debug'

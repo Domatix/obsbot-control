@@ -1,0 +1,72 @@
+# Maintainer: Domatix and contributors <noreply@domatix.com>
+#
+# PKGBUILD for the Obsbot Cam Control test artifact (T-017).
+#
+# Scope (ADR-0015): convenience package for the Arch stakeholder to
+# sideload-test the same revision the .deb (T-016) and Flatpak
+# (T-014) target. NOT an AUR-grade package; Flatpak via Flathub
+# remains the supported distribution channel (target: v1.0).
+#
+# Invocation (Arch host):
+#   cd build-aux && makepkg -f --skipchecksums
+# Or, from the repo root:
+#   ./build-aux/build-arch.sh
+#
+# The wrapper drops the produced `*.pkg.tar.zst` into
+# `build-aux/dist/`. Install with `sudo pacman -U <pkg>`;
+# remove with `sudo pacman -R obsbot-cam-control`.
+#
+# `source=()` is intentional: the PKGBUILD ships inside the repo
+# and builds the working tree at `$startdir/..` directly. No
+# tarball / git+https URL while the repo is private and pre-tag;
+# revisit when v1.0 lands a public release.
+
+pkgname=obsbot-cam-control
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="Native GNOME app to control OBSBOT Tiny 2 family webcams over UVC/V4L2"
+arch=('x86_64')
+url="https://github.com/Domatix/obsbot-control"
+license=('GPL-3.0-or-later')
+# Runtime deps: derived from the linked-ELF surface verified on the
+# T-016 .deb (libadwaita-1, libgtk-4, libglib-2, libgio-2). Arch's
+# `gtk4` package pulls glib2 / pango / cairo / harfbuzz / gdk-pixbuf
+# transitively, so listing those two is sufficient. No gstreamer
+# yet (T-200+ scope).
+depends=('gtk4' 'libadwaita')
+# Build deps: `rust` ships cargo on Arch; `meson` is the build-
+# system orchestrator; `clang` provides libclang for the bindgen
+# pass v4l2-sys-mit needs (same root cause that forced the llvm19
+# SDK extension in the Flatpak manifest, T-014 outcome notes);
+# `pkgconf` for gtk4-sys / libadwaita-sys link-flag discovery.
+makedepends=('rust' 'meson' 'clang' 'pkgconf')
+source=()
+sha256sums=()
+# Cargo workspace `[profile.release]` already does
+# lto = "thin" + strip = "symbols"; tell makepkg to skip its own
+# debug-package generation.
+options=('!debug' '!lto')
+
+build() {
+    # `$startdir` is the directory containing this PKGBUILD
+    # (build-aux/); the repo root is one level up.
+    #
+    # No `-Dbuildtype=` override needed: arch-meson runs with
+    # `--buildtype=plain`, and our top-level meson.build maps
+    # `plain` to cargo's release profile (matches meson's "plain"
+    # semantics — optimised with distro-controlled flags).
+    arch-meson "$startdir/.." build
+    meson compile -C build
+}
+
+package() {
+    meson install -C build --destdir="$pkgdir"
+    # GPL-3.0-or-later is a common license and Arch's `licenses`
+    # package already covers it; shipping the project's verbatim
+    # LICENSE under `/usr/share/licenses/$pkgname/` is the
+    # idiomatic mirror of cargo-deb's `/usr/share/doc/<pkg>/
+    # copyright` (T-016) and keeps the two test packages
+    # symmetric.
+    install -Dm644 "$startdir/../LICENSE" \
+        "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+}
