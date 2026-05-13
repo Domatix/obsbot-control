@@ -596,6 +596,201 @@ commit `build(gui): Blueprint pipeline (T-099)` packages the
 seven changed/added files plus `Cargo.lock` (glib-build-tools
 0.20.0 transitive deps).
 
+### [2026-05-13T22:55:00Z] [T-100] DONE — User-class V4L2 controls are writable
+
+Three-pass UX iteration in one session segment (~50 min wall
+time). Functional acceptance ("brightness slider changes the
+live image") was met on the first pass; the second and third
+passes responded to user feedback on widget choice.
+
+**Pass 1** — initial implementation:
+
+* `obsbot_core::controls::ControlDescriptor` gains `id: u32`
+  (populated from `Description.id` in `read_controls`).
+* New `ControlValue { Integer(i64), Boolean(bool) }` enum and
+  `From<ControlValue> for v4l::control::Value` impl in the
+  same module; two unit tests pin the variant mapping
+  (no `/dev/videoN` access required, run in the default
+  `cargo test`).
+* New `pub fn write_control(&Path, u32, ControlValue) ->
+  Result<()>` opens the V4L2 node via `Device::with_path`
+  (which the v4l crate opens `O_RDWR | O_NONBLOCK`) and
+  dispatches `Device::set_control(Control { id, value: …
+  })`. Errors from open / ioctl flow through the existing
+  `Error::Io` variant.
+* `obsbot-gui::controls_view` swaps the read-only
+  `AdwActionRow` for `AdwSpinRow` (User Integer) /
+  `AdwSwitchRow` (User Boolean); Camera-class and menus
+  remain read-only. Two saturating-cast helpers
+  (`clamp_i64_to_i32`, `f64_to_i32_saturating`) keep
+  clippy quiet about the i64↔f64 round-trip while
+  documenting that V4L2 standard control values are
+  `__s32` per kernel `videodev2.h`.
+* `crates/obsbot-core/tests/hardware.rs` gains a third
+  `#[ignore]`d integration test
+  (`writes_v4l2_brightness_round_trip`) — reads brightness
+  on the Tiny 2 Lite, writes `current ± step`, asserts the
+  read-back matches, restores the original. The existing
+  `reads_v4l2_controls_from_connected_unit` test
+  additionally asserts `brightness.id == 0x0098_0900`
+  (`V4L2_CID_BRIGHTNESS`).
+* All four cargo gates green on pass 1; the three hardware
+  tests passed under `cargo test -- --ignored` against the
+  user's plugged-in Tiny 2 Lite.
+
+**Pass 2** — user feedback: "Cambia pero con los botones
+de + y −, no hay barra". `AdwSpinRow` is the spin-entry
+ergonomic, not a drag-bar; T-100's acceptance text literally
+said "slider", so SpinRow was a mismatch. Rebuilt the
+integer row as an `AdwActionRow` with two suffixes:
+* `gtk::Scale` (horizontal, 200 px minimum, no value drawn,
+  bound to the adjustment).
+* `gtk::Label` with the current value, right-aligned, dim
+  "numeric" CSS class.
+The `value-changed` signal moved from `AdwSpinRow::
+connect_value_notify` to `Adjustment::connect_value_changed`
+(more direct, fires once per change regardless of which
+widget mutated the value). Gates re-green, GUI re-launched.
+
+**Pass 3** — user feedback: "Funciona pero seria
+interesante introducir manualmente también el número y un
+botón que lo ponga en su valor por defecto". Two
+ergonomic additions:
+
+1. **Manual number entry** — a `gtk::SpinButton` added as a
+   third suffix to the action row, sharing the *same*
+   `gtk::Adjustment` as the `gtk::Scale`. Dragging the
+   slider updates the spin-button display and vice versa;
+   the value-changed signal fires exactly once per change
+   from the adjustment, so `write_control` still hits the
+   driver once.
+2. **Reset to default** — `ControlKind::Integer` and
+   `::Boolean` learn a `default` field, populated from
+   `Description.default_value`. The integer row gains a
+   third suffix: a flat `gtk::Button` with an
+   `edit-undo-symbolic` icon and a tooltip "Reset to
+   default (N)". On click it calls `adjustment.set_value
+   (default_f64)`, which routes through the same
+   value-changed path that drives manual interaction. The
+   scale also gets a small tick mark at the default
+   position via `Scale::add_mark`, so users can see where
+   the reset sits visually. Boolean rows surface the
+   default in their subtitle ("default On" / "default
+   Off") rather than via a button (toggling the switch is
+   already the reset gesture for a binary control).
+
+User confirmed pass 3 via AskUserQuestion: "Funciona todo"
+(brightness/contrast/saturation/hue + WB Temperature
+reacting live in a preview after toggling *White Balance,
+Automatic* off — the documented V4L2 interlock from
+`PROTOCOL §2.3` Q1/Q2, not a bug in our code).
+
+**Hardware-quirk note worth pinning here for archaeology**:
+during pass 2 the user reported "los primeros 5 controls
+hasta WB sí cambian, los demás no parecen hacer nada". That
+is the kernel UVC driver's standard interlock behaviour:
+when *White Balance, Automatic* is `On`, the driver marks
+*White Balance Temperature* as `V4L2_CTRL_FLAG_INACTIVE`
+and silently ignores `VIDIOC_S_EXT_CTRLS` writes; same for
+*Exposure Time, Absolute* in auto-exposure modes. Toggling
+the WB Automatic switch off freed the temperature slider.
+PLAN T-100's Outcome flags a future polish item (probably
+T-106 / a v0.2.x polish task): read `Description.flags`'s
+`INACTIVE` bit per control, grey out the row when set,
+re-enable when its controlling switch flips. We did not
+land that this session — the user's hardware confirmation
+of the actual write path was the gating criterion.
+
+Final gate run before commit:
+
+* `cargo fmt --all --check` — exit 0.
+* `cargo clippy --workspace --all-targets -- -D warnings` —
+  no warnings (one fix-up during pass 3: clippy
+  `similar_names` flagged `default_i32` + `default_f64`; the
+  inner closure variable got renamed to `reset_to`).
+* `cargo test --workspace` — 13 unit + 1 doctest, all
+  green; 3 hardware tests `#[ignore]`d in CI run.
+* `cargo test -p obsbot-core --test hardware -- --ignored`
+  — 3 / 3 green against the connected Tiny 2 Lite.
+
+PLAN T-100 set to DONE with the full Outcome block. STATE
+goes idle pointing at T-101 (PTZ pad — Camera-class write
+path, likely deserves its own Blueprint shell since the
+layout is static 3×3 + zoom on the side, per [[ADR-0017]]'s
+"Blueprint when static" rule). Single commit
+`feat(core+gui): writable User-class V4L2 controls
+(T-100)` packages the six changed files (obsbot-core
+src/controls.rs, src/lib.rs, tests/hardware.rs;
+obsbot-gui src/controls_view.rs; docs PLAN/STATE/PROGRESS).
+
+### [2026-05-13T22:05:00Z] [T-100] Started — first writable V4L2 controls
+
+Session resumes on T-100 (first user-visible v0.2 deliverable: a
+slider that actually moves the camera). Pre-flight checks at
+session start:
+
+* `cargo fmt --all --check` — silent exit 0.
+* `cargo clippy --workspace --all-targets -- -D warnings` —
+  finished in 1.56s, no warnings (incremental from T-099 close).
+* `cargo test --workspace` — workspace tests green (14 unit + 1
+  doctest, 2 hardware tests still `#[ignore]`d).
+* `groups` on the current shell returns `alvaro sudo video
+  users` and `test -w /dev/video0` succeeds. The
+  STATE.pending_user_actions entry asking for a logout/login
+  to pick up the T-013 `video`-group grant is **stale** — the
+  session already has the membership, so T-100 can write to
+  `/dev/videoN` without any user-side dance. Dropped that
+  entry from STATE.
+
+Plan for this turn (full text in [[PLAN T-100]]):
+
+1. **obsbot-core** — add `id: u32` to `ControlDescriptor`
+   (so the GUI can address the control on write), introduce
+   a `ControlValue { Integer(i64), Boolean(bool) }` enum, and
+   a `pub fn write_control(video_path: &Path, id: u32, value:
+   ControlValue) -> Result<()>` backed by `v4l::Device::
+   set_control(Control { id, value: … })`. Re-export both
+   from `lib.rs`. Unit-test the value-mapping; add a
+   `#[ignore]`d hardware round-trip on
+   `V4L2_CID_BRIGHTNESS` (0x00980900): read → write
+   current±step → read-back → restore.
+
+2. **obsbot-gui::controls_view** — replace the unconditional
+   `AdwActionRow` with type-aware branches when
+   `class == ControlClass::User`:
+   * `Integer { current, min, max, step }` → `AdwSpinRow`
+     with `Adjustment::new(current, min, max, step, page=0,
+     page_size=0)`, `connect_value_notify` calls
+     `write_control(path, id, ControlValue::Integer(value))`.
+   * `Boolean { current }` → `AdwSwitchRow::builder().
+     active(current)`, `connect_active_notify` calls
+     `write_control(path, id, ControlValue::Boolean(active))`.
+   Camera-class, menus, and Other-class stay read-only
+   `AdwActionRow` for now (T-101 PTZ pad / T-103 WB /
+   T-104 exposure cover those write paths). Errors go to
+   `eprintln!`; proper toast UX is T-106 polish.
+
+3. **Slider Blueprint template** — STATE.next_step hinted at
+   a reusable `slider-row.blp`. Skipping it intentionally:
+   `AdwSpinRow::builder()` is a one-liner, the render loop
+   is Vec-driven, and [[ADR-0017]] explicitly carved out
+   Vec-driven trees as code-built. PTZ pad (T-101) and
+   About dialog (T-106) are the first Blueprint shells
+   that genuinely warrant a static template.
+
+4. **Validation** — `cargo fmt --check` / `cargo clippy
+   -D warnings` / `cargo test --workspace` (the new
+   value-mapping unit test must be green; the new
+   hardware round-trip stays `#[ignore]`d). Then ask
+   the user to launch the GUI, drag Brightness, and
+   confirm a second app (Cheese / Camera) shows the
+   image responding live.
+
+5. **Close** — PLAN T-100 DONE + outcome, STATE idle
+   pointing at T-101 (PTZ pad). Single commit
+   `feat(core+gui): writable User-class V4L2 controls
+   (T-100)`.
+
 ### [2026-05-13T21:30:00Z] [session-end] Clean checkpoint, v0.2 at 12%
 
 User asked to wrap. Working tree clean (this checkpoint

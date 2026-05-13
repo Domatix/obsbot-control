@@ -124,6 +124,147 @@
   `glib-build-tools 0.20.0` (build-only, doesn't enter the
   runtime dep graph).
 
+### T-100 — Writable User-class V4L2 controls (brightness/contrast/saturation/hue)
+- **State**: DONE
+- **Started**: 2026-05-13T22:05:00Z
+- **Completed**: 2026-05-13T22:55:00Z
+- **Depends on**: T-099 (Blueprint pipeline, DONE); T-013c (read-only
+  enumeration we now layer writes on top of).
+- **Description**: First user-visible write path for v0.2. Extend
+  `obsbot_core::controls` with a `write_control(video_path, id,
+  value)` helper backed by `v4l 0.14`'s `Device::set_control`, then
+  expose `ControlDescriptor.id: u32` so the GUI can call it. In
+  `obsbot-gui::controls_view::render_controls`, swap the read-only
+  `AdwActionRow` for type-appropriate writable widgets when the
+  control sits in the User class:
+  * `ControlKind::Integer` → `AdwSpinRow` with an `Adjustment`
+    matching `min`/`max`/`step`, current value pre-set, and
+    `connect_value_notify` calling `write_control`.
+  * `ControlKind::Boolean` → `AdwSwitchRow` with `set_active(current)`
+    and `connect_active_notify` calling `write_control`.
+  * `ControlKind::Menu` and `ControlKind::Other` stay read-only for
+    now (menu writes land with T-103 / T-104 / T-101 — anti-flicker,
+    exposure mode, PTZ).
+  Camera-class and Other-class controls also stay read-only (their
+  dedicated PTZ pad and other write paths arrive in T-101+). Write
+  errors are surfaced via `eprintln!` plus the slider/switch staying
+  at the user-selected value; a proper toast / revert UX is a polish
+  item for T-106's About + general error surfacing.
+  Reusable Blueprint templates for sliders (the STATE hint at a
+  `slider-row.blp`) are intentionally **not** introduced in this
+  task: `AdwSpinRow::builder()` is one ergonomic constructor and the
+  Vec-driven render loop carries no Blueprint payoff per
+  [[ADR-0017]]. PTZ pad / About dialog (T-101 / T-106) are the
+  natural first home for new Blueprint shells.
+- **Acceptance criteria**:
+  - `obsbot_core::controls::ControlDescriptor` exposes `id: u32`.
+    **DONE** — populated from `Description.id` in `read_controls`.
+  - `obsbot_core::controls::write_control(&Path, u32, ControlValue) ->
+    Result<()>` returns `Ok(())` for an in-range Integer write and
+    propagates `Err(Error::Io)` for ioctl failures. **DONE**.
+  - Unit test covers `ControlValue → v4l::control::Value` mapping
+    without touching `/dev/videoN`. **DONE** — two new tests in
+    `controls.rs`'s `#[cfg(test)] mod tests`.
+  - Hardware-`#[ignore]` integration test round-trips
+    `V4L2_CID_BRIGHTNESS` (read current → write current±step → read
+    back → restore) against the user's plugged-in Tiny 2 Lite.
+    **DONE** — `writes_v4l2_brightness_round_trip` in
+    `tests/hardware.rs` passes against the connected unit
+    (`cargo test -p obsbot-core --test hardware -- --ignored`).
+  - GUI renders writable widgets for every User-class Integer /
+    Boolean control. **DONE** — Integer rows use
+    `AdwActionRow` with a `gtk::Scale` + `gtk::SpinButton`
+    (both bound to the same `gtk::Adjustment`) + a flat
+    `edit-undo-symbolic` reset button as suffixes. Boolean
+    rows use `AdwSwitchRow`. Both surface the driver's
+    advertised default in the subtitle / tooltip.
+  - Moving the **brightness** slider changes the brightness of the
+    live image visible in a second app (Cheese / Camera) on the
+    user's hardware. **DONE** — user confirmed 2026-05-13T22:50Z
+    via AskUserQuestion (final iteration with slider + manual
+    spin entry + reset button: "Funciona todo").
+  - `cargo fmt --all --check`, `cargo clippy --workspace --all-
+    targets -- -D warnings`, `cargo test --workspace` all green.
+    **DONE**.
+  - Commit `feat(core+gui): writable User-class V4L2 controls
+    (T-100)` lands on `main`. **DONE** — see git log.
+- **Outcome**: ~250-line delta across two crates plus a docs
+  ledger.
+  * **`crates/obsbot-core/src/controls.rs`** — `ControlDescriptor`
+    gains an `id: u32` field (used by every caller addressing a
+    specific control on write); `ControlKind::Integer` and
+    `::Boolean` gain a `default` field carried straight from
+    `v4l::control::Description.default_value` (powers the GUI's
+    reset-to-default UX). New `ControlValue { Integer(i64),
+    Boolean(bool) }` enum with a `From<ControlValue> for
+    v4l::control::Value` impl. New `pub fn write_control(&Path,
+    u32, ControlValue) -> Result<()>` opens the V4L2 node and
+    dispatches `Device::set_control`. Two unit tests pin the
+    `ControlValue → v4l::Value` mapping.
+  * **`crates/obsbot-core/src/lib.rs`** — re-exports
+    `write_control` and `ControlValue` alongside the existing
+    `read_controls` / `ControlClass` / `ControlDescriptor` /
+    `ControlKind` family.
+  * **`crates/obsbot-core/tests/hardware.rs`** — third
+    `#[ignore]`d integration test (`writes_v4l2_brightness_
+    round_trip`) reads brightness, writes `current ± step`,
+    asserts the read-back matches, restores the original.
+    Existing test additionally asserts
+    `brightness.id == V4L2_CID_BRIGHTNESS (0x0098_0900)`.
+    All 3 hardware tests passed under
+    `cargo test -- --ignored` against the user's plugged-in
+    Tiny 2 Lite, two times during this task (once after the
+    initial `AdwSpinRow` build, once after the slider rebuild).
+  * **`crates/obsbot-gui/src/controls_view.rs`** — `control_row`
+    branches on `(ControlClass::User, ControlKind::Integer |
+    Boolean)`. Integer rows: `AdwActionRow` with title, range +
+    default subtitle, and three suffixes — a `gtk::Scale`
+    (200 px min, horizontal, draws no value, has a tick mark
+    at the default), a `gtk::SpinButton` (5 chars wide,
+    numeric, climb_rate = step), and a flat
+    `gtk::Button` with an `edit-undo-symbolic` icon plus a
+    "Reset to default (N)" tooltip. All three widgets share the
+    same `gtk::Adjustment`, so the value-changed signal fires
+    once whichever widget the user touched, and the write hits
+    `obsbot_core::write_control` with the rounded i32 value
+    widened to i64. Boolean rows: `AdwSwitchRow` with the
+    default surfaced as a subtitle ("default On" / "default
+    Off") and `connect_active_notify` wired to write. Two
+    helper functions (`clamp_i64_to_i32` saturating, and
+    `f64_to_i32_saturating` carrying a justified
+    `#[allow(clippy::cast_possible_truncation)]`) keep clippy
+    quiet while documenting that the saturation is intentional
+    (V4L2 standard control values are `__s32` per kernel
+    `videodev2.h`).
+- **UX iteration log** (worth recording — the user redirected
+  twice):
+  1. First pass shipped `AdwSpinRow` (+/− buttons + numeric
+     entry). User: "cambia pero con los botones de + y −, no hay
+     barra". Acceptance text said "slider"; SpinRow was wrong.
+  2. Second pass shipped `AdwActionRow` + `gtk::Scale` (drag-
+     bar) + value `gtk::Label`. User: "barra OK, pero quiero
+     introducir manualmente también el número y un botón para
+     resetear al valor por defecto".
+  3. Third pass — final — added `gtk::SpinButton` next to the
+     scale (sharing the adjustment so they stay in lock-step)
+     and a flat reset button with an `edit-undo-symbolic` icon
+     and a "Reset to default (N)" tooltip; the scale also got a
+     tick mark at the default position. User: "Funciona todo".
+- **Hardware-quirk note surfaced during the second iteration**:
+  the user observed that the first ~5 sliders reacted live but
+  the rest "no parecían hacer nada". That is the documented
+  V4L2 interlock from `PROTOCOL §2.3` Q1/Q2: when *White
+  Balance, Automatic* is `On`, the driver marks *White Balance
+  Temperature* as `V4L2_CTRL_FLAG_INACTIVE` and silently
+  ignores writes; same for *Exposure Time, Absolute* when
+  *Auto Exposure* is in an auto mode. Toggling the WB
+  Automatic switch off freed the temperature slider. Not a
+  bug in our code; we surface every control the driver
+  enumerates and let the driver enforce its interlocks. A
+  future polish task (likely T-106 or a separate v0.2.x item)
+  can read the `Description.flags` `INACTIVE` bit and grey out
+  the row when set.
+
 ---
 
 ## Closed milestone: v0.1 — Scaffolding & Detection (v0.1.0)

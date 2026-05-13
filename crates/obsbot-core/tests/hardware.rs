@@ -28,7 +28,8 @@
 use std::path::Path;
 
 use obsbot_core::{
-    enumerate_cameras, read_controls, ControlClass, ControlKind, TINY2_FAMILY, VID_OBSBOT,
+    enumerate_cameras, read_controls, write_control, ControlClass, ControlKind, ControlValue,
+    TINY2_FAMILY, VID_OBSBOT,
 };
 
 #[test]
@@ -120,4 +121,67 @@ fn reads_v4l2_controls_from_connected_unit() {
         matches!(brightness.kind, ControlKind::Integer { .. }),
         "Brightness must be an integer-typed control",
     );
+    // V4L2_CID_BRIGHTNESS, used by the T-100 round-trip test below.
+    assert_eq!(brightness.id, 0x0098_0900);
+}
+
+#[test]
+#[ignore = "requires a Tiny 2 family camera plugged into the host"]
+fn writes_v4l2_brightness_round_trip() {
+    let cams = enumerate_cameras();
+    let path = cams
+        .first()
+        .and_then(|c| c.video_path.as_deref())
+        .expect("a connected Tiny 2 family camera with a /dev/videoN node");
+
+    let controls = read_controls(path).expect("read_controls succeeds on the connected unit");
+    let brightness = controls
+        .iter()
+        .find(|c| c.name.eq_ignore_ascii_case("Brightness"))
+        .expect("Brightness control must be present");
+    let ControlKind::Integer {
+        current,
+        min,
+        max,
+        step,
+        ..
+    } = brightness.kind
+    else {
+        panic!(
+            "Brightness must be Integer-typed; got {:?}",
+            brightness.kind
+        );
+    };
+
+    // Pick a target one step away that still sits inside [min, max].
+    let step_i64 = i64::try_from(step).expect("step fits in i64");
+    let target = if current + step_i64 <= max {
+        current + step_i64
+    } else {
+        current - step_i64
+    };
+    assert!(target >= min && target <= max, "target out of envelope");
+
+    // Write target, read back, restore.
+    write_control(path, brightness.id, ControlValue::Integer(target))
+        .expect("brightness write must succeed");
+    let after = read_controls(path).expect("re-read after write succeeds");
+    let after_brightness = after
+        .iter()
+        .find(|c| c.id == brightness.id)
+        .expect("brightness still enumerates after write");
+    let ControlKind::Integer {
+        current: read_back, ..
+    } = after_brightness.kind
+    else {
+        panic!("brightness type changed mid-test");
+    };
+    assert_eq!(
+        read_back, target,
+        "read-back ({read_back}) must match the written target ({target})",
+    );
+
+    // Restore original — leave the camera in the state we found it.
+    write_control(path, brightness.id, ControlValue::Integer(current))
+        .expect("brightness restore must succeed");
 }

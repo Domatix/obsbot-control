@@ -15,20 +15,20 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-//! Read-only V4L2 control enumeration for the diagnostics view.
+//! V4L2 control enumeration and writes for the GUI / CLI.
 //!
 //! Opens a `/dev/videoN` node via the `v4l` crate, walks the device's
 //! advertised controls, queries the current value of each, and reshapes
 //! the result into an obsbot-core-owned [`ControlDescriptor`] vector so
-//! consumers (the GUI sub-page from T-013c, future CLI subcommands)
-//! never have to depend on the `v4l` crate types directly. This is the
-//! discovery layer for the [`Camera`](crate::Camera) trait's read paths
-//! — backends that wire writes still go through the trait, not this
-//! module.
+//! consumers (the GUI sub-page, future CLI subcommands) never have to
+//! depend on the `v4l` crate types directly. T-100 layers a
+//! [`write_control`] helper on top for setting Integer / Boolean values
+//! back to the driver. This is the discovery + write layer for the
+//! [`Camera`](crate::Camera) trait's V4L2 paths.
 
 use std::path::Path;
 
-use v4l::control::{Description, Flags, Type, Value};
+use v4l::control::{Control, Description, Flags, Type, Value};
 use v4l::Device;
 
 use crate::Result;
@@ -36,6 +36,9 @@ use crate::Result;
 /// One V4L2 control, reshaped for UI consumption.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ControlDescriptor {
+    /// Raw V4L2 control ID (e.g. `V4L2_CID_BRIGHTNESS = 0x0098_0900`).
+    /// Stable across reads; pass it to [`write_control`] to set a value.
+    pub id: u32,
     /// Human-readable name reported by the driver (e.g. `"Brightness"`).
     pub name: String,
     /// Which V4L2 class the control belongs to (User, Camera, …).
@@ -71,11 +74,15 @@ pub enum ControlKind {
         max: i64,
         /// Step between valid values (always positive).
         step: u64,
+        /// Driver-advertised default value (used by GUI "reset" buttons).
+        default: i64,
     },
     /// Boolean toggle.
     Boolean {
         /// Currently read-back value.
         current: bool,
+        /// Driver-advertised default value.
+        default: bool,
     },
     /// Menu of named items (regular or integer menu).
     Menu {
@@ -110,6 +117,7 @@ pub fn read_controls(video_path: &Path) -> Result<Vec<ControlDescriptor>> {
         }
 
         out.push(ControlDescriptor {
+            id: desc.id,
             class: classify(desc.id),
             kind: build_kind(&device, &desc),
             name: desc.name,
@@ -117,6 +125,57 @@ pub fn read_controls(video_path: &Path) -> Result<Vec<ControlDescriptor>> {
     }
 
     Ok(out)
+}
+
+/// Value payload accepted by [`write_control`].
+///
+/// Mirrors the subset of `v4l::control::Value` variants we know how to
+/// drive from the GUI today: Integer covers `V4L2_CTRL_TYPE_INTEGER`
+/// and `V4L2_CTRL_TYPE_INTEGER64` (treated identically by the kernel
+/// at write-time per `Documentation/userspace-api/media/v4l/vidioc-
+/// g-ext-ctrls.rst`), Boolean covers `V4L2_CTRL_TYPE_BOOLEAN`. Menu
+/// and compound writes land with T-103 / T-104.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum ControlValue {
+    /// Integer-valued write. Caller is responsible for staying inside
+    /// the descriptor's `min`/`max`/`step` envelope; the kernel
+    /// silently clamps out-of-range integers on most drivers.
+    Integer(i64),
+    /// Boolean toggle.
+    Boolean(bool),
+}
+
+impl From<ControlValue> for Value {
+    fn from(value: ControlValue) -> Self {
+        match value {
+            ControlValue::Integer(v) => Value::Integer(v),
+            ControlValue::Boolean(b) => Value::Boolean(b),
+        }
+    }
+}
+
+/// Write a single V4L2 control to the device at `video_path`.
+///
+/// Opens the node read-write (the underlying `v4l` crate's
+/// `Device::with_path` does `O_RDWR | O_NONBLOCK`), then issues
+/// `VIDIOC_S_EXT_CTRLS` for the (`id`, `value`) pair. Wraps any
+/// `io::Error` raised by the open / ioctl as
+/// [`Error::Io`](crate::Error::Io).
+///
+/// # Errors
+/// * The user lacks `rw` on `video_path` (typical fix: `video` group
+///   membership — see `T-013` notes).
+/// * The driver rejects the value (out of range / control inactive
+///   in the current pipeline state — see `PROTOCOL §2.3`).
+/// * The device disappeared between calls.
+pub fn write_control(video_path: &Path, id: u32, value: ControlValue) -> Result<()> {
+    let device = Device::with_path(video_path)?;
+    device.set_control(Control {
+        id,
+        value: value.into(),
+    })?;
+    Ok(())
 }
 
 /// Map a V4L2 control ID to its [`ControlClass`].
@@ -145,9 +204,11 @@ fn build_kind(device: &Device, desc: &Description) -> ControlKind {
             min: desc.minimum,
             max: desc.maximum,
             step: desc.step,
+            default: desc.default,
         },
         Type::Boolean => ControlKind::Boolean {
             current: read_integer(device, desc.id).map_or(desc.default != 0, |v| v != 0),
+            default: desc.default != 0,
         },
         Type::Menu | Type::IntegerMenu => {
             let current_index = read_integer(device, desc.id).unwrap_or(desc.default);
@@ -209,5 +270,19 @@ mod tests {
     fn classify_unknown_class_id() {
         // V4L2_CTRL_CLASS_CODEC = 0x00990000.
         assert_eq!(classify(0x0099_0123), ControlClass::Other(0x0099_0000));
+    }
+
+    #[test]
+    fn control_value_maps_to_v4l_integer() {
+        let v: Value = ControlValue::Integer(42).into();
+        assert_eq!(v, Value::Integer(42));
+    }
+
+    #[test]
+    fn control_value_maps_to_v4l_boolean() {
+        let on: Value = ControlValue::Boolean(true).into();
+        let off: Value = ControlValue::Boolean(false).into();
+        assert_eq!(on, Value::Boolean(true));
+        assert_eq!(off, Value::Boolean(false));
     }
 }
