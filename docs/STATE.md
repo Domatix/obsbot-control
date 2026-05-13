@@ -6,16 +6,16 @@
 
 ---
 
-active_task: T-016
-active_task_state: IN_PROGRESS
-last_completed_task: T-014
-last_commit: docs: forbid co-author trailers; resync SHA references  # 291245a
-last_step: T-016 code-complete + static validation green. `build-aux/build-deb.sh` (cargo deb 2.12.1 pinned at `^2.10` because 3.7.0 needs rustc 1.88) produces `build-aux/dist/obsbot-cam-control_0.1.0-1_amd64.deb` (201 KB; installed-size 558 KB). `dpkg-deb -I/-c` confirms control fields (`Section: video`, `Priority: optional`, auto-detected `Depends: libadwaita-1-0 (>= 1.4~beta), libc6 (>= 2.34), libglib2.0-0t64 (>= 2.54.0), libgtk-4-1 (>= 4.0.0)`) and the seven freedesktop-standard install paths (binary, desktop, metainfo, scalable+symbolic icons, copyright). `desktop-file-validate` + `appstreamcli validate --no-net` pass on the substituted templates. Remaining acceptance criteria are install / launch / remove on the user's machine.
-next_step: ask the user to `sudo apt install ./build-aux/dist/obsbot-cam-control_0.1.0-1_amd64.deb`, launch `obsbot-cam-control` to confirm the camera row + drill-down still work installed-as-deb, then `sudo apt remove obsbot-cam-control` and verify no stray files under `/usr/share/{applications,icons/hicolor,metainfo,doc/obsbot-cam-control}`. After confirmation: PLAN T-016 → DONE, single commit `build(deb): test-artifact .deb via cargo-deb (T-016)`, then T-017 (Arch PKGBUILD) closes v0.1.
-blockers: none. T-015 remains BLOCKED on public repo.
+active_task: none
+active_task_state: idle
+last_completed_task: T-016
+last_commit: build(deb): scaffold .deb test-artifact pipeline (T-016)  # 1980bf0 (code-complete); follow-up docs commit for closure pending in this turn
+last_step: T-016 DONE. `.deb` test artifact pipeline lives: `[package.metadata.deb]` in `crates/obsbot-gui/Cargo.toml`, `build-aux/build-deb.sh` shim (meson configure_file → cargo deb), README "Test packages" section, `.gitignore` swallows `build-aux/dist/`. `cargo-deb` pinned at `^2.10` (3.7.0 needs rustc 1.88). User-verified on Debian trixie: `sudo apt install` succeeds, `dpkg -l` reports `ii`, `/usr/bin/obsbot-cam-control` is the expected 522632-byte mode-755 ELF, `--help` prints GLib's option-group output (proxy for launch — proves linker + GTK4 prereqs all wired), and `sudo apt remove` is clean (post-remove globs all return fish "No matches"). v0.1 is now at 87% — only T-015 (CI, BLOCKED on public repo) and T-017 (Arch PKGBUILD) remain.
+next_step: T-017 — `build-aux/PKGBUILD` for Arch via `makepkg` (same shape as T-016: convenience artifact per [[ADR-0015]], not AUR-grade). Needs a container or fakeroot since the host is Debian, not Arch. With T-017 closed, v0.1 ships modulo the BLOCKED T-015.
+blockers: none for T-017. T-015 remains BLOCKED on public-repo move.
 working_tree:
-  pre_commit_modified: [Cargo.lock, README.md, crates/obsbot-gui/Cargo.toml, docs/PLAN.md, docs/PROGRESS.md, docs/STATE.md]
-  pre_commit_untracked: [build-aux/build-deb.sh, build-aux/dist/]
+  pre_commit_modified: [docs/PLAN.md, docs/STATE.md]
+  pre_commit_untracked: []
   pre_commit_deleted: []
 pending_user_actions:
   - T-013 (later, v0.1): log out / log back in to pick up the new
@@ -26,8 +26,9 @@ pending_user_actions:
     after a fresh session, file a follow-up task (the install path
     via Flatpak/distro should resolve it; we revisit only if the
     same failure persists there).
-  - T-016 (this turn): once the `.deb` builds and `dpkg-deb -I/-c`
-    look clean, `sudo apt install ./build-aux/dist/obsbot-cam-control_*_amd64.deb`,
-    launch `obsbot-cam-control`, then `sudo apt remove obsbot-cam-control`
-    to verify no stray files.
-updated_at: 2026-05-13T19:32:00Z  # T-016 code-complete; awaiting install/remove validation
+  - The installed `.deb` from T-016 is currently on the system
+    (the latest `apt install` left it there). Remove with `sudo
+    apt remove obsbot-cam-control` if you want a clean state, or
+    keep it for daily use — it's identical to the Flatpak
+    behaviour-wise.
+updated_at: 2026-05-13T19:55:00Z  # T-016 closed

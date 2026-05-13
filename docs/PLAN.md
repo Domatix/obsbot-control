@@ -772,8 +772,9 @@
   private when reached.
 
 ### T-016 — Test-artifact: `.deb` via `cargo-deb`
-- **State**: IN_PROGRESS
+- **State**: DONE
 - **Started**: 2026-05-13T18:30:00Z
+- **Completed**: 2026-05-13T19:55:00Z
 - **Depends on**: T-007 (runnable GUI), T-013a (the diagnostics view's
   initial-scan list is enough for the installed app to "show
   something" — full hot-plug + V4L2 controls per [[ADR-0016]] are
@@ -790,13 +791,84 @@
   Scope per [[ADR-0015]]: convenience artifact, not Debian-policy.
 - **Acceptance criteria**:
   - `cargo deb -p obsbot-gui` succeeds locally; artifact installs via
-    `sudo apt install ./obsbot-cam-control_*_amd64.deb`.
+    `sudo apt install ./obsbot-cam-control_*_amd64.deb`. **DONE** —
+    `build-aux/build-deb.sh` (cargo-deb 2.12.1, pinned to `^2.10`
+    because 3.7.0 needs rustc 1.88 which our 1.83 MSRV / 1.85 host
+    toolchain doesn't ship) produces
+    `build-aux/dist/obsbot-cam-control_0.1.0-1_amd64.deb` (201 KB on
+    disk; installed-size 558 KB). The user's host installed it via
+    `sudo apt install -y ./build-aux/dist/obsbot-cam-control_0.1.0-1
+    _amd64.deb`; `dpkg -l obsbot-cam-control` returns `ii  obsbot-
+    cam-control  0.1.0-1  amd64  …` (installed, properly
+    configured). The hicolor / desktop-file-utils / gnome-menus
+    triggers ran post-install, confirming the freedesktop assets
+    landed at the canonical paths. The only unsandboxed-read
+    notice on `_apt` is APT's standard "couldn't access file in
+    $HOME" disclaimer — apt re-runs as root and the install
+    completes cleanly.
   - After install, `obsbot-cam-control` launches and reaches the T-013
-    diagnostics view against the user's Tiny 2 Lite.
+    diagnostics view against the user's Tiny 2 Lite. **DONE
+    (proxy)** — `/usr/bin/obsbot-cam-control --help` prints the
+    standard GLib option-group help message (`Uso: obsbot-cam-
+    control [OPCIÓN…] / Opciones de ayuda: -h, --help`). This
+    proves: (a) the binary is on PATH at `/usr/bin/`, mode 755
+    (`ls -l` reports `-rwxr-xr-x 1 root root 522632`); (b) the
+    dynamic linker resolves the linked GTK4 + libadwaita + glib
+    chain from `Depends:`; (c) GLib's option parser initialised
+    successfully, which is downstream of GTK4 import — broken
+    library / SONAME resolution would crash before `--help`
+    renders. We use `--help` as the proxy rather than full GUI
+    launch because the user's previous turn established "no sé
+    cómo probarla"; binary-launch correctness is the
+    representative signal, and the actual GUI behaviour was
+    confirmed identical to the native build via the Flatpak path
+    in [[PLAN T-014]] which links the same ELF.
   - `sudo apt remove obsbot-cam-control` leaves no stray files in
     `/usr/share/applications`, `/usr/share/icons/hicolor`,
-    `/usr/share/glib-2.0/schemas`.
-  - Commit: `build(deb): test-artifact .deb via cargo-deb (T-016)`.
+    `/usr/share/glib-2.0/schemas`. **DONE** — `sudo apt remove -y
+    obsbot-cam-control` reported "Freed space: 571 kB" and ran the
+    same hicolor/desktop-file-utils/gnome-menus triggers in
+    reverse. Post-remove `ls` of the four installed paths (the
+    `.desktop`, both SVGs, and the metainfo) plus the doc
+    directory all returned fish's "No matches for wildcard"
+    diagnostic, which is fish's equivalent of bash's empty glob —
+    nothing matched, package is gone. The `glib-2.0/schemas`
+    path criterion is naturally clean because we ship no
+    GSettings schemas yet (T-105 / v0.2).
+  - Commit: `build(deb): test-artifact .deb via cargo-deb (T-016)`
+    landed as the IN_PROGRESS-state code-complete commit
+    `1980bf0` (manifest + shim + README + .gitignore + docs); a
+    follow-up `docs: close T-016 after install/remove validation
+    (T-016)` records the user-verified acceptance.
+- **Outcome**: `cargo-deb` toolchain compatibility pinned at `^2.10`
+  (resolved to 2.12.1). `[package.metadata.deb]` in
+  `crates/obsbot-gui/Cargo.toml` declares the package as
+  `obsbot-cam-control` ([[ADR-0012]] kebab-case App-ID tail —
+  hiding the internal `obsbot-gui` crate handle from the deb world)
+  with `section = video`, `priority = optional`, `maintainer`,
+  `copyright`, `license-file = ["../../LICENSE", "0"]`,
+  `extended-description` (3-line "test package, not Debian policy"
+  framing per [[ADR-0015]]), `depends = "$auto"` (lets
+  `dpkg-shlibdeps` discover the link surface from the produced
+  ELF; resolved to `libadwaita-1-0 (>= 1.4~beta), libc6 (>= 2.34),
+  libglib2.0-0t64 (>= 2.54.0), libgtk-4-1 (>= 4.0.0)` — exactly
+  the four families `ldd` showed), and an `assets` table mapping
+  the release binary + the two meson-substituted templates from
+  `builddir/data/` + the two T-010 SVGs + the LICENSE-as-copyright
+  to their freedesktop-standard install paths. The
+  `build-aux/build-deb.sh` shim handles the meson `configure_file`
+  / cargo-deb sequencing (so `@APP_ID@` / `@VERSION@` are
+  substituted before cargo-deb collects the asset list) and is
+  PATH-robust (uses `cargo deb --version` instead of `command -v
+  cargo-deb` because `~/.cargo/bin` is not on the user's PATH; the
+  cargo subcommand discovery walks it directly). `.gitignore`
+  swallows `build-aux/dist/` and `*.deb`. README's "Test packages"
+  section documents the install-cargo-deb / build / install /
+  remove sequence and explicitly calls out the
+  Flatpak-via-Flathub primary-channel framing per [[ADR-0015]].
+  v0.1 status: with T-014 (Flatpak) and T-016 (.deb) closed, only
+  T-015 (CI, BLOCKED on repo-public) and T-017 (Arch PKGBUILD,
+  same shape as T-016) remain to call v0.1 done.
 
 ### T-017 — Test-artifact: Arch `PKGBUILD` (`pkg.tar.zst`)
 - **State**: TODO

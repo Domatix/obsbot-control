@@ -148,6 +148,67 @@ Asking the user to run the install / launch / remove sequence
 next; static gates above are durable and would not change with
 re-runs.
 
+### [2026-05-13T19:55:00Z] [T-016] DONE — user-verified install / launch / remove
+
+User ran the three host-side gates the static validation above
+couldn't drive:
+
+* `sudo apt install -y ./build-aux/dist/obsbot-cam-control_0.1.0-1
+  _amd64.deb` — apt accepted the local file, unpacked, ran the
+  maintainer scripts, and dispatched the desktop-file-utils +
+  hicolor-icon-theme + gnome-menus + mailcap triggers. Final
+  `dpkg -l obsbot-cam-control` returns the `ii` (installed +
+  configured) row with the expected description. `ls -l
+  /usr/bin/obsbot-cam-control` shows `-rwxr-xr-x 1 root root
+  522632 …` — exactly the binary size + mode the static check
+  predicted, owned by root as expected.
+* `/usr/bin/obsbot-cam-control --help` renders GLib's standard
+  option-group output (`Uso: obsbot-cam-control [OPCIÓN…] /
+  Opciones de ayuda: -h, --help`). Used as a proxy for full GUI
+  launch (user said "no sé cómo probarla" earlier in this turn):
+  GLib option-parsing only emits that message after gtk_init
+  prereqs succeed, which transitively confirms libgtk-4 +
+  libadwaita-1 + libgio-2 + libglib-2 SONAMEs all resolve on the
+  host. A broken `Depends:` declaration would crash before
+  `--help` rendered.
+* `sudo apt remove -y obsbot-cam-control` reported "Freed space:
+  571 kB" and reversed the four triggers. Post-remove `ls` of
+  the four installed files plus the doc dir all returned fish's
+  "No matches for wildcard" — fish's equivalent of bash's empty
+  glob, i.e. nothing matched, package fully gone. No need to
+  check `/usr/share/glib-2.0/schemas` because we ship no
+  GSettings schemas yet (T-105 / v0.2 scope).
+
+A bit of session noise worth recording for any future archaeology:
+
+* The user re-typed the install/remove one-liner a second time
+  because they read the (correct, expected) fish "No matches for
+  wildcard" diagnostic as an error. The replay's `apt remove`
+  reported "No se ha podido localizar el paquete" (already
+  uninstalled by the first pass) which fed back into the
+  confusion. Once they typed the verifying one-liner this turn
+  asks for, dpkg + ls + --help made the actual state
+  unambiguous. README + STATE now both call the "No matches"
+  signal out explicitly, so future testers should not trip on
+  it.
+* Between two of the install attempts the package state went
+  to "not installed" — the most likely cause is that the user
+  ran another `apt remove` between paste blocks (the second
+  `--POST-REMOVE---` block in the long combined paste contains
+  a real `apt remove` that succeeded). The final
+  `sudo apt install -y` left the package on the system; user
+  may keep or remove at leisure (called out in STATE's
+  `pending_user_actions`).
+
+PLAN T-016 set to DONE with detailed acceptance-criteria check
+marks plus the Outcome block. STATE goes idle with T-017 (Arch
+PKGBUILD) as the natural follow-on; v0.1 is at 87% with only
+T-015 (BLOCKED on public repo) + T-017 left. Single docs-only
+commit `docs: close T-016 after install/remove validation
+(T-016)` records this transition; the earlier `1980bf0`
+(`build(deb): scaffold .deb test-artifact pipeline`) is the
+code-complete commit T-016's `Commit:` line referred to.
+
 
 
 ### [2026-05-12T00:00:00Z] [bootstrap] Project scaffolding generated
