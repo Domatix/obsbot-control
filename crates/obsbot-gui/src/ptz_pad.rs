@@ -39,7 +39,9 @@ use gtk4 as gtk;
 use libadwaita as adw;
 
 use adw::prelude::*;
-use obsbot_core::{write_control, ControlDescriptor, ControlKind, ControlValue};
+use obsbot_core::{ControlDescriptor, ControlKind, ControlValue};
+
+use crate::settings;
 
 /// V4L2 Camera-class control IDs consumed by the PTZ pad.
 const CID_PAN_ABSOLUTE: u32 = 0x009a_0908;
@@ -86,7 +88,11 @@ struct IntRange {
 /// Build the PTZ pad widget for the given camera. Returns `None` when
 /// the camera does not advertise the minimum trio (pan/tilt/zoom) —
 /// non-PTZ cameras get no pad.
-pub fn build_ptz_pad(controls: &[ControlDescriptor], path: &Path) -> Option<adw::PreferencesGroup> {
+pub fn build_ptz_pad(
+    controls: &[ControlDescriptor],
+    path: &Path,
+    serial: Option<&str>,
+) -> Option<adw::PreferencesGroup> {
     let pan = find_int(controls, CID_PAN_ABSOLUTE)?;
     let tilt = find_int(controls, CID_TILT_ABSOLUTE)?;
     let zoom = find_int(controls, CID_ZOOM_ABSOLUTE)?;
@@ -97,6 +103,7 @@ pub fn build_ptz_pad(controls: &[ControlDescriptor], path: &Path) -> Option<adw:
         .expect("ptz-pad.ui missing object 'ptz_group'");
 
     let owned_path: Rc<PathBuf> = Rc::new(path.to_path_buf());
+    let owned_serial: Rc<Option<String>> = Rc::new(serial.map(str::to_owned));
     let pan_cell = Rc::new(Cell::new(pan.current));
     let tilt_cell = Rc::new(Cell::new(tilt.current));
 
@@ -106,6 +113,7 @@ pub fn build_ptz_pad(controls: &[ControlDescriptor], path: &Path) -> Option<adw:
         pan_cell: pan_cell.clone(),
         tilt_cell: tilt_cell.clone(),
         path: owned_path.clone(),
+        serial: owned_serial.clone(),
     };
     // Eight directional buttons.
     for (button_id, dx, dy) in [
@@ -128,11 +136,24 @@ pub fn build_ptz_pad(controls: &[ControlDescriptor], path: &Path) -> Option<adw:
         let pan_cell = pan_cell.clone();
         let tilt_cell = tilt_cell.clone();
         let owned_path = owned_path.clone();
+        let owned_serial = owned_serial.clone();
         btn_reset.connect_clicked(move |_| {
             pan_cell.set(0);
             tilt_cell.set(0);
-            log_write(&owned_path, CID_PAN_ABSOLUTE, "pan_absolute", 0);
-            log_write(&owned_path, CID_TILT_ABSOLUTE, "tilt_absolute", 0);
+            write(
+                &owned_path,
+                CID_PAN_ABSOLUTE,
+                "pan_absolute",
+                0,
+                &owned_serial,
+            );
+            write(
+                &owned_path,
+                CID_TILT_ABSOLUTE,
+                "tilt_absolute",
+                0,
+                &owned_serial,
+            );
         });
     }
 
@@ -152,16 +173,23 @@ pub fn build_ptz_pad(controls: &[ControlDescriptor], path: &Path) -> Option<adw:
     zoom_scale.set_sensitive(zoom.is_active);
     {
         let owned_path = owned_path.clone();
+        let owned_serial = owned_serial.clone();
         zoom_adj.connect_value_changed(move |adj| {
             let value = i64::from(f64_to_i32_saturating(adj.value().round()));
-            log_write(&owned_path, CID_ZOOM_ABSOLUTE, "zoom_absolute", value);
+            write(
+                &owned_path,
+                CID_ZOOM_ABSOLUTE,
+                "zoom_absolute",
+                value,
+                &owned_serial,
+            );
         });
     }
 
     // Focus row(s) — append below the pad if the camera advertises focus.
     if let Some(focus_abs) = find_int(controls, CID_FOCUS_ABSOLUTE) {
         let focus_auto = find_bool(controls, CID_FOCUS_AUTOMATIC_CONTINUOUS);
-        let focus_row = build_focus_row(focus_abs, focus_auto.as_ref(), &owned_path);
+        let focus_row = build_focus_row(focus_abs, focus_auto.as_ref(), &owned_path, &owned_serial);
         group.add(&focus_row);
     }
 
@@ -217,6 +245,7 @@ struct DirectionCtx {
     pan_cell: Rc<Cell<i64>>,
     tilt_cell: Rc<Cell<i64>>,
     path: Rc<PathBuf>,
+    serial: Rc<Option<String>>,
 }
 
 /// Wire one directional button to a (`pan_delta`, `tilt_delta`) write.
@@ -234,16 +263,17 @@ fn wire_direction(builder: &gtk::Builder, button_id: &str, dx: i64, dy: i64, ctx
     let pan_cell = ctx.pan_cell.clone();
     let tilt_cell = ctx.tilt_cell.clone();
     let path = ctx.path.clone();
+    let serial = ctx.serial.clone();
     button.connect_clicked(move |_| {
         if dx != 0 {
             let new_pan = (pan_cell.get() + dx * PAN_TILT_STEP).clamp(pan.min, pan.max);
             pan_cell.set(new_pan);
-            log_write(&path, CID_PAN_ABSOLUTE, "pan_absolute", new_pan);
+            write(&path, CID_PAN_ABSOLUTE, "pan_absolute", new_pan, &serial);
         }
         if dy != 0 {
             let new_tilt = (tilt_cell.get() + dy * PAN_TILT_STEP).clamp(tilt.min, tilt.max);
             tilt_cell.set(new_tilt);
-            log_write(&path, CID_TILT_ABSOLUTE, "tilt_absolute", new_tilt);
+            write(&path, CID_TILT_ABSOLUTE, "tilt_absolute", new_tilt, &serial);
         }
     });
 }
@@ -256,6 +286,7 @@ fn build_focus_row(
     focus_abs: IntRange,
     focus_auto: Option<&BoolValue>,
     path: &Rc<PathBuf>,
+    serial: &Rc<Option<String>>,
 ) -> adw::ExpanderRow {
     let expander = adw::ExpanderRow::builder()
         .title("Focus")
@@ -269,7 +300,7 @@ fn build_focus_row(
     auto_row.set_sensitive(focus_auto.is_some_and(|b| b.is_active));
     expander.add_row(&auto_row);
 
-    let abs_row = build_focus_abs_row(focus_abs, path);
+    let abs_row = build_focus_abs_row(focus_abs, path, serial);
     // Grey out the manual slider while auto is on (matches what the
     // kernel would mark INACTIVE; the explicit listener is defensive
     // because the INACTIVE flag refresh is what T-102 wires
@@ -280,13 +311,15 @@ fn build_focus_row(
     {
         let abs_row = abs_row.clone();
         let path = path.clone();
+        let serial = serial.clone();
         auto_row.connect_active_notify(move |row| {
             let value = row.is_active();
-            log_write(
+            write(
                 &path,
                 CID_FOCUS_AUTOMATIC_CONTINUOUS,
                 "focus_automatic_continuous",
                 i64::from(value),
+                &serial,
             );
             abs_row.set_sensitive(!value);
         });
@@ -295,7 +328,11 @@ fn build_focus_row(
     expander
 }
 
-fn build_focus_abs_row(focus_abs: IntRange, path: &Rc<PathBuf>) -> adw::ActionRow {
+fn build_focus_abs_row(
+    focus_abs: IntRange,
+    path: &Rc<PathBuf>,
+    serial: &Rc<Option<String>>,
+) -> adw::ActionRow {
     let current_i32 = clamp_i32(focus_abs.current);
     let min_i32 = clamp_i32(focus_abs.min);
     let max_i32 = clamp_i32(focus_abs.max);
@@ -332,23 +369,27 @@ fn build_focus_abs_row(focus_abs: IntRange, path: &Rc<PathBuf>) -> adw::ActionRo
 
     {
         let path = path.clone();
+        let serial = serial.clone();
         adjustment.connect_value_changed(move |adj| {
             let value = i64::from(f64_to_i32_saturating(adj.value().round()));
-            log_write(&path, CID_FOCUS_ABSOLUTE, "focus_absolute", value);
+            write(&path, CID_FOCUS_ABSOLUTE, "focus_absolute", value, &serial);
         });
     }
 
     row
 }
 
-/// Write a single integer control, logging a warning on failure.
-fn log_write(path: &Rc<PathBuf>, id: u32, name: &str, value: i64) {
-    if let Err(err) = write_control(path.as_path(), id, ControlValue::Integer(value)) {
-        eprintln!(
-            "warning: failed to write {name} ({id:#010x}) = {value} on {}: {err}",
-            path.display(),
-        );
-    }
+/// Write a single integer control via [`settings::write_and_save`].
+/// Persists the value if a serial is available; the V4L2 write is
+/// authoritative either way.
+fn write(path: &Rc<PathBuf>, id: u32, name: &str, value: i64, serial: &Rc<Option<String>>) {
+    settings::write_and_save(
+        path.as_path(),
+        id,
+        ControlValue::Integer(value),
+        serial.as_deref(),
+        name,
+    );
 }
 
 /// Saturating-clamp an `i64` to `i32`. See `controls_view::clamp_i64_to_i32`

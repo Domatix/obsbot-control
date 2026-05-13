@@ -46,6 +46,7 @@ pub const EXPOSURE_GROUP_IDS: &[u32] = &[CID_AUTO_EXPOSURE, CID_EXPOSURE_TIME_AB
 pub fn build_exposure_group(
     controls: &[ControlDescriptor],
     path: &Path,
+    serial: Option<&str>,
 ) -> Option<adw::PreferencesGroup> {
     let ordered_ids = [CID_AUTO_EXPOSURE, CID_EXPOSURE_TIME_ABSOLUTE];
 
@@ -67,7 +68,7 @@ pub fn build_exposure_group(
         .build();
 
     for ctrl in present {
-        let row = control_row(ctrl, path);
+        let row = control_row(ctrl, path, serial);
         row.set_sensitive(ctrl.is_active);
         group.add(&row);
     }

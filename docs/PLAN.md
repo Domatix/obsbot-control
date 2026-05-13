@@ -393,7 +393,8 @@
   - Commit `feat(gui): exposure group widget (T-104)`.
 
 ### T-105 — Per-camera GSettings persistence
-- **State**: TODO
+- **State**: DONE
+- **Completed**: 2026-05-14T00:35:00Z
 - **Depends on**: T-100 / T-102 (the write paths whose values we
   persist).
 - **Description**: First persistence layer. A GSettings schema

@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  SPDX-License-Identifier: GPL-3.0-or-later
+
+  GSettings schema for Obsbot Cam Control (T-105).
+
+  Stores per-camera V4L2 control values keyed by serial number, so the
+  next launch can restore the camera to the last-known state. Values
+  are i32 (V4L2 standard control values are `__s32`; menus encode as
+  `__s32` too). Boolean controls store as 0/1 in the same i32 map.
+
+  Schema layout:
+    - id: io.github.domatix.ObsbotCamControl
+    - path: /io/github/domatix/ObsbotCamControl/
+    - cameras: dict-of-dict — outer key is the camera serial (string,
+      from CameraInfo.serial), inner map is control-name (string,
+      from ControlDescriptor.name) to i32 value.
+-->
+<schemalist>
+  <schema id="io.github.domatix.ObsbotCamControl"
+          path="/io/github/domatix/ObsbotCamControl/">
+    <key name="cameras" type="a{sa{si}}">
+      <default>[]</default>
+      <summary>Saved per-camera V4L2 control values</summary>
+      <description>
+        Dictionary keyed by camera serial number. The inner dictionary
+        maps a V4L2 control name (e.g. "Brightness") to its last
+        known integer value. Used to restore camera state on the next
+        launch.
+      </description>
+    </key>
+  </schema>
+</schemalist>

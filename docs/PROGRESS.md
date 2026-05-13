@@ -596,6 +596,104 @@ commit `build(gui): Blueprint pipeline (T-099)` packages the
 seven changed/added files plus `Cargo.lock` (glib-build-tools
 0.20.0 transitive deps).
 
+### [2026-05-14T00:35:00Z] [T-105] DONE — Per-camera GSettings persistence
+
+Last of the five autonomous-run tasks. Saves the last-set value
+of every writable User / Camera-class control under a single
+GSettings key keyed by camera serial, so re-launching the app
+restores the camera's state.
+
+End-to-end delta:
+
+* `data/io.github.domatix.ObsbotCamControl.gschema.xml` (new):
+  single key `control-values` of type `a{si}` — flat dict keyed
+  by `"<serial>\x1f<control-name>"` (the ASCII Unit Separator
+  splits the two safely; serials and V4L2 names never contain
+  it). Values are i32 since V4L2 standard control values are
+  `__s32`; booleans encode as 0 / 1, menus as their integer ID.
+* `data/meson.build` (updated): `install_data` for the new
+  gschema XML under `$datadir/glib-2.0/schemas/`, plus
+  `gnome.post_install(glib_compile_schemas: true)` so the
+  schema cache refreshes immediately on install.
+* `crates/obsbot-gui/build.rs` (updated): a third stage stages
+  the schema into `OUT_DIR/schemas/` and runs
+  `glib-compile-schemas` against it. Exports the resulting
+  directory via `cargo:rustc-env=OBSBOT_DEV_SCHEMA_DIR=...` so
+  the binary can load the schema without depending on
+  `meson install`. Adds `cargo:rerun-if-changed` on
+  `data/<APP_ID>.gschema.xml`.
+* `crates/obsbot-gui/src/settings.rs` (new, ~145 lines):
+  - `dict_key(serial, control_name)` builds the in-key
+    composite with `\x1f` as separator.
+  - `settings_handle()` loads the schema from
+    `env!("OBSBOT_DEV_SCHEMA_DIR")` via
+    `SettingsSchemaSource::from_directory` (this is the
+    no-`unsafe`-required alternative to manipulating
+    `GSETTINGS_SCHEMA_DIR` at runtime — the GUI crate has
+    `unsafe_code = "forbid"` per its `[lints.rust]`).
+  - `pub fn load_for_camera(serial) -> HashMap<String, i32>`
+    filters the dict by the serial prefix and returns the
+    sub-map of control-name → value.
+  - `pub fn save_for_camera(serial, control_name, value)`
+    inserts into the dict; failures (schema not loadable,
+    dconf write rejected) are logged and swallowed because
+    persistence is best-effort and must not break the live
+    write path.
+  - `pub fn write_and_save(path, id, value, serial, name)`
+    is the unified entry point widget closures now call
+    instead of bare `write_control` — does the V4L2 write,
+    then persists if a serial is available.
+  - One unit test pins the `dict_key` separator behaviour so
+    a future control name change can't accidentally collide
+    with a serial.
+* `crates/obsbot-gui/src/main.rs` (updated): `mod settings;`.
+* `crates/obsbot-gui/src/controls_view.rs` (updated):
+  - `build_body` reads controls once, then calls
+    `restore_saved_values(path, controls, serial)`. The
+    restore function replays each saved entry via
+    `write_and_save` and re-reads the V4L2 surface so the
+    UI renders the post-restore state. Returns `None`
+    (graceful fall-back) when there's no serial or no
+    saved entries.
+  - `render_controls`, `control_row`,
+    `integer_scale_row`, `boolean_switch_row`, and
+    `menu_combo_row` all gain a `serial: Option<&str>`
+    parameter; each value-change closure clones it via
+    `serial.map(str::to_owned)` and feeds
+    `settings::write_and_save` instead of a bare
+    `write_control` + `eprintln!` pair. Net behaviour
+    when the camera has no serial: identical to before
+    (writes go through, nothing persists).
+* `crates/obsbot-gui/src/ptz_pad.rs`,
+  `crates/obsbot-gui/src/wb_group.rs`,
+  `crates/obsbot-gui/src/exposure_group.rs` (updated): same
+  `serial` parameter cascading. The PTZ pad's `log_write`
+  helper is rewritten as `write` and delegates to
+  `settings::write_and_save`; the focus row / directional
+  buttons / zoom slider all flow through it.
+
+Smoke test: `timeout 5 cargo run -p obsbot-gui` reaches
+"Running `target/debug/obsbot-cam-control`" with no panic
+on schema load — the `SettingsSchemaSource::from_directory
+(OUT_DIR/schemas)` path works on the dev machine.
+
+Gates: `cargo fmt --all --check` / `cargo clippy --workspace
+--all-targets -- -D warnings` / `cargo test --workspace` all
+green. Unit test count: 14 unit + 1 doctest + 1 new
+(`settings::tests::dict_key_separates_serial_and_name`). 5 / 5
+ignored hardware tests pass unchanged.
+
+PLAN T-105 DONE. Commit `feat(gui): per-camera GSettings
+persistence (T-105)`.
+
+**User validation queued** (the big one): launch the GUI,
+change brightness / contrast / WB temperature / zoom /
+exposure to a non-default value, close the app, re-launch,
+confirm the values are restored (the slider position and
+the camera image both reflect the saved state). Cleanup
+afterwards if you want a clean slate:
+  gsettings reset-recursively io.github.domatix.ObsbotCamControl
+
 ### [2026-05-14T00:05:00Z] [T-104] DONE — Exposure group widget
 
 Mirror of T-103 for the Camera-class exposure pair:

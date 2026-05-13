@@ -61,6 +61,7 @@ pub const WB_GROUP_IDS: &[u32] = &[
 pub fn build_wb_group(
     controls: &[ControlDescriptor],
     path: &Path,
+    serial: Option<&str>,
 ) -> Option<adw::PreferencesGroup> {
     // Display order: Auto switch first (it gates everything else),
     // then temperature, then red / blue balance.
@@ -90,7 +91,7 @@ pub fn build_wb_group(
         .build();
 
     for ctrl in present {
-        let row = control_row(ctrl, path);
+        let row = control_row(ctrl, path, serial);
         row.set_sensitive(ctrl.is_active);
         group.add(&row);
     }

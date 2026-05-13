@@ -55,6 +55,15 @@ if desktop_file_validate.found()
   )
 endif
 
+# GSettings schema for per-camera persistence (T-105). Installed under
+# the standard glib schema dir; `gnome.post_install(glib_compile_
+# schemas: true)` below recompiles the schema cache after install so
+# the new keys are picked up without a session restart.
+install_data(
+  '@0@.gschema.xml'.format(app_id),
+  install_dir: datadir / 'glib-2.0' / 'schemas',
+)
+
 # Application icons (T-010). The regular SVG is a placeholder Adwaita-
 # palette webcam silhouette; the symbolic variant uses `currentColor`
 # so GTK can recolor it for sidebars, About dialogs, and notifications.
@@ -76,4 +85,5 @@ gnome = import('gnome')
 gnome.post_install(
   gtk_update_icon_cache: true,
   update_desktop_database: true,
+  glib_compile_schemas: true,
 )

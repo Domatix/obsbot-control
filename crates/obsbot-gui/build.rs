@@ -1,25 +1,29 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
-// Build script for the Obsbot Cam Control GUI crate (T-099).
+// Build script for the Obsbot Cam Control GUI crate.
 //
-// Two stages:
+// Three stages:
 //
 // 1. Compile the Blueprint templates under `resources/*.blp` into
 //    `*.ui` files under OUT_DIR using the `blueprint-compiler`
-//    binary (Debian: apt install blueprint-compiler; Arch: pacman
-//    -S blueprint-compiler; Flatpak: build-aux/io.github.domatix.
-//    ObsbotCamControl.json's modules list adds it before building
-//    the crate).
+//    binary (T-099).
 //
 // 2. Pack the produced `.ui` files into a single GResource bundle
 //    at `OUT_DIR/obsbot.gresource` via `glib_build_tools::
-//    compile_resources`. The binary registers it at startup via
-//    `gio::resources_register_include!`.
+//    compile_resources` (T-099). The binary registers it at startup
+//    via `gio::resources_register_include!`.
+//
+// 3. Copy + compile the GSettings schema from `data/` into
+//    `OUT_DIR/schemas/gschemas.compiled` so `cargo run` finds it
+//    without needing `meson install` (T-105). The compiled-schema
+//    directory is exposed to the binary as the
+//    `OBSBOT_DEV_SCHEMA_DIR` rustc env var.
 
 use std::path::PathBuf;
 use std::process::Command;
 
 const TEMPLATES: &[&str] = &["window", "controls-view", "ptz-pad"];
+const SCHEMA_FILENAME: &str = "io.github.domatix.ObsbotCamControl.gschema.xml";
 
 fn main() {
     let manifest_dir =
@@ -62,5 +66,49 @@ fn main() {
         &[&out_dir],
         gresource_xml.to_str().expect("non-UTF-8 manifest path"),
         "obsbot.gresource",
+    );
+
+    // Stage 3 — GSettings schema → compiled cache for cargo-run dev.
+    // Source schema lives in <repo>/data/; manifest_dir is
+    // <repo>/crates/obsbot-gui/ so we walk two parents up.
+    let repo_root = manifest_dir
+        .parent()
+        .and_then(|p| p.parent())
+        .expect("manifest dir is at least two levels deep")
+        .to_path_buf();
+    let schema_src = repo_root.join("data").join(SCHEMA_FILENAME);
+    let schema_dst_dir = out_dir.join("schemas");
+    let schema_dst = schema_dst_dir.join(SCHEMA_FILENAME);
+
+    println!("cargo:rerun-if-changed={}", schema_src.display());
+
+    std::fs::create_dir_all(&schema_dst_dir).expect("create OUT_DIR/schemas");
+    std::fs::copy(&schema_src, &schema_dst).unwrap_or_else(|err| {
+        panic!(
+            "failed to stage GSettings schema {} → {}: {err}",
+            schema_src.display(),
+            schema_dst.display(),
+        )
+    });
+
+    let status = Command::new("glib-compile-schemas")
+        .arg(&schema_dst_dir)
+        .status()
+        .unwrap_or_else(|err| {
+            panic!(
+                "glib-compile-schemas must be installed and on PATH \
+                 (ships with glib-2.0; on Debian: apt install \
+                 libglib2.0-bin): {err}"
+            )
+        });
+    assert!(
+        status.success(),
+        "glib-compile-schemas failed for {} (exit: {status})",
+        schema_dst_dir.display(),
+    );
+
+    println!(
+        "cargo:rustc-env=OBSBOT_DEV_SCHEMA_DIR={}",
+        schema_dst_dir.display(),
     );
 }

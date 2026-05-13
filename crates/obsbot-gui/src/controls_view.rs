@@ -35,12 +35,12 @@ use libadwaita as adw;
 
 use adw::prelude::*;
 use obsbot_core::{
-    read_controls, write_control, CameraInfo, ControlClass, ControlDescriptor, ControlKind,
-    ControlValue,
+    read_controls, CameraInfo, ControlClass, ControlDescriptor, ControlKind, ControlValue,
 };
 
 use crate::exposure_group::{build_exposure_group, EXPOSURE_GROUP_IDS};
 use crate::ptz_pad::{build_ptz_pad, PTZ_PAD_IDS};
+use crate::settings;
 use crate::wb_group::{build_wb_group, WB_GROUP_IDS};
 
 /// Path to the controls-view shell inside the embedded `GResource`
@@ -70,33 +70,81 @@ fn build_body(cam: &CameraInfo) -> gtk::Widget {
         return error_status("No video node", "This camera has no /dev/videoN path.").upcast();
     };
 
-    match read_controls(path) {
-        Ok(controls) if controls.is_empty() => error_status(
-            "No controls exposed",
-            "The driver returned an empty control list.",
-        )
-        .upcast(),
-        Ok(controls) => render_controls(&controls, path).upcast(),
-        Err(err) => {
-            error_status("Could not read V4L2 controls", &format!("{path:?}: {err}")).upcast()
+    let initial = match read_controls(path) {
+        Ok(controls) if controls.is_empty() => {
+            return error_status(
+                "No controls exposed",
+                "The driver returned an empty control list.",
+            )
+            .upcast()
         }
-    }
+        Ok(controls) => controls,
+        Err(err) => {
+            return error_status("Could not read V4L2 controls", &format!("{path:?}: {err}"))
+                .upcast()
+        }
+    };
+
+    // T-105 — restore saved per-camera values. Best-effort: writes
+    // that fail (control inactive, driver mismatch) are logged and
+    // skipped; we then re-read the controls so the rendered UI
+    // reflects whatever the driver actually accepted.
+    let serial = cam.serial.as_deref();
+    let controls = restore_saved_values(path, &initial, serial).unwrap_or(initial);
+
+    render_controls(&controls, path, serial).upcast()
 }
 
-fn render_controls(controls: &[ControlDescriptor], path: &Path) -> adw::PreferencesPage {
+/// Replay every saved value for this camera, then re-read the V4L2
+/// surface so callers can render the restored state. Returns `None`
+/// when there are no saved values (caller falls back to the initial
+/// read), or when the re-read after replay fails (caller sticks
+/// with the pre-replay snapshot).
+fn restore_saved_values(
+    path: &Path,
+    initial: &[ControlDescriptor],
+    serial: Option<&str>,
+) -> Option<Vec<ControlDescriptor>> {
+    let serial = serial?;
+    let saved = settings::load_for_camera(serial);
+    if saved.is_empty() {
+        return None;
+    }
+
+    for ctrl in initial {
+        let Some(stored) = saved.get(&ctrl.name) else {
+            continue;
+        };
+        let value = match &ctrl.kind {
+            ControlKind::Integer { .. } => ControlValue::Integer(i64::from(*stored)),
+            ControlKind::Boolean { .. } => ControlValue::Boolean(*stored != 0),
+            ControlKind::Menu { .. } => ControlValue::Menu(i64::from(*stored)),
+            _ => continue,
+        };
+        settings::write_and_save(path, ctrl.id, value, Some(serial), &ctrl.name);
+    }
+
+    read_controls(path).ok()
+}
+
+fn render_controls(
+    controls: &[ControlDescriptor],
+    path: &Path,
+    serial: Option<&str>,
+) -> adw::PreferencesPage {
     let page = adw::PreferencesPage::new();
 
     // Curated groups (PTZ pad, White balance, Exposure) consume a
     // specific subset of controls. Mount them at the top of the page
     // and filter the consumed IDs out of the generic per-class render
     // below.
-    if let Some(ptz_group) = build_ptz_pad(controls, path) {
+    if let Some(ptz_group) = build_ptz_pad(controls, path, serial) {
         page.add(&ptz_group);
     }
-    if let Some(exposure_group) = build_exposure_group(controls, path) {
+    if let Some(exposure_group) = build_exposure_group(controls, path, serial) {
         page.add(&exposure_group);
     }
-    if let Some(wb_group) = build_wb_group(controls, path) {
+    if let Some(wb_group) = build_wb_group(controls, path, serial) {
         page.add(&wb_group);
     }
 
@@ -118,7 +166,7 @@ fn render_controls(controls: &[ControlDescriptor], path: &Path) -> adw::Preferen
             }
             _ => other_group.get_or_insert_with(|| make_group("Other")),
         };
-        let row = control_row(ctrl, path);
+        let row = control_row(ctrl, path, serial);
         // Generic INACTIVE grey-out — covers WB Temperature while WB
         // Auto is on, Exposure Time while Auto Exposure is engaged, etc.
         row.set_sensitive(ctrl.is_active);
@@ -155,7 +203,11 @@ fn make_group(title: &str) -> adw::PreferencesGroup {
 /// `pub(crate)` so sibling group modules (`wb_group`, `exposure_group`)
 /// can reuse the exact same widgets inside their dedicated groups
 /// without duplicating any of the T-100 / T-102 widget builders.
-pub(crate) fn control_row(ctrl: &ControlDescriptor, path: &Path) -> gtk::Widget {
+pub(crate) fn control_row(
+    ctrl: &ControlDescriptor,
+    path: &Path,
+    serial: Option<&str>,
+) -> gtk::Widget {
     if matches!(ctrl.class, ControlClass::User | ControlClass::Camera) {
         match &ctrl.kind {
             ControlKind::Integer {
@@ -165,16 +217,16 @@ pub(crate) fn control_row(ctrl: &ControlDescriptor, path: &Path) -> gtk::Widget 
                 step,
                 default,
             } => {
-                return integer_scale_row(ctrl, *current, *min, *max, *step, *default, path)
+                return integer_scale_row(ctrl, *current, *min, *max, *step, *default, path, serial)
                     .upcast()
             }
             ControlKind::Boolean { current, default } => {
-                return boolean_switch_row(ctrl, *current, *default, path).upcast();
+                return boolean_switch_row(ctrl, *current, *default, path, serial).upcast();
             }
             ControlKind::Menu {
                 current, options, ..
             } => {
-                return menu_combo_row(ctrl, *current, options, path).upcast();
+                return menu_combo_row(ctrl, *current, options, path, serial).upcast();
             }
             // `ControlKind::Other(_)` and any future `#[non_exhaustive]`
             // variants fall through to the read-only renderer below.
@@ -184,6 +236,10 @@ pub(crate) fn control_row(ctrl: &ControlDescriptor, path: &Path) -> gtk::Widget 
     readonly_action_row(ctrl).upcast()
 }
 
+#[allow(
+    clippy::too_many_arguments,
+    reason = "all values come straight from ControlKind::Integer"
+)]
 fn integer_scale_row(
     ctrl: &ControlDescriptor,
     current: i64,
@@ -192,6 +248,7 @@ fn integer_scale_row(
     step: u64,
     default: i64,
     path: &Path,
+    serial: Option<&str>,
 ) -> adw::ActionRow {
     // V4L2 standard User-class Integer controls store values as
     // `__s32` (see `struct v4l2_control` in `linux/videodev2.h`).
@@ -266,15 +323,16 @@ fn integer_scale_row(
     let id = ctrl.id;
     let name = ctrl.name.clone();
     let owned_path = path.to_path_buf();
+    let owned_serial = serial.map(str::to_owned);
     adjustment.connect_value_changed(move |adj| {
         let value = f64_to_i32_saturating(adj.value().round());
-        let value_i64 = i64::from(value);
-        if let Err(err) = write_control(&owned_path, id, ControlValue::Integer(value_i64)) {
-            eprintln!(
-                "warning: failed to write {name} ({id:#010x}) = {value_i64} on {}: {err}",
-                owned_path.display(),
-            );
-        }
+        settings::write_and_save(
+            &owned_path,
+            id,
+            ControlValue::Integer(i64::from(value)),
+            owned_serial.as_deref(),
+            &name,
+        );
     });
 
     row
@@ -314,6 +372,7 @@ fn boolean_switch_row(
     current: bool,
     default: bool,
     path: &Path,
+    serial: Option<&str>,
 ) -> adw::SwitchRow {
     let row = adw::SwitchRow::builder()
         .title(&ctrl.name)
@@ -324,14 +383,15 @@ fn boolean_switch_row(
     let id = ctrl.id;
     let name = ctrl.name.clone();
     let owned_path = path.to_path_buf();
+    let owned_serial = serial.map(str::to_owned);
     row.connect_active_notify(move |row| {
-        let value = row.is_active();
-        if let Err(err) = write_control(&owned_path, id, ControlValue::Boolean(value)) {
-            eprintln!(
-                "warning: failed to write {name} ({id:#010x}) = {value} on {}: {err}",
-                owned_path.display(),
-            );
-        }
+        settings::write_and_save(
+            &owned_path,
+            id,
+            ControlValue::Boolean(row.is_active()),
+            owned_serial.as_deref(),
+            &name,
+        );
     });
 
     row
@@ -377,6 +437,7 @@ fn menu_combo_row(
     current: i64,
     options: &[(i64, String)],
     path: &Path,
+    serial: Option<&str>,
 ) -> adw::ComboRow {
     let labels: Vec<&str> = options.iter().map(|(_, label)| label.as_str()).collect();
     let model = gtk::StringList::new(&labels);
@@ -397,6 +458,7 @@ fn menu_combo_row(
     let name = ctrl.name.clone();
     let option_ids: Vec<i64> = options.iter().map(|(menu_id, _)| *menu_id).collect();
     let owned_path = path.to_path_buf();
+    let owned_serial = serial.map(str::to_owned);
     row.connect_selected_notify(move |row| {
         let Ok(idx) = usize::try_from(row.selected()) else {
             return;
@@ -404,12 +466,13 @@ fn menu_combo_row(
         let Some(menu_id) = option_ids.get(idx).copied() else {
             return;
         };
-        if let Err(err) = write_control(&owned_path, id, ControlValue::Menu(menu_id)) {
-            eprintln!(
-                "warning: failed to write {name} ({id:#010x}) = menu {menu_id} on {}: {err}",
-                owned_path.display(),
-            );
-        }
+        settings::write_and_save(
+            &owned_path,
+            id,
+            ControlValue::Menu(menu_id),
+            owned_serial.as_deref(),
+            &name,
+        );
     });
 
     row
