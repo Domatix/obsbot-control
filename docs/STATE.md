@@ -8,10 +8,10 @@
 
 active_task: none
 active_task_state: idle
-last_completed_task: T-010
-last_commit: docs: record T-010 SHA in STATE.md (T-010)  # ec0da31
-last_step: T-010 DONE with caveat — code complete (icons + meson + GUI default-icon all green, all gates pass); the two visual acceptance criteria are deferred. End-to-end Alt+Tab test on the user's running session showed the generic-app placeholder because GNOME Shell builds its `.desktop` → window-icon cache at session startup and does not pick up mid-session drops into `~/.local/share/applications/`. The proper visual test path is T-014 Flatpak, T-016 / T-017 distro packages, or the user's next GNOME login.
-next_step: T-011 (USB enumeration for the Tiny 2 family — first real backend code; depends on T-005 + T-003, both DONE). After T-011: T-012 (CLI list), T-013 (diagnostics view), T-014 (Flatpak), T-015 (CI), T-016 (.deb), T-017 (Arch) remain to close v0.1.
+last_completed_task: T-011
+last_commit: docs: close T-010 with deferred visual caveat (T-010)  # acb3dc6  # refreshes to T-011 SHA after this commit
+last_step: T-011 DONE — `crates/obsbot-core/src/enumerate.rs` lands with `VID_OBSBOT`, `TINY2_FAMILY`, `enumerate_cameras()`, and `enumerate_cameras_in()`. Five new unit tests pass (8 unit + 1 doc total for obsbot-core), and the `#[ignore]`d hardware test detects the user's plugged-in Tiny 2 Lite (VID 0x3564 / PID 0xfef9, video_path /dev/video0, product starts with "OBSBOT"). All cargo gates + meson tests green. `tempfile` added as workspace + dev dependency.
+next_step: T-012 (CLI `list` subcommand — depends on T-006 and T-011, both DONE). Then T-013 (diagnostics view, needs hot-plug listener on top of `enumerate_cameras`), T-014 (Flatpak), T-015 (CI), T-016 (.deb), T-017 (Arch) close v0.1.
 blockers: none.
 working_tree:
   pre_commit_modified: []
@@ -26,4 +26,4 @@ pending_user_actions:
     after a fresh session, file a follow-up task (the install path
     via Flatpak/distro should resolve it; we revisit only if the
     same failure persists there).
-updated_at: 2026-05-13T15:44:58Z
+updated_at: 2026-05-13T15:53:49Z

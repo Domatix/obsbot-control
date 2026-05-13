@@ -50,6 +50,10 @@ async-channel = "2"
 # i18n (used by obsbot-gui from v0.6 polish / T-500+).
 gettext-rs = { version = "0.7", features = ["gettext-system"] }
 
+# Test-only: mock sysfs / filesystem trees (used by obsbot-core's
+# enumeration unit tests from T-011).
+tempfile = "3"
+
 [profile.release]
 lto = "thin"
 codegen-units = 1

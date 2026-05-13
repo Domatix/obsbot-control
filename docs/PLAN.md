@@ -370,16 +370,59 @@
   two T-009 metadata files + the two T-010 icons).
 
 ### T-011 — Implement USB enumeration for Tiny 2
-- **State**: TODO
+- **State**: DONE
+- **Started**: 2026-05-13T15:44:58Z
+- **Completed**: 2026-05-13T15:53:49Z
 - **Depends on**: T-005, T-003
 - **Description**: In `obsbot-core`, implement `enumerate_cameras() ->
   Vec<CameraInfo>` that scans `/sys/class/video4linux/*` and filters by
   Tiny 2's VID/PID (from T-003).
 - **Acceptance criteria**:
   - `cargo test -p obsbot-core` includes a unit test using a mock filesystem.
-  - On the user's machine, an integration test marked `#[ignore]` succeeds
-    when the camera is connected and reports the correct device path.
+    **DONE** — five new unit tests in `enumerate::tests`:
+    `detects_tiny2_lite_with_dual_video_nodes` (dedup correctness +
+    full `CameraInfo` round-trip on the user's hardware shape),
+    `detects_regular_tiny2` (the family's other PID + serial present
+    case), `rejects_non_obsbot_camera` (filter negative path on a
+    Logitech-shaped descriptor), `missing_root_returns_empty`
+    (resilient `/sys` absence), and `parses_known_hex` (small
+    helper). The five join the three pre-existing T-005 unit tests
+    for an 8-test obsbot-core suite plus the doctest.
+  - On the user's machine, an integration test marked `#[ignore]`
+    succeeds when the camera is connected and reports the correct
+    device path. **DONE** — `crates/obsbot-core/tests/hardware.rs`
+    holds `finds_connected_tiny2_family_unit` with `#[ignore]`. Run
+    explicitly: `cargo test -p obsbot-core --test hardware --
+    --ignored` returns `1 passed` against the user's plugged-in
+    Tiny 2 Lite (VID `0x3564`, PID `0xfef9`, video_path
+    `/dev/video0`, product string starts with "OBSBOT").
   - Commit: `feat(core): USB enumeration for Tiny 2 (T-011)`.
+- **Outcome**: new module `crates/obsbot-core/src/enumerate.rs`
+  (~160 lines including doc comments and the test mock helper) plus
+  `crates/obsbot-core/tests/hardware.rs`. Public surface:
+  * `pub const VID_OBSBOT: u16 = 0x3564;`
+  * `pub const TINY2_FAMILY: &[(u16, u16)] = &[(0x3564, 0xfef8),
+    (0x3564, 0xfef9)];`
+  * `pub fn enumerate_cameras() -> Vec<CameraInfo>`
+  * `pub fn enumerate_cameras_in(sysfs_video_root: &Path) ->
+    Vec<CameraInfo>` (test entry point and future hot-plug listener
+    entry point for the GUI from T-013).
+  All four are re-exported from `crates/obsbot-core/src/lib.rs`.
+  Private helpers `collect_one` / `read_attr` / `parse_hex_u16` stay
+  inside `enumerate.rs`. The function intentionally returns
+  `Vec<CameraInfo>` (not `Result`) — its three failure modes (sysfs
+  missing, unreadable, no devices match) all collapse to "no
+  cameras" from the consumer's perspective, and the underlying
+  `io::Error` is logged via `tracing::warn!` for diagnostics. The
+  per-device dedup keys on the canonicalised USB-device sysfs path
+  so a Tiny 2 family unit (two `/dev/videoN` nodes: capture +
+  metadata) surfaces as one row in the GUI. New workspace
+  dependency: `tempfile 3` in `[workspace.dependencies]` and as a
+  `[dev-dependencies]` entry in `obsbot-core`. `Cargo.lock` picks up
+  tempfile + transitive deps (fastrand 2.x, rustix 1.x). All four
+  cargo gates (`fmt --check`, `clippy -D warnings`, `test
+  --workspace`, hardware `-- --ignored`) green plus meson's
+  validate-metainfo + validate-desktop unchanged.
 
 ### T-012 — Wire enumeration into CLI
 - **State**: TODO

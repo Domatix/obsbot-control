@@ -19,3 +19,6 @@ module_name_repetitions = "allow"
 [dependencies]
 thiserror.workspace = true
 tracing.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

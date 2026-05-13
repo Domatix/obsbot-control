@@ -569,6 +569,137 @@ preserved by `git add`), `build-aux/.gitkeep` (deleted —
 directory now has real content, matching the [[T-005]] precedent
 for `crates/`), and the three docs files.
 
+### [2026-05-13T15:53:49Z] [T-011] DONE — gates green incl. real-hardware integration test
+
+`crates/obsbot-core/src/enumerate.rs` lands the four public symbols
+([[PLAN T-011]] Outcome block). Implementation choices that
+informed the diff and are worth a paper trail beyond the inline
+comments:
+
+  * Function returns `Vec<CameraInfo>`, not `Result<Vec<…>>`. The
+    three plausible failure modes (sysfs missing, sysfs unreadable,
+    no Tiny 2 family device plugged in) all collapse to "no
+    cameras" from the GUI / CLI standpoint; raising them through
+    `Result` would force callers into pointless error handling.
+    Diagnostic value preserved by logging the underlying
+    `io::Error` via `tracing::warn!` whenever `read_dir` fails.
+  * `enumerate_cameras_in(root: &Path)` exists as a public split
+    point purely for testability; production code only calls
+    `enumerate_cameras()`. Both are `#[must_use]` per pedantic-tier
+    clippy.
+  * Dedup keys on `fs::canonicalize(<entry>/device/..)`, which
+    resolves to the USB device sysfs path. This is robust to any
+    `/sys/class/video4linux/videoN` aliasing the kernel might
+    introduce; we never trust the basename.
+  * `device` symlink target convention: real sysfs uses
+    `../../../<port>:1.0` (verified by reading the actual symlink
+    on the user's machine — see paper trail), which `canonicalize`
+    resolves through. The mock builder had to mirror that exactly
+    once the first test run with a `../../../` shortcut failed
+    (`canonicalize` then walked one level too high and pointed at
+    `usb1/`, not the device dir). Pinned in a regression-style
+    comment inside the test helper.
+  * One clippy fix: `single_match_else` triggered on the
+    HashMap-update branch; flipped to `if let … else` per the
+    suggested form.
+
+Gate summary on this turn:
+  cargo fmt --all --check                                → exit 0
+  cargo clippy --workspace --all-targets -- -D warnings  → exit 0
+  cargo test --workspace                                 → 8 unit
+                                                           + 0
+                                                           ignored
+                                                           + 1 doc
+                                                           pass;
+                                                           the
+                                                           workspace
+                                                           total is
+                                                           8 / 1 ig
+                                                           / 1 doc
+                                                           (the
+                                                           hardware
+                                                           test is
+                                                           the
+                                                           ignored
+                                                           one).
+  cargo test -p obsbot-core --test hardware -- --ignored → 1 pass
+                                                           against
+                                                           the real
+                                                           Tiny 2
+                                                           Lite
+                                                           (vid=
+                                                           0x3564,
+                                                           pid=
+                                                           0xfef9,
+                                                           video_
+                                                           path=
+                                                           /dev/
+                                                           video0).
+  meson test -C builddir                                 → 2/2 OK
+                                                           (T-009
+                                                           cases
+                                                           unchanged).
+
+PLAN.md T-011 set to DONE with the Outcome block. STATE.md returns
+to idle with T-012 (CLI `list`) as the natural next task — it just
+wraps `obsbot_core::enumerate_cameras()` behind a `clap` subcommand.
+Commit `feat(core): USB enumeration for Tiny 2 (T-011)` follows.
+
+### [2026-05-13T15:44:58Z] [T-011] Started — USB enumeration for Tiny 2 family
+
+Plan: new module `crates/obsbot-core/src/enumerate.rs` exposing two
+public symbols matching the [[PLAN T-011]] contract:
+  * `pub const VID_OBSBOT: u16 = 0x3564;` — Remo Tech Co., Ltd.,
+    OBSBOT's USB-IF vendor entity.
+  * `pub const TINY2_FAMILY: &[(u16, u16)] = &[...];` — `(0x3564,
+    0xfef8)` Tiny 2 + `(0x3564, 0xfef9)` Tiny 2 Lite. Constant
+    rather than a hashmap/function so a future model becomes a
+    single-line append per [[ADR-0014]]'s "no code-path branching"
+    clause.
+  * `pub fn enumerate_cameras() -> Vec<CameraInfo>` — scans
+    `/sys/class/video4linux`, filters by `TINY2_FAMILY`, returns
+    one `CameraInfo` per *USB device* (not per `/dev/videoN` —
+    Tiny 2 family advertises two video nodes per camera, one
+    capture and one metadata).
+  * `pub fn enumerate_cameras_in(root: &Path) -> Vec<CameraInfo>`
+    — same logic against an arbitrary sysfs-like tree; used by
+    unit tests.
+
+Sysfs walk validated against the user's plugged-in Tiny 2 Lite:
+`/sys/class/video4linux/video0/device/..` canonicalises to
+`/sys/devices/pci0000:00/0000:00:14.0/usb1/1-7`, whose
+`idVendor` reads `3564`, `idProduct` reads `fef9`, `manufacturer`
+reads "Remo Tech Co., Ltd.", `product` reads "OBSBOT Tiny 2 Lite",
+`bcdDevice` reads `0510` (= firmware 5.10). The `serial` attribute
+file is absent — consistent with [[PROTOCOL §5]] / `iSerial=0`.
+
+Dedup strategy: keep a `HashMap<PathBuf /* canonicalised USB
+device dir */, CameraInfo>` keyed on the canonical USB-device path
+so the same physical camera is not surfaced twice. When two video
+nodes resolve to the same device, the lower-numbered
+`/dev/videoN` wins as `video_path` (capture is conventionally
+lower than metadata).
+
+Mock filesystem for unit tests: `tempfile` crate (new
+`[dev-dependencies]` entry in `crates/obsbot-core/Cargo.toml`,
+plus pinned version added to `[workspace.dependencies]` for
+consistency). Tests create a real directory tree under the
+temp dir with `std::os::unix::fs::symlink` matching real sysfs's
+relative-symlink convention; the production code uses
+`fs::canonicalize`, which resolves the chain natively.
+
+Hardware integration test: `crates/obsbot-core/tests/hardware.rs`
+with `#[ignore]` attribute so it does not run by default; the
+user invokes it with `cargo test -p obsbot-core -- --ignored`
+when the Tiny 2 Lite is plugged in. The test exercises the real
+`/sys` and asserts at least one `CameraInfo` with VID `0x3564`,
+PID `0xfef9`, and a `video_path` matching `/dev/video*`.
+
+`lib.rs` will re-export the new symbols; the doctest example
+shape from [[T-005]] is unaffected. No change to the [`Camera`]
+trait surface (T-011 only adds the discovery layer; opening a
+device and producing an `impl Camera` is T-100-series work).
+
 ### [2026-05-13T15:44:58Z] [T-010] DONE with caveat — visual deferred to Flatpak / next login
 
 User-side visual test attempted three ways during this session:
