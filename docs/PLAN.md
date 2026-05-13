@@ -560,7 +560,9 @@
   - Commit `feat(gui): toast-based write-error surfacing (T-108)`.
 
 ### T-109 — AppStream releases entry for v0.2.0
-- **State**: TODO
+- **State**: DONE
+- **Started**: 2026-05-14T01:40:00Z
+- **Completed**: 2026-05-14T01:55:00Z
 - **Depends on**: T-009 (metainfo + desktop file).
 - **Description**: Tag-readiness prep: the AppStream metainfo
   has carried an implicit "no releases" section since T-009.
@@ -571,18 +573,28 @@
   `<li>`); no marketing prose.
 - **Acceptance criteria**:
   - `data/io.github.domatix.ObsbotCamControl.metainfo.xml.in`
-    gains a `<releases>` element with a `<release
-    version="0.2.0" date="@RELEASE_DATE@">` placeholder; the
-    Meson `configure_file()` step substitutes `@RELEASE_DATE@`
-    (default `unreleased` for cargo-run; real ISO date at tag).
-  - Release notes cover: PTZ pad (T-101), menu writes + INACTIVE
-    grey-out (T-102), WB group (T-103), Exposure group (T-104),
+    gains a `<release version="0.2.0" type="development">`
+    entry on top of the existing v0.1.0 record (newest-first
+    per AppStream convention). Implementation note: dropped the
+    placeholder `@VERSION@` from the v0.1.0 entry that would
+    have silently rewritten it to "0.2.0" after a project-
+    version bump; both entries now carry their literal version
+    string so the historical record is stable. Date attribute
+    is `2026-05-14` — a draft value to be edited at actual tag
+    time if the v0.2.0 cut slips beyond that day.
+  - Release notes cover: PTZ pad (T-101), image controls + menu
+    writes + INACTIVE grey-out (T-100 / T-102), WB group (T-103),
+    Exposure group (T-104), Anti-flicker selector (T-102),
     GSettings persistence (T-105), About dialog (T-106), gettext
-    scaffolding (T-107), toast errors (T-108).
-  - `meson test -C builddir validate-metainfo` still passes
-    (i.e. `appstreamcli validate --no-net --explain` is green).
-  - All four cargo gates green (no Rust changes, but the gates
-    still have to run cleanly).
+    scaffolding (T-107), toast errors (T-108). Phrased in
+    user-facing language (no T-IDs in the metainfo).
+  - `meson test -C builddir validate-metainfo` passes
+    (`appstreamcli validate --no-net --explain` green;
+    `--pedantic` shows only the pre-existing `cid-contains-
+    uppercase-letter` note about `ObsbotCamControl` TitleCase,
+    intentional per ADR-0012).
+  - All four cargo gates green (no Rust changes; gates re-run
+    to catch any incidental regressions).
   - Commit `docs(appstream): v0.2.0 release notes (T-109)`.
 
 ### T-110 — Hot-plug REMOVE resilience

@@ -596,6 +596,82 @@ commit `build(gui): Blueprint pipeline (T-099)` packages the
 seven changed/added files plus `Cargo.lock` (glib-build-tools
 0.20.0 transitive deps).
 
+### [2026-05-14T01:55:00Z] [T-109] DONE — AppStream v0.2.0 release notes (draft)
+
+Fourth task of the T-106..T-110 run. Tag-readiness prep: lay
+down `<release version="0.2.0">` notes in the metainfo so the
+eventual `v0.2.0` git tag has user-facing release notes ready
+to ship.
+
+`data/io.github.domatix.ObsbotCamControl.metainfo.xml.in`:
+
+* New top entry: `<release version="0.2.0" date="2026-05-14"
+  type="development">` with a `<description>` block. Lead
+  paragraph rephrased from "v0.2 lands..." to "Release 0.2
+  lands..." after `appstreamcli validate --pedantic` flagged
+  `description-first-word-not-capitalized` on the original
+  draft (lowercase `v` does not count as capitalized; the
+  rewording is the cheapest fix and reads cleanly).
+* Bullet list covering the user-facing additions:
+  PTZ pad (8 directional + reset + zoom slider), image
+  controls with reset-to-default (brightness / contrast /
+  saturation / hue / sharpness / gain / backlight-comp /
+  WB temperature), WB + Exposure groups with INACTIVE
+  grey-out, anti-flicker selector, per-camera settings
+  persistence, About dialog. One "Internal" bullet at the end
+  flags the toast surfacing (T-108) + gettext scaffolding
+  (T-107) so users notice the under-the-hood improvements
+  without the notes turning into a developer log.
+* Closing paragraph explicitly punts vendor-specific features
+  (HDR / FOV / auto-framing) to v0.4. Keeps user expectations
+  aligned with ROADMAP.
+
+* Pre-existing v0.1.0 entry lost its `@VERSION@` substitution:
+  the placeholder would have silently rewritten the historical
+  row's version to whatever `meson.project_version()` resolves
+  to next (which after the user's eventual `0.1.0 → 0.2.0`
+  Cargo bump would become "0.2.0", duplicating with the new
+  top entry). Both rows now carry their literal version
+  string. `data/meson.build`'s `cdata.set('VERSION', meson.
+  project_version())` is now unused by this file but harmless
+  (no warning, ready for re-use elsewhere).
+
+Date attribute is literal `2026-05-14` — close to expected
+tag day. If the v0.2.0 cut slips, the date can be edited at
+tag time without needing a new task.
+
+Gates:
+  cargo fmt --all --check                                → exit 0
+  cargo clippy --workspace --all-targets -- -D warnings  → exit 0
+  cargo test --workspace                                 → 14 unit
+                                                           + 1 settings unit
+                                                           + 1 doctest, all pass;
+                                                           5 hardware ignored.
+  meson test -C builddir validate-metainfo               → exit 0
+  appstreamcli validate --no-net --explain --pedantic
+    <metainfo>                                           → only the pre-existing
+                                                           cid-contains-uppercase
+                                                           note about
+                                                           `ObsbotCamControl`
+                                                           TitleCase per
+                                                           ADR-0012; no new
+                                                           findings.
+
+Files touched:
+  * data/io.github.domatix.ObsbotCamControl.metainfo.xml.in (+~30 / -8)
+  * docs/PLAN.md                                            (T-109 DONE block)
+  * docs/STATE.md                                           (active → idle, last → T-109)
+  * docs/PROGRESS.md                                        (this entry)
+
+No new user-validation item — this is a doc-only artifact and
+the visible payload (the release notes in GNOME Software /
+Flathub) only matters after the binary is actually packaged
+and installed; that is itself the v0.2.0 tag workflow.
+
+Commit `docs(appstream): v0.2.0 release notes (T-109)`
+follows. T-110 (hot-plug REMOVE resilience) is the last task
+in this batch.
+
 ### [2026-05-14T01:40:00Z] [T-108] DONE — toast-based write-error surfacing
 
 Third task of the T-106..T-110 run. Replace stderr `eprintln!`

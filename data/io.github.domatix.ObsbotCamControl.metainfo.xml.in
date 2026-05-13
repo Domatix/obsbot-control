@@ -73,7 +73,40 @@
   </supports>
 
   <releases>
-    <release version="@VERSION@" date="2026-05-13" type="development">
+    <release version="0.2.0" date="2026-05-14" type="development">
+      <description>
+        <p>
+          Release 0.2 lands the V4L2 standard-controls milestone.
+          The application now detects connected OBSBOT Tiny 2 family
+          cameras and exposes a working subset of standard UVC
+          controls inside polished libadwaita widgets:
+        </p>
+        <ul>
+          <li>Pan / tilt / zoom pad with 8 directional buttons, a
+            center reset, and a vertical zoom slider.</li>
+          <li>Brightness, contrast, saturation, hue, sharpness,
+            gain, backlight compensation, white-balance temperature
+            sliders with reset-to-default.</li>
+          <li>Dedicated White balance group (Auto / Temperature /
+            Red / Blue) and Exposure group (Auto Mode /
+            Time Absolute), with automatic INACTIVE grey-out when
+            an auto toggle freezes its dependents.</li>
+          <li>Anti-flicker selector (Disabled / 50 Hz / 60 Hz).</li>
+          <li>Per-camera settings persistence: control values
+            survive app restart, keyed by the camera serial.</li>
+          <li>Hamburger menu with About dialog (version, license,
+            issue tracker, credits).</li>
+          <li>Internal: in-app toast notifications on V4L2 write
+            failures, full gettext scaffolding so Spanish (and
+            other) translations can land in v0.6.</li>
+        </ul>
+        <p>
+          Vendor-specific features (HDR, FOV, auto-framing) remain
+          on the v0.4 roadmap.
+        </p>
+      </description>
+    </release>
+    <release version="0.1.0" date="2026-05-13" type="development">
       <description>
         <p>
           Initial development release. Scaffolding only: the

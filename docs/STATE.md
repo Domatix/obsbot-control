@@ -8,11 +8,11 @@
 
 active_task: none
 active_task_state: idle
-last_completed_task: T-108
+last_completed_task: T-109
 last_milestone: v0.1.0  # tag 5e005fd
-last_commit: feat(gui): gettext scaffolding (T-107)  # 39c1206 (T-108 commit pending in this turn)
-last_step: T-108 DONE — toast-based error surfacing. `controls_view::build_controls_page` wraps the dynamic body in an `adw::ToastOverlay` and calls `settings::bind_toast_overlay` to register it. `settings.rs` gains a `thread_local!` `Option<glib::WeakRef<adw::ToastOverlay>>` plus a `surface_error(msg)` helper that upgrades the weak ref and pops a 5s `adw::Toast`; falls through to `eprintln!` when no overlay is bound (cargo run before navigating into a camera) or the previously-bound overlay has been dropped (page navigation race). `settings::write_and_save` now routes V4L2 write failures through `surface_error(gettext("Failed to set {name}: {error}").replace(...))`; GSettings save failures stay on `eprintln!` (inline-justified — best-effort, transparent recovery next session). No widget-builder signature changes — the thread_local sidesteps the alternative of threading `Rc<adw::ToastOverlay>` through every closure. Gates: fmt, clippy -D warnings, 14 unit + 1 doctest + 1 settings unit-test = 16 native pass; 5 hardware ignored.
-next_step: Advance to T-109 (AppStream `<releases>` for v0.2.0) — add a `<releases>` block in `data/io.github.domatix.ObsbotCamControl.metainfo.xml.in` with a `<release version="0.2.0" date="@RELEASE_DATE@">` entry; release notes cover T-099..T-108 (Blueprint pipeline, image controls, menu writes + INACTIVE grey-out, WB / Exposure groups, PTZ pad, GSettings persistence, About dialog, gettext scaffolding, toast errors). Substitute `@RELEASE_DATE@` via `data/meson.build`'s `configuration_data()` with a default `unreleased`; tag-time bumps it to the ISO date. Validate via `meson test -C builddir validate-metainfo`. Commit `docs(appstream): v0.2.0 release notes (T-109)`.
+last_commit: feat(gui): toast-based write-error surfacing (T-108)  # 6df5294 (T-109 commit pending in this turn)
+last_step: T-109 DONE — AppStream `<releases>` draft for v0.2.0. New `<release version="0.2.0" date="2026-05-14" type="development">` entry on top of the existing v0.1.0 record (which lost its `@VERSION@` placeholder and gained literal `"0.1.0"` so the historical row stays stable through future project-version bumps). User-facing release notes cover PTZ pad, image controls + INACTIVE grey-out, WB / Exposure groups, anti-flicker, GSettings persistence, About dialog, toast errors, and the gettext scaffolding (positioned as an "internal" bullet so non-developers know what changed but the entry stays user-relevant). Vendor features (HDR / FOV / auto-framing) explicitly punted to v0.4. Date `2026-05-14` is a draft — editable at actual tag time if the cut slips. Validation: `meson test -C builddir validate-metainfo` exit 0; `appstreamcli validate --pedantic` only flags the pre-existing `cid-contains-uppercase-letter` note (ADR-0012, intentional). Gates: fmt, clippy -D warnings, 14 unit + 1 doctest + 1 settings unit-test = 16 native pass; 5 hardware ignored. No Rust code changes.
+next_step: Advance to T-110 (hot-plug REMOVE resilience) — extend `window::start_hotplug_poll` so that when the currently-active controls page corresponds to a camera that disappears from the enumeration, the poll callback pops the `NavigationView` back to the cameras list and posts a "Camera disconnected" toast. Re-plug still works (existing T-013b body re-mount). Commit `feat(gui): hot-plug REMOVE resilience (T-110)`. After T-110, write the run-closing `session-checkpoint` entry covering T-106..T-110, then stop and hand back.
 blockers: none.
 working_tree:
   pre_commit_modified: []
@@ -54,4 +54,4 @@ pending_user_actions:
     when you launch the app.
   - T-017 (Arch stakeholder, whenever): build/install/remove the
     PKGBUILD on Arch.
-updated_at: 2026-05-14T01:40:00Z  # T-108 closed, T-109 next in the autonomous batch
+updated_at: 2026-05-14T01:55:00Z  # T-109 closed, T-110 last in the autonomous batch
