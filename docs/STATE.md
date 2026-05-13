@@ -9,25 +9,29 @@
 active_task: none
 active_task_state: idle
 last_completed_task: T-017
-last_commit: docs: record GitHub remote online (PRIVATE)  # 4636662 (T-017 work pending commit)
-last_step: T-017 DONE-with-caveat. `build-aux/PKGBUILD` + `build-aux/build-arch.sh` + README Arch section land. Side-fix in `meson.build`: buildtype=plain now maps to cargo release (was debug; arch-meson uses --buildtype=plain by default so this matters). Static validation green: arch-meson simulation produces same BuildID as the .deb binary, install layout matches the .deb's freedesktop paths plus the Arch-idiomatic /usr/share/licenses/$pkgname/. cargo fmt/clippy/test all green. The literal `makepkg` + `pacman -U/-R` validation is deferred to the Arch stakeholder per [[ADR-0015]] (host is Debian, no docker/podman) — same shape as T-016's apt-install gate. v0.1 milestone evaluation pending in this session.
-next_step: write ADR-0018 deciding whether to tag v0.1.0 with T-015 BLOCKED, append PROGRESS milestone entry, tag + push --tags. Then session-end checkpoint.
-blockers: T-015 still BLOCKED on public-repo move (handled separately in milestone decision).
+last_milestone: v0.1.0
+last_commit: build(arch): test-artifact PKGBUILD (T-017)  # ea58595 (milestone close commit pending in this turn)
+last_step: v0.1.0 milestone closed per CLAUDE.md §7. 17 tasks DONE (2 with caveat: T-010, T-017), T-013 SUPERSEDED, T-013d DEFERRED to v0.2, T-015 BLOCKED but explicitly deferred to v0.1.1 / v0.2 per [[ADR-0018]] (this session). Gates green: cargo fmt/clippy/test pass, Flatpak builds, .deb installs/launches/removes cleanly (user-verified T-016), PKGBUILD statically validates against arch-meson simulation. README current with all three distribution channels documented (Flatpak + .deb + Arch). About to commit ADR-0018 + this STATE + the milestone PROGRESS entry, then `git tag v0.1.0` annotated and `git push --tags`.
+next_step: after tag lands, session-end checkpoint. v0.2 entry point will be T-099 (Blueprint pipeline) per [[ADR-0017]] — that's the first task to pick up next session when ready to start v0.2.
+blockers: T-015 deferred (ADR-0018); will re-evaluate when public release repo lands.
 working_tree:
-  pre_commit_modified: [README.md, docs/PLAN.md, docs/PROGRESS.md, docs/STATE.md, meson.build]
-  pre_commit_untracked: [build-aux/PKGBUILD, build-aux/build-arch.sh]
+  pre_commit_modified: [docs/DECISIONS.md, docs/PROGRESS.md, docs/STATE.md]
+  pre_commit_untracked: []
   pre_commit_deleted: []
 pending_user_actions:
-  - T-013 (later, v0.1): log out / log back in to pick up the new
-    `video` group membership.
+  - T-013 (later, v0.2 area): log out / log back in to pick up
+    the new `video` group membership.
   - T-010 (next time you log in): observe whether GNOME Shell now
     paints our webcam icon when you launch the app via `cargo run
     -p obsbot-gui`. If it still shows the generic placeholder
-    after a fresh session, file a follow-up task (the install path
-    via Flatpak/distro should resolve it; we revisit only if the
-    same failure persists there).
+    after a fresh session, file a follow-up task (the install
+    path via Flatpak/distro should resolve it; we revisit only
+    if the same failure persists there).
   - T-017 (Arch stakeholder, whenever): clone the repo on an Arch
     box, run `./build-aux/build-arch.sh`, `sudo pacman -U` the
     artifact, launch obsbot-cam-control, and `sudo pacman -R` to
-    verify clean removal.
-updated_at: 2026-05-13T20:40:00Z  # T-017 closed
+    verify clean removal. Any issues land in v0.1.1.
+  - Public release repo / Flathub prep (v1.0 area): split out per
+    the strategy noted in the GitHub-remote-online PROGRESS
+    entry; that unlocks T-015 (CI + badge) for v0.1.1 or v0.2.
+updated_at: 2026-05-13T20:50:00Z  # v0.1.0 milestone close

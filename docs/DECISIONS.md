@@ -664,5 +664,98 @@ Three alternatives weighed:
 
 ---
 
+## ADR-0018 — Tag v0.1.0 with T-015 (CI) BLOCKED; defer to v0.1.1 / v0.2
+
+**Date**: 2026-05-13
+**Status**: accepted (amends [[CLAUDE.md §7]] and [[ADR-0017]])
+
+**Context**: With T-017 closing in this session, every technical
+task originally scoped under the v0.1 milestone is `DONE`
+(possibly DONE-with-caveat) **except T-015**:
+
+* **DONE**: T-001..T-012, T-013a, T-013b, T-013c, T-014, T-016
+* **DONE-with-caveat**: T-010 (icon visual confirmation deferred
+  to a real distro install + a fresh GNOME session), T-017
+  (downstream `makepkg` + `pacman -U/-R` deferred to the Arch
+  stakeholder per [[ADR-0015]])
+* **SUPERSEDED**: T-013 (by [[ADR-0016]])
+* **DEFERRED to v0.2**: T-013d (by [[ADR-0017]])
+* **BLOCKED**: T-015 — the GitHub Actions CI workflows. The
+  PLAN.md note on T-015 said "do not run until repo is on
+  GitHub. Mark BLOCKED if still private when reached." Today's
+  remote push to `github.com/Domatix/obsbot-control` (PRIVATE)
+  partially unblocks the workflow side (Actions runs on private
+  repos) but the README-status-badge and Flathub-prep parts of
+  the original T-015 acceptance text both want the repo public.
+
+[[CLAUDE.md §7]] requires "All its tasks in `PLAN.md` are DONE"
+for a milestone to be cut. [[ADR-0017]] re-affirmed this by
+listing T-015 explicitly as a v0.1 gate. The strict reading
+therefore says: do not tag v0.1.0 yet.
+
+Three alternatives weighed:
+
+1. **Wait for T-015 before tagging v0.1.0.** Honours
+   CLAUDE.md §7 strictly. Costs: indefinite delay (the public-
+   repo move is a separate user decision with no current
+   timeline), and the natural "everything technical is done"
+   moment passes without a versioned snapshot — which makes
+   future bisection / "what was v0.1" reconstruction harder.
+
+2. **Tag v0.1.0 now and treat T-015 as a v0.1.1 patch.** The
+   v0.1.0 tag captures the technical feature-completeness
+   (enumeration, diagnostics, Flatpak, .deb, Arch package). The
+   subsequent v0.1.1 (or v0.2 absorption) adds CI when the
+   public repo enables it. Costs: one extra patch tag, and a
+   small departure from §7's literal reading.
+
+3. **Move T-015 out of the v0.1 milestone entirely.** Reclassify
+   it as "infrastructure work, not version-gated" and rewrite
+   ADR-0017's v0.1 DoD list. Costs: muddles the milestone story
+   (the very-first-CI is usually a v0.1 deliverable) and
+   requires touching multiple ADRs to keep them coherent.
+
+**Decision**: Adopt option **2**.
+
+Concretely:
+
+* Tag `v0.1.0` on `main` at the SHA that lands T-017's commit
+  plus this ADR's docs commit. The tag's annotated message
+  records the feature-completeness framing and explicitly notes
+  T-015 is deferred.
+* PLAN.md T-015's `State` stays `TODO` with the `BLOCKED`-on-
+  public-repo annotation; the task is **NOT** moved out of the
+  v0.1 section. When it lands it ships as v0.1.1, or it gets
+  re-tagged as the first v0.2 deliverable — whichever sequence
+  the public-repo split (the user mentioned in the 2026-05-13
+  remote-online PROGRESS entry) implies.
+* CLAUDE.md §7's checklist is updated to add a "(or: explicitly
+  deferred via ADR)" clause on the "All tasks DONE" criterion —
+  this ADR is the canonical example.
+
+**Consequence**:
+
+* `v0.1.0` exists immediately as a snapshot of "Tiny 2 family
+  enumeration + V4L2 diagnostics shipped via three distribution
+  channels" — the value the milestone was always about. Future
+  `git log v0.1.0..main` queries become useful.
+* The README badge from T-015 will land in v0.1.1 when public.
+  Flathub-prep work also lands then; the manifest itself is
+  already shipped in v0.1.0.
+* Patch tags `v0.1.1+` carry the post-tag fixes the Arch
+  stakeholder or the next dev-session may produce (e.g., a real
+  `makepkg` run surfacing a PKGBUILD bug from T-017's deferred
+  acceptance). This keeps the test-artifact tier honest without
+  re-cutting `v0.1.0`.
+* No deletion of work; this is purely a scoping decision about
+  when to attach the version label. The codebase shape stays
+  exactly as committed.
+* If the Arch stakeholder, on their first `makepkg` run, finds
+  a real PKGBUILD issue we missed in static validation, the fix
+  lands in v0.1.1 alongside whatever CI work T-015 brings —
+  symmetric with the existing T-010 caveat structure.
+
+---
+
 <!-- Append new ADRs above this line, never below. Newest ADRs go at the bottom
      of the list but new entries are added; do not edit old ones. -->

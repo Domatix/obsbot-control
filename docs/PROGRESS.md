@@ -362,6 +362,78 @@ PLAN T-017 set to DONE-with-caveat (mirrors T-010's "framework
 correct, end-of-line verification deferred" closure shape). STATE
 goes idle. Next: evaluate v0.1 milestone per CLAUDE.md §7.
 
+### [2026-05-13T20:50:00Z] [milestone] v0.1.0 reached — scaffolding & detection
+
+CLAUDE.md §7 milestone checklist run-through:
+
+1. **All tasks DONE** — 17 of 19 active tasks DONE (two
+   DONE-with-caveat: T-010, T-017). T-013 SUPERSEDED, T-013d
+   DEFERRED to v0.2. **T-015 BLOCKED on public-repo move**; per
+   [[ADR-0018]] (this session), we tag v0.1.0 anyway and defer
+   T-015 to v0.1.1 / v0.2. The ADR documents the reasoning and
+   amends §7 to accept "explicitly deferred via ADR" alongside
+   strict DONE.
+2. **`cargo test --workspace` passes locally** — yes, 14 unit
+   tests (8 obsbot-core + 3 controls + 3 obsbot-cli) + 1
+   doctest = 15 active tests, all green; 2 hardware tests
+   `#[ignore]`d (run-on-demand against the user's plugged-in
+   Tiny 2 Lite, last green at T-013c).
+3. **`cargo clippy --workspace --all-targets -- -D warnings`
+   passes** — yes, verified at T-017 close (single
+   justification-commented allow on `Capabilities`'s
+   `clippy::struct_excessive_bools` per [[T-005]] outcome).
+4. **Flatpak builds successfully** — yes, [[T-014]] outcome:
+   `flatpak-builder --user --install --force-clean build-flatpak
+   build-aux/io.github.domatix.ObsbotCamControl.json` succeeds
+   and the installed app behaves identically to the native
+   binary (user-confirmed 2026-05-13T17:55Z).
+5. **README accurately reflects current capabilities** — yes,
+   Goals + Supported cameras + Building (meson / Flatpak /
+   Test packages .deb / Test packages Arch) sections all
+   current as of T-017 close.
+6. **Git tag `v0.1.0`** — to be created in this turn, annotated,
+   pointing at the docs commit that follows this PROGRESS entry.
+7. **PROGRESS milestone entry** — this entry.
+
+**What v0.1.0 delivers** (the user-visible value):
+
+* `obsbot-cli list` enumerates connected OBSBOT Tiny 2 family
+  cameras (Tiny 2, Tiny 2 Lite) with VID/PID + serial + firmware
+  + `/dev/videoN` mapping.
+* `obsbot-cam-control` GUI: GTK4 + libadwaita window with a
+  hot-plug-aware list of connected cameras; tapping a row
+  drills into a read-only V4L2 controls page exposing the 22
+  controls the kernel surfaces (12 User + 10 Camera, per
+  PROTOCOL §2).
+* Three distribution channels:
+  - Local meson build (`meson setup builddir && meson install`)
+  - Flatpak (`build-aux/io.github.domatix.ObsbotCamControl.json`,
+    GNOME 48 runtime, builds with `flatpak-builder`)
+  - .deb test package (`./build-aux/build-deb.sh`,
+    user-validated install/launch/remove on Debian trixie at
+    T-016 close)
+  - Arch .pkg.tar.zst test package
+    (`./build-aux/build-arch.sh`, static-validated at T-017
+    close; downstream makepkg+pacman validation deferred to
+    Arch stakeholder per [[ADR-0015]])
+
+**What is explicitly NOT in v0.1.0** (per [[SPEC]] §3.x +
+roadmap hints):
+
+* No control writes (read-only diagnostics). T-100 series
+  (v0.2) introduces brightness/contrast/saturation/hue
+  sliders, PTZ pad, zoom slider, WB + exposure widgets.
+* No GStreamer preview. T-200 series (v0.3).
+* No XU vendor features (auto-framing, gesture-control,
+  beauty AI, etc.). T-300+ (v0.4+).
+* No Blueprint pipeline. Deferred [[ADR-0017]] to v0.2's
+  T-099 (first v0.2 task).
+* No CI badges or Flathub submission. T-015 (this milestone,
+  BLOCKED) and v1.0 release readiness respectively.
+
+**Last commit in v0.1.0**: ahead of this entry's commit by one
+ADR-0018 + this PROGRESS update. Tag will land on that commit.
+
 
 
 ### [2026-05-12T00:00:00Z] [bootstrap] Project scaffolding generated
