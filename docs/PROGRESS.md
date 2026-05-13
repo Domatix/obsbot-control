@@ -478,6 +478,97 @@ button) handed to the user — Claude cannot drive keyboard input.
 T-007 stays IN_PROGRESS until the user reports back; once confirmed,
 closes with `feat(gui): scaffold libadwaita application (T-007)`.
 
+### [2026-05-13T12:36:03Z] [T-008] Started — Meson orchestration scaffold
+
+Plan: top-level `meson.build` declaring the project (`obsbot-cam-control`
+0.1.0, `license: 'GPL-3.0-or-later'`, `meson_version: '>= 1.0'`),
+runtime-lib presence + minimum-version checks
+(`dependency('gtk4', '>= 4.14')`, `libadwaita-1 >= 1.6`,
+`glib-2.0 >= 2.74`, `gio-2.0 >= 2.74` per [[ARCHITECTURE §1]]), a
+single `custom_target('cargo-build', …)` wrapping cargo via a
+build-aux shim that:
+  1. `cargo build -p obsbot-gui [--release]` against
+     `meson.project_build_root()/cargo` as `--target-dir`,
+  2. copies the produced `obsbot-cam-control` binary to `@OUTPUT@`.
+The custom target is `build_by_default: true`, `install: true`,
+`install_dir: bindir`. PLAN T-008 mentions handling `.desktop.in` /
+`.metainfo.xml.in` / GSettings schema but those don't exist yet —
+T-009 (metainfo + .desktop), T-010 (icons), T-105 (schema) introduce
+them and will extend meson.build then. T-008 intentionally scopes
+itself to the cargo-orchestration spine plus a hook comment for
+each future addition.
+
+Note: `cargo-build.sh` will be marked executable (`chmod +x`); meson
+finds it via `find_program('build-aux/cargo-build.sh', required:
+true)`. Validation: `meson setup builddir`, `meson compile -C
+builddir`, `meson install -C builddir --destdir /tmp/install-test`,
+plus an inspection of `/tmp/install-test` confirming the binary
+lands at the right place under the prefix. Commit `build: set up
+Meson orchestration (T-008)`.
+
+### [2026-05-13T12:38:00Z] [T-008] meson.build details + 'rust' language dropped
+
+`meson.build` declared the project without `'rust'` as a project
+language. Rationale: meson never compiles Rust directly; cargo does
+everything via a `custom_target`. Declaring `'rust'` makes meson hunt
+for a rustc and prepare Rust-specific machinery we never use — strict
+noise. Pika Backup follows the same pattern.
+
+Runtime-lib `dependency(...)` checks (gtk4 ≥ 4.14, libadwaita-1 ≥ 1.6,
+glib-2.0 ≥ 2.74, gio-2.0 ≥ 2.74) are belt-and-suspenders against the
+cargo-side gtk4-sys / libadwaita-sys link: they fail at
+`meson setup` with a clear pkg-config error if dev headers are
+missing, instead of failing mid-cargo-build with a less obvious
+linker message. On the user's machine they all resolved cleanly:
+gtk4 4.18.6, libadwaita-1 1.7.6, glib-2.0 2.84.4, gio-2.0 2.84.4.
+
+`build-aux/cargo-build.sh` is a 50-line bash wrapper:
+`set -euo pipefail`, 6 positional args (manifest, target-dir,
+profile, package, binary name, output path), profile-case dispatch
+to either `--release` or default debug, `install -m 755` of the
+produced binary to the meson-provided output slot. Trapping
+non-existent binary paths with a clear error message (`exit 65`).
+
+### [2026-05-13T12:39:00Z] [T-008] Gates green
+
+  meson setup builddir                            → exit 0 (all 4 runtime
+                                                    deps resolved, cargo found,
+                                                    shim discovered)
+  meson compile -C builddir                       → exit 0 (cargo build --release
+                                                    -p obsbot-gui, 1m 22s on
+                                                    first run, produces
+                                                    builddir/cargo/release/
+                                                    obsbot-cam-control, shim
+                                                    installs to
+                                                    builddir/obsbot-cam-control)
+  meson install -C builddir --destdir /tmp/install-test
+                                                  → exit 0; tree:
+                                                    /tmp/install-test/usr/local/
+                                                    bin/obsbot-cam-control
+                                                    (424 448 bytes,
+                                                    stripped ELF, mode 0755)
+  /tmp/install-test/usr/local/bin/obsbot-cam-control --help
+                                                  → exit 0 (GLib option-group
+                                                    help in Spanish locale —
+                                                    confirms the binary loads
+                                                    and resolves GTK at
+                                                    runtime, even from the
+                                                    DESTDIR location since
+                                                    libgtk is at the system
+                                                    location).
+
+### [2026-05-13T12:39:26Z] [T-008] DONE — closing task and prepping commit
+
+PLAN.md T-008 set to DONE with the Outcome block (in-task scope
+correction noted: `.desktop.in`/`.metainfo.xml.in`/schema deferred
+to their owning tasks). STATE.md goes idle with T-009 (AppStream
+metainfo + .desktop file) as the natural next task. Commit
+`build: set up Meson orchestration (T-008)` follows, bundling
+`meson.build` (new), `build-aux/cargo-build.sh` (new, +x mode
+preserved by `git add`), `build-aux/.gitkeep` (deleted —
+directory now has real content, matching the [[T-005]] precedent
+for `crates/`), and the three docs files.
+
 ### [2026-05-13T12:30:42Z] [T-007] DONE — user confirmed visual + interactive
 
 User ran `cargo run -p obsbot-gui` and reported all three acceptance

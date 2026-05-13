@@ -213,16 +213,46 @@
   Cargo.lock picks up the GTK4 + libadwaita Rust binding trees.
 
 ### T-008 — Set up Meson build system
-- **State**: TODO
+- **State**: DONE
+- **Started**: 2026-05-13T12:36:03Z
+- **Completed**: 2026-05-13T12:39:26Z
 - **Depends on**: T-007
 - **Description**: Create top-level `meson.build` that orchestrates the cargo
   build, processes the `.desktop.in` and `.metainfo.xml.in` templates,
   compiles the GSettings schema and installs everything to the prefix.
+  **In-task scope correction**: the `.desktop.in` / `.metainfo.xml.in` /
+  schema do not exist yet (T-009, T-010, T-105 introduce them). T-008
+  intentionally lands only the cargo-orchestration spine plus
+  guarded hook comments for the subsequent additions; the meson.build
+  will be extended in place by those tasks, not rewritten.
 - **Acceptance criteria**:
   - `meson setup builddir && meson compile -C builddir` succeeds.
+    **DONE** — setup picks up gtk4 4.18.6, libadwaita 1.7.6,
+    glib/gio 2.84.4 (all above ARCHITECTURE §1 minima). Compile took
+    1m 22s on the first run (cargo's release profile, full
+    optimisation pass for the gtk-rs + libadwaita-rs binding trees);
+    incremental rebuilds finish in tens of milliseconds.
   - `meson install -C builddir --destdir /tmp/install-test` produces a
-    correctly-laid-out filesystem under `/tmp/install-test`.
+    correctly-laid-out filesystem under `/tmp/install-test`. **DONE** —
+    install drops `obsbot-cam-control` (424 KB stripped ELF) at
+    `/tmp/install-test/usr/local/bin/obsbot-cam-control`; `--help`
+    responds with the standard GLib option-group output.
   - Commit: `build: set up Meson orchestration (T-008)`.
+- **Outcome**: top-level `meson.build` declares the project
+  (`obsbot-cam-control` 0.1.0, GPL-3.0-or-later, meson ≥ 1.0),
+  asserts runtime-lib minimums (belt-and-suspenders vs. the
+  cargo-side gtk4-sys/libadwaita-sys link), and wraps cargo in a
+  single `custom_target('cargo-build', ...)` plumbed through
+  `build-aux/cargo-build.sh` (a 50-line bash shim with `set -euo
+  pipefail`, profile validation, `install -m 755` of the produced
+  binary to `@OUTPUT@`). `default_options: ['buildtype=release']`
+  matches the convention for installable GNOME apps. Hook comments
+  for the `subdir('data')` (T-009/T-010), `subdir('po')` (T-009+),
+  and GSettings-schema (T-105) extensions left in place. `'rust'`
+  language declaration intentionally omitted — meson never invokes
+  rustc directly, so declaring the language only adds noise.
+  `build-aux/.gitkeep` removed (the directory now has real content,
+  matching the [[T-005]] precedent for `crates/`).
 
 ### T-009 — Create AppStream metainfo and desktop file
 - **State**: TODO

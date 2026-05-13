@@ -8,15 +8,16 @@
 
 active_task: none
 active_task_state: idle
-last_completed_task: T-007
-last_commit: feat(cli): scaffold CLI binary (T-006)  # c8635e2 (T-007 commit pending in this turn)
-last_step: T-007 DONE — `crates/obsbot-gui/` scaffolded; objective xwininfo check + user visual confirmation 2026-05-13T12:30:42Z (window opens, Ctrl+Q quits, close button quits). Four workspace gates green. GTK 4.18.6 + libadwaita 1.7.6 in the dep tree.
-next_step: propose T-008 (Meson build orchestration around cargo). T-008 depends only on T-007 which is now DONE. After T-008 we have T-009 (AppStream metainfo + .desktop), T-010 (icon), T-011 (USB enumeration), T-012 (CLI list), T-013 (diagnostics view), T-014 (Flatpak), T-015 (CI), T-016 (.deb test artifact), T-017 (Arch test artifact) remaining to close v0.1.
+last_completed_task: T-008
+last_commit: feat(gui): scaffold libadwaita application (T-007)  # 29e1eac (T-008 commit pending in this turn)
+last_step: T-008 DONE — Meson orchestrates cargo via `build-aux/cargo-build.sh`; the three acceptance gates (`meson setup`, `meson compile`, `meson install --destdir`) green; the install drops `obsbot-cam-control` (424 KB stripped) at `/tmp/install-test/usr/local/bin/`. Hook comments left for the data/po/schema extensions T-009/T-010/T-105 will plug in.
+next_step: propose T-009 (AppStream metainfo + .desktop file). T-009 depends on T-002 (DONE) and T-008 (now DONE). After T-009: T-010 (icon), T-011 (USB enumeration), T-012 (CLI list), T-013 (diagnostics view), T-014 (Flatpak), T-015 (CI), T-016 (.deb test artifact), T-017 (Arch test artifact) remain to close v0.1.
 blockers: none.
 working_tree:
-  pre_commit_modified: [Cargo.lock, docs/PLAN.md, docs/STATE.md, docs/PROGRESS.md]
-  pre_commit_untracked: [crates/obsbot-gui/]
+  pre_commit_modified: [docs/PLAN.md, docs/STATE.md, docs/PROGRESS.md]
+  pre_commit_deleted: [build-aux/.gitkeep]
+  pre_commit_untracked: [meson.build, build-aux/cargo-build.sh]
 pending_user_actions:
   - T-013 (later, v0.1): log out / log back in to pick up the new
     `video` group membership.
-updated_at: 2026-05-13T12:30:42Z
+updated_at: 2026-05-13T12:39:26Z
