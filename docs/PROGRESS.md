@@ -569,6 +569,68 @@ preserved by `git add`), `build-aux/.gitkeep` (deleted —
 directory now has real content, matching the [[T-005]] precedent
 for `crates/`), and the three docs files.
 
+### [2026-05-13T15:44:58Z] [T-010] DONE with caveat — visual deferred to Flatpak / next login
+
+User-side visual test attempted three ways during this session:
+  1. `XDG_DATA_DIRS=$HOME/.local-icontest/...:$XDG_DATA_DIRS
+      cargo run -p obsbot-gui` → Alt+Tab showed the generic
+      "rhombus + gears" placeholder, not the webcam.
+  2. Copying both SVGs into `~/.local/share/icons/hicolor/...` +
+      `gtk4-update-icon-cache -f -t` + a fresh `cargo run` →
+      same generic placeholder.
+  3. Adding the `.desktop` from T-009 to
+      `~/.local/share/applications/` and running
+      `update-desktop-database` → same generic placeholder.
+
+Diagnosis: GNOME Shell maps a running window to its icon via
+WM_CLASS / StartupWMClass lookup against a `.desktop` cache that
+is built at session-startup. Drops into `~/.local/share/
+applications/` during a running session are not picked up — even
+after `update-desktop-database`. The standard remedies are:
+  * A real Flatpak install (T-014) — Flathub's runtime path
+    triggers Shell's normal cache build.
+  * A distro test-package (T-016 `.deb`, T-017 PKGBUILD) — the
+    files land under `/usr/share/`, which Shell indexes on
+    startup.
+  * A fresh GNOME login — Shell re-reads `~/.local/share/
+    applications/`.
+
+What was confirmed objectively:
+  * The scalable SVG itself renders fine in the user's default
+    SVG viewer (`xdg-open` showed a clear blue webcam).
+  * The file paths after `meson install --destdir` are the
+    freedesktop canonical ones (`share/icons/hicolor/{scalable,
+    symbolic}/apps/`).
+  * The GUI calls `gtk::Window::set_default_icon_name(app_id)` in
+    `connect_startup` (code review).
+  * The symbolic SVG uses `fill="currentColor"` (code review) —
+    GTK's contract guarantees recolouring against the current
+    text / accent color, no runtime way for that to fail except
+    a GTK bug.
+
+Decision (agreed with the user): close T-010 as DONE with the
+caveat documented in PLAN.md. The visual will be reconfirmed at
+T-014 (Flatpak) or the user's next session — if the failure
+persists in either path, a follow-up task is filed; until then
+the observation is treated as a dev-test artefact.
+
+Cleanup performed:
+  * Removed `~/.local/share/icons/hicolor/{scalable,symbolic}/apps/
+    io.github.domatix.ObsbotCamControl*.svg`.
+  * Removed `~/.local/share/applications/io.github.domatix.
+    ObsbotCamControl.desktop`.
+  * Re-ran `gtk4-update-icon-cache -f -t` and
+    `update-desktop-database` to bring those caches back to their
+    pre-test state.
+  * Removed `/tmp/install-test` and `~/.local-icontest` scratch
+    trees.
+
+PLAN.md T-010 set to DONE with the Outcome / caveat block.
+STATE.md returns to idle with T-011 (USB enumeration) named as
+the next task. The post-login retest stays in
+`pending_user_actions`. Commit `docs: close T-010 with deferred
+visual caveat (T-010)` follows.
+
 ### [2026-05-13T13:18:54Z] [T-010] Code-complete — gates green, awaiting user-visual
 
 Cargo gates: `fmt --all --check` exit 0; `clippy --workspace

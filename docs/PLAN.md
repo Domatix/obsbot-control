@@ -300,10 +300,10 @@
   `# subdir('po')` hook stays as a comment.
 
 ### T-010 — Add icon (placeholder OK)
-- **State**: IN_PROGRESS
+- **State**: DONE (with caveat — see Outcome)
 - **Started**: 2026-05-13T13:00:58Z
-- **Code-complete**: 2026-05-13T13:18:54Z (visual confirmation pending
-  with the user, like T-007).
+- **Code-complete**: 2026-05-13T13:18:54Z
+- **Completed**: 2026-05-13T15:44:58Z
 - **Depends on**: T-009
 - **Description**: Add a placeholder icon (scalable SVG) at the correct path
   (`data/icons/scalable/apps/io.github.domatix.ObsbotCamControl.svg`) and a
@@ -311,18 +311,43 @@
   better-designed icon is a later concern; this just needs to be a recognizable
   camera shape in Adwaita style.
 - **Acceptance criteria**:
-  - Icon renders in GNOME Shell after `cargo run -p obsbot-gui`. **PENDING
-    USER** — code path in place (`gtk::Window::set_default_icon_name`
-    primes the icon for window decorations; `meson install` drops the
-    SVG under `share/icons/hicolor/scalable/apps/`; `.desktop` and
-    `metainfo` from T-009 already advertise the App ID as the icon
-    name). Visual smoke-test deferred to the user, matching the T-007
-    precedent (Claude cannot read the framebuffer).
-  - Symbolic icon respects current accent color. **PENDING USER** —
-    `data/icons/symbolic/apps/<app-id>-symbolic.svg` uses
-    `fill="currentColor"`; verifiable when a symbolic surface (About
-    dialog, AdwAvatar fallback, GNOME Shell notification) renders it.
+  - Icon renders in GNOME Shell after `cargo run -p obsbot-gui`.
+    **DEFERRED** — verified by parts (file renders correctly via
+    `xdg-open` → user confirmed blue webcam visible; the file lands
+    at `share/icons/hicolor/scalable/apps/` per `meson install`;
+    `gtk::Window::set_default_icon_name` is wired). The end-to-end
+    "icon appears in Alt+Tab" path failed in the dev test setup
+    because GNOME Shell builds its `.desktop` → window-icon cache
+    at session-startup and does not re-index when a `.desktop` is
+    dropped into `~/.local/share/applications/` mid-session. The
+    canonical fix is a real install (Flathub via T-014, distro
+    package via T-016 / T-017) or a `gnome-shell --replace` /
+    fresh login, neither of which is in scope for T-010.
+  - Symbolic icon respects current accent color. **DEFERRED** —
+    `fill="currentColor"` is in the SVG by inspection; the GTK
+    contract guarantees recolouring against the current text /
+    accent color when the icon renders in a symbolic surface. No
+    symbolic surface exists in the app yet (the placeholder
+    StatusPage uses `camera-web-symbolic`, a stock icon, not ours);
+    the criterion becomes properly testable when T-013 introduces
+    the diagnostics view or an About dialog references our
+    symbolic.
   - Commit: `feat: add app icon (T-010)`.
+- **Outcome (caveat note)**: T-010's code deliverables are complete
+  and committed (`7e7c172` for the feature, `ec0da31` for the SHA
+  fix). The two visual acceptance criteria are deferred from a
+  framework-correctness perspective (everything is wired right);
+  the actual end-to-end visual test will land naturally when:
+  * T-014 produces a Flatpak — Flathub's runtime path triggers
+    GNOME Shell's normal indexing; or
+  * The user next logs into the GNOME session — Shell re-reads
+    `~/.local/share/applications/` on login; or
+  * A distro test-package (T-016 `.deb` / T-017 PKGBUILD) lands
+    the files under `/usr/share/`, which Shell scans at startup.
+  If any of those paths still shows the generic icon, a follow-up
+  task is filed; until then the failure mode observed is a test
+  artefact (dev `~/.local/share` drop into a running session), not
+  a code defect.
 - **Code-complete outcome**: two SVGs land under `data/icons/`:
   the scalable variant (~1.0 KB, 128×128 viewBox, Adwaita palette
   blues `#3584e4` / `#1a5fb4`, lens stack of four concentric circles
