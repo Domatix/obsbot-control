@@ -93,10 +93,16 @@ pub enum ControlKind {
     },
     /// Menu of named items (regular or integer menu).
     Menu {
-        /// Label for the currently selected item.
-        current_label: String,
-        /// All option labels in driver order.
-        options: Vec<String>,
+        /// Currently read-back value (the menu option's integer ID).
+        current: i64,
+        /// Driver-advertised default value. May fall outside `options`
+        /// — see `PROTOCOL §2.3` quirk Q1 for the `power_line_
+        /// frequency` example where the kernel reports `default=3`
+        /// despite a `{0,1,2}` menu. UI consumers should not assume
+        /// the default is selectable.
+        default: i64,
+        /// All option `(id, label)` pairs in driver order.
+        options: Vec<(i64, String)>,
     },
     /// Anything else: surfaced as a name-only entry so the UI shows it
     /// exists without lying about its value. Carries the V4L2 type name
@@ -141,8 +147,10 @@ pub fn read_controls(video_path: &Path) -> Result<Vec<ControlDescriptor>> {
 /// drive from the GUI today: Integer covers `V4L2_CTRL_TYPE_INTEGER`
 /// and `V4L2_CTRL_TYPE_INTEGER64` (treated identically by the kernel
 /// at write-time per `Documentation/userspace-api/media/v4l/vidioc-
-/// g-ext-ctrls.rst`), Boolean covers `V4L2_CTRL_TYPE_BOOLEAN`. Menu
-/// and compound writes land with T-103 / T-104.
+/// g-ext-ctrls.rst`), Boolean covers `V4L2_CTRL_TYPE_BOOLEAN`, and
+/// Menu covers `V4L2_CTRL_TYPE_MENU` / `INTEGER_MENU` (the V4L2
+/// driver stores a menu's selection as an `__s32` value, same
+/// write semantics as Integer).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum ControlValue {
@@ -152,12 +160,15 @@ pub enum ControlValue {
     Integer(i64),
     /// Boolean toggle.
     Boolean(bool),
+    /// Menu selection by the option's integer ID (as advertised in
+    /// `ControlKind::Menu::options`).
+    Menu(i64),
 }
 
 impl From<ControlValue> for Value {
     fn from(value: ControlValue) -> Self {
         match value {
-            ControlValue::Integer(v) => Value::Integer(v),
+            ControlValue::Integer(v) | ControlValue::Menu(v) => Value::Integer(v),
             ControlValue::Boolean(b) => Value::Boolean(b),
         }
     }
@@ -219,24 +230,20 @@ fn build_kind(device: &Device, desc: &Description) -> ControlKind {
             default: desc.default != 0,
         },
         Type::Menu | Type::IntegerMenu => {
-            let current_index = read_integer(device, desc.id).unwrap_or(desc.default);
-            let options: Vec<String> = desc
+            let current = read_integer(device, desc.id).unwrap_or(desc.default);
+            let options: Vec<(i64, String)> = desc
                 .items
                 .as_ref()
-                .map(|items| items.iter().map(|(_, item)| item.to_string()).collect())
-                .unwrap_or_default();
-            let current_label = desc
-                .items
-                .as_ref()
-                .and_then(|items| {
+                .map(|items| {
                     items
                         .iter()
-                        .find(|(idx, _)| i64::from(*idx) == current_index)
-                        .map(|(_, item)| item.to_string())
+                        .map(|(idx, item)| (i64::from(*idx), item.to_string()))
+                        .collect()
                 })
-                .unwrap_or_else(|| current_index.to_string());
+                .unwrap_or_default();
             ControlKind::Menu {
-                current_label,
+                current,
+                default: desc.default,
                 options,
             }
         }
@@ -292,5 +299,14 @@ mod tests {
         let off: Value = ControlValue::Boolean(false).into();
         assert_eq!(on, Value::Boolean(true));
         assert_eq!(off, Value::Boolean(false));
+    }
+
+    #[test]
+    fn control_value_menu_maps_to_v4l_integer() {
+        // V4L2 stores menu selections as `__s32`; ControlValue::Menu
+        // must therefore round-trip through Value::Integer (not a
+        // dedicated Value::Menu variant, which v4l 0.14 does not have).
+        let v: Value = ControlValue::Menu(2).into();
+        assert_eq!(v, Value::Integer(2));
     }
 }

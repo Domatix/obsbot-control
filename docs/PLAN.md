@@ -309,7 +309,8 @@
   - Commit `feat(gui): PTZ pad widget (T-101)`.
 
 ### T-102 — Menu writes + INACTIVE grey-out
-- **State**: TODO
+- **State**: DONE
+- **Completed**: 2026-05-13T23:45:00Z
 - **Depends on**: T-101 (no hard dep; can land in either order, but
   the PTZ pad benefits from the INACTIVE handler for the focus
   manual/auto pair).

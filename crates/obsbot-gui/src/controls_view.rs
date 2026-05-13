@@ -129,9 +129,9 @@ fn make_group(title: &str) -> adw::PreferencesGroup {
 /// Build a row for one control. User-class Integer controls get an
 /// `AdwActionRow` with a [`gtk::Scale`] (drag-bar), a [`gtk::SpinButton`]
 /// (precise manual entry), and a reset-to-default button as suffixes;
-/// User-class Boolean controls get an [`AdwSwitchRow`]. Every other
-/// shape stays a read-only [`AdwActionRow`] until its dedicated write
-/// path lands.
+/// User-class Boolean controls get an [`AdwSwitchRow`]; User-class Menu
+/// controls get an [`adw::ComboRow`]. Every other shape stays a
+/// read-only [`AdwActionRow`] until its dedicated write path lands.
 fn control_row(ctrl: &ControlDescriptor, path: &Path) -> gtk::Widget {
     if ctrl.class == ControlClass::User {
         match &ctrl.kind {
@@ -148,6 +148,13 @@ fn control_row(ctrl: &ControlDescriptor, path: &Path) -> gtk::Widget {
             ControlKind::Boolean { current, default } => {
                 return boolean_switch_row(ctrl, *current, *default, path).upcast();
             }
+            ControlKind::Menu {
+                current, options, ..
+            } => {
+                return menu_combo_row(ctrl, *current, options, path).upcast();
+            }
+            // `ControlKind::Other(_)` and any future `#[non_exhaustive]`
+            // variants fall through to the read-only renderer below.
             _ => {}
         }
     }
@@ -324,9 +331,14 @@ fn readonly_action_row(ctrl: &ControlDescriptor) -> adw::ActionRow {
             }
         }
         ControlKind::Menu {
-            current_label,
-            options,
-        } => format!("{current_label} · {} options", options.len()),
+            current, options, ..
+        } => {
+            let label = options
+                .iter()
+                .find(|(id, _)| *id == *current)
+                .map_or("(unknown)", |(_, l)| l.as_str());
+            format!("{label} · {} options", options.len())
+        }
         ControlKind::Other(type_name) => format!("({type_name})"),
         _ => String::from("(unsupported)"),
     };
@@ -335,6 +347,49 @@ fn readonly_action_row(ctrl: &ControlDescriptor) -> adw::ActionRow {
         .title(&ctrl.name)
         .subtitle(&subtitle)
         .build()
+}
+
+fn menu_combo_row(
+    ctrl: &ControlDescriptor,
+    current: i64,
+    options: &[(i64, String)],
+    path: &Path,
+) -> adw::ComboRow {
+    let labels: Vec<&str> = options.iter().map(|(_, label)| label.as_str()).collect();
+    let model = gtk::StringList::new(&labels);
+
+    let selected = options
+        .iter()
+        .position(|(id, _)| *id == current)
+        .and_then(|i| u32::try_from(i).ok())
+        .unwrap_or(0);
+
+    let row = adw::ComboRow::builder()
+        .title(&ctrl.name)
+        .model(&model)
+        .selected(selected)
+        .build();
+
+    let id = ctrl.id;
+    let name = ctrl.name.clone();
+    let option_ids: Vec<i64> = options.iter().map(|(menu_id, _)| *menu_id).collect();
+    let owned_path = path.to_path_buf();
+    row.connect_selected_notify(move |row| {
+        let Ok(idx) = usize::try_from(row.selected()) else {
+            return;
+        };
+        let Some(menu_id) = option_ids.get(idx).copied() else {
+            return;
+        };
+        if let Err(err) = write_control(&owned_path, id, ControlValue::Menu(menu_id)) {
+            eprintln!(
+                "warning: failed to write {name} ({id:#010x}) = menu {menu_id} on {}: {err}",
+                owned_path.display(),
+            );
+        }
+    });
+
+    row
 }
 
 fn error_status(title: &str, description: &str) -> adw::StatusPage {

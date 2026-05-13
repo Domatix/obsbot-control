@@ -241,3 +241,64 @@ fn writes_v4l2_zoom_absolute_round_trip() {
     write_control(path, zoom.id, ControlValue::Integer(current))
         .expect("zoom restore must succeed");
 }
+
+#[test]
+#[ignore = "requires a Tiny 2 family camera plugged into the host"]
+fn writes_v4l2_power_line_frequency_round_trip() {
+    // Exercises the T-102 menu-write path on a known menu control.
+    // V4L2_CID_POWER_LINE_FREQUENCY = 0x00980918 per PROTOCOL §2.1.
+    // Per PROTOCOL §2.3 Q1 the kernel reports default=3 for this
+    // control even though the menu only declares {0,1,2}; the test
+    // should therefore restore by reading the *current* value at
+    // start, not by trusting the reported default.
+    let cams = enumerate_cameras();
+    let path = cams
+        .first()
+        .and_then(|c| c.video_path.as_deref())
+        .expect("a connected Tiny 2 family camera with a /dev/videoN node");
+
+    let controls = read_controls(path).expect("read_controls succeeds on the connected unit");
+    let plf = controls
+        .iter()
+        .find(|c| c.id == 0x0098_0918)
+        .expect("power_line_frequency must be present on Tiny 2 family");
+    let ControlKind::Menu {
+        current, options, ..
+    } = &plf.kind
+    else {
+        panic!(
+            "power_line_frequency must be Menu-typed; got {:?}",
+            plf.kind
+        );
+    };
+    assert!(
+        options.len() >= 3,
+        "power_line_frequency must advertise at least Disabled/50/60 Hz"
+    );
+
+    // Pick a *different* menu option than current.
+    let target = options
+        .iter()
+        .map(|(id, _)| *id)
+        .find(|id| *id != *current)
+        .expect("power_line_frequency has at least two options");
+
+    write_control(path, plf.id, ControlValue::Menu(target))
+        .expect("power_line_frequency write must succeed");
+    let after = read_controls(path).expect("re-read after write succeeds");
+    let after_plf = after
+        .iter()
+        .find(|c| c.id == plf.id)
+        .expect("power_line_frequency still enumerates after write");
+    let ControlKind::Menu {
+        current: read_back, ..
+    } = after_plf.kind
+    else {
+        panic!("power_line_frequency type changed mid-test");
+    };
+    assert_eq!(read_back, target, "power_line_frequency read-back mismatch");
+
+    // Restore.
+    write_control(path, plf.id, ControlValue::Menu(*current))
+        .expect("power_line_frequency restore must succeed");
+}

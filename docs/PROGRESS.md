@@ -596,6 +596,79 @@ commit `build(gui): Blueprint pipeline (T-099)` packages the
 seven changed/added files plus `Cargo.lock` (glib-build-tools
 0.20.0 transitive deps).
 
+### [2026-05-13T23:45:00Z] [T-102] DONE — menu writes (INACTIVE grey-out already landed with T-101)
+
+T-102 splits into two halves per [[ADR-0019]]: menu writes
+infrastructure + INACTIVE grey-out propagation. The
+`ControlDescriptor.is_active` field + the
+`set_sensitive(ctrl.is_active)` call already landed with T-101
+(`is_active` was needed for the PTZ focus row), so this turn
+only carries the menu work.
+
+End-to-end delta:
+
+* `crates/obsbot-core/src/controls.rs` — `ControlKind::Menu`
+  reshapes from `{current_label: String, options: Vec<String>}`
+  to `{current: i64, default: i64, options: Vec<(i64, String)>}`.
+  Consumers that previously had `current_label` can compute it
+  from `(current, options)` (a one-liner: `options.iter().
+  find(|(id, _)| *id == current).map_or("(unknown)", |(_, l)|
+  l.as_str())`). The `default` field is exposed because per
+  PROTOCOL §2.3 Q1 the kernel may report a default outside the
+  menu range (`power_line_frequency` = 3 on Tiny 2 Lite),
+  which UI consumers need to detect to fall back to a
+  sensible alternative.
+* `crates/obsbot-core/src/controls.rs` — `ControlValue` gains
+  a `Menu(i64)` variant; the `From<ControlValue> for v4l::
+  control::Value` impl maps it to `Value::Integer` because V4L2
+  stores menu selections as `__s32` (no dedicated value variant
+  in `v4l 0.14`). One new unit test
+  (`control_value_menu_maps_to_v4l_integer`) pins the mapping.
+* `crates/obsbot-gui/src/controls_view.rs` —
+  `control_row` gains a `ControlKind::Menu` branch (for
+  User-class controls) that returns a `menu_combo_row`. The
+  new helper builds an `adw::ComboRow` with a `gtk::StringList`
+  model of the menu labels, sets `selected` to the position of
+  the current value in `options`, and on
+  `connect_selected_notify` writes the chosen menu ID via
+  `write_control` + `ControlValue::Menu(id)`. The
+  `readonly_action_row` Menu branch updates to compute the
+  label from `(current, options)`. The match fallthrough for
+  `ControlKind::Other(_)` (and any future
+  `#[non_exhaustive]` variants) is rewritten as a wildcard arm
+  with a comment, after clippy `match_same_arms` push-back.
+* `crates/obsbot-core/tests/hardware.rs` — fifth
+  `#[ignore]`d test (`writes_v4l2_power_line_frequency_round_
+  trip`): reads the current menu value, writes a *different*
+  option (not the kernel-reported default — Q1 quirk
+  defence), asserts the read-back matches, restores. Passes
+  against the connected Tiny 2 Lite.
+
+Notably **no new module** was needed; menus piggyback the
+existing `write_control` plumbing thanks to the `From`
+impl. The User-class generic render now handles brightness/
+contrast/saturation/hue (Int) + white_balance_automatic
+(Bool) + power_line_frequency (Menu) + gain + sharpness +
+backlight_compensation + red_balance + blue_balance +
+white_balance_temperature all natively — anti-flicker
+selector arrives "for free" with the menu infra (ROADMAP v0.2
+bullet ticked).
+
+Gates: `cargo fmt --all --check` / `cargo clippy --workspace
+--all-targets -- -D warnings` / `cargo test --workspace` —
+all green. Hardware: 5 / 5 ignored tests pass under
+`cargo test -- --ignored`.
+
+PLAN T-102 DONE. Single commit `feat(core+gui): menu writes
+and INACTIVE grey-out (T-102)`. STATE moves to T-103.
+
+**User validation queued**: open the GUI, find the
+"Power Line Frequency" control in User Controls, change it to
+"50 Hz" / "60 Hz" / "Disabled". Toggle "White Balance,
+Automatic" and confirm the "White Balance Temperature" row
+greys out / wakes up automatically (the latter half is the
+T-101-era `is_active` propagation paying off).
+
 ### [2026-05-13T23:25:00Z] [T-101] DONE — PTZ pad widget
 
 Per [[ADR-0019]] (this session) T-101 absorbs what the original
