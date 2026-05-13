@@ -428,6 +428,168 @@
     close the app, re-launch, confirm brightness is restored.
   - Commit `feat(gui): per-camera GSettings persistence (T-105)`.
 
+### T-106 — About dialog
+- **State**: DONE
+- **Started**: 2026-05-14T00:50:00Z
+- **Completed**: 2026-05-14T01:00:00Z
+- **Depends on**: T-099 (Blueprint pipeline — menu lives in
+  `window.blp`).
+- **Description**: Last "hint" task of v0.2. The HeaderBar gets a
+  primary `MenuButton` (`open-menu-symbolic`) with a menu offering
+  "About Obsbot Cam Control" and "Quit". Activating the About
+  entry opens an `adw::AboutDialog` (HIG-preferred over the
+  legacy `AboutWindow` since libadwaita 1.5; the workspace pin is
+  `0.7 + v1_6`) populated from the workspace metadata
+  (`CARGO_PKG_VERSION`, `repository`, `license = GPL-3.0-or-later`,
+  `authors`) plus an explicit credit block for the reverse-
+  engineering work cited in `PROTOCOL.md` (Aaron Brown's Qt6
+  reference and `taxfromdk/obsbot_tiny_reversing`).
+- **Acceptance criteria**:
+  - `window.blp` declares `menu primary_menu { ... }` with two
+    items: `app.about` and `app.quit`, and adds a `MenuButton`
+    with `icon-name: "open-menu-symbolic"` and
+    `menu-model: primary_menu` to the `Adw.HeaderBar`.
+  - `application.rs` registers the `app.about` `ActionEntry`
+    that constructs and `present`s an `adw::AboutDialog` against
+    the active window.
+  - `adw::AboutDialog` fields: `application-name`,
+    `application-icon` (the App ID), `version` from
+    `env!("CARGO_PKG_VERSION")`, `developer-name` from the
+    workspace `authors`, `copyright` line, `license-type`
+    `Gpl3_0`, `website` from `homepage`, `issue-url` (repo /
+    issues), `developers` list, `acknowledgement-section`
+    crediting `aaronsb/obsbot-camera-control` and
+    `taxfromdk/obsbot_tiny_reversing` per `docs/PROTOCOL.md` §0.
+  - All four cargo gates green (`fmt`, `clippy -D warnings`,
+    `test`, `cargo build`).
+  - **User validation pending**: click the hamburger button in
+    the header → "About Obsbot Cam Control" → confirm version,
+    license, links, and credits render correctly.
+  - Commit `feat(gui): About dialog with credits (T-106)`.
+
+### T-107 — gettext scaffolding
+- **State**: TODO
+- **Depends on**: T-008 (Meson orchestration).
+- **Description**: SPEC §4.4 and §6.5 require full localization
+  via gettext (English source, Spanish at minimum). The polish
+  work itself is v0.6, but the scaffolding has to land now so
+  user-facing strings produced by T-099..T-106 can be marked at
+  source and a `obsbot-cam-control.pot` template can be
+  extracted on demand. Concretely: a top-level `po/` directory
+  with `LINGUAS` (containing `es`), `POTFILES.in` listing every
+  `.rs` / `.blp` carrying translatable strings, `meson.build`
+  wiring `i18n.gettext('obsbot-cam-control', preset: 'glib')`,
+  and a Rust-side `i18n` shim (thin `pub fn gettext(s: &str) ->
+  String` wrapping `gettextrs::gettext`) that the existing code
+  switches to. Strings inside `.blp` files do NOT yet get the
+  `_("...")` Blueprint syntax — that requires `xgettext` to
+  understand `.ui` output; for v0.6 polish we'll switch on
+  `intltool-extract`-style handling. For v0.2 it's enough that
+  Rust-side strings funnel through `gettext()`.
+- **Acceptance criteria**:
+  - `po/LINGUAS`, `po/POTFILES.in`, `po/meson.build` exist.
+  - Top-level `meson.build` calls `subdir('po')` after `data/`.
+  - `Cargo.toml` workspace deps gain `gettext-rs = "0.7"` (or
+    equivalent), pinned in the workspace `[workspace.dependencies]`.
+  - `crates/obsbot-gui/src/i18n.rs` exposes
+    `pub fn gettext(msgid: &str) -> String` plus a `i18n_init()`
+    that binds the textdomain.
+  - User-facing string literals in `controls_view.rs`,
+    `wb_group.rs`, `exposure_group.rs`, `ptz_pad.rs`, `window.rs`
+    are routed through `i18n::gettext(...)`.
+  - `meson compile -C builddir obsbot-cam-control-pot` (or the
+    target `i18n.gettext()` provides) produces a non-empty
+    `.pot` covering the marked strings.
+  - An empty `po/es.po` is committed (header only, will be
+    populated in v0.6).
+  - All four cargo gates green.
+  - Commit `feat(gui): gettext scaffolding (T-107)`.
+
+### T-108 — Toast-based error surfacing
+- **State**: TODO
+- **Depends on**: T-100..T-105 (every write path that currently
+  `eprintln!`s on failure).
+- **Description**: Replace stderr `eprintln!` write-failure logs
+  with `adw::ToastOverlay` + `adw::Toast` so the user sees the
+  error inside the app instead of having to read the terminal.
+  The overlay wraps the controls page content; on a failed
+  `write_control`, callbacks dispatch a toast with a short
+  human-readable message (e.g. `"Failed to set Brightness:
+  Device busy"`). GSettings save failures stay on stderr (they
+  are recovered transparently next session, not user-actionable).
+- **Acceptance criteria**:
+  - `controls_view::build_controls_page` returns an
+    `adw::NavigationPage` whose child is wrapped in an
+    `adw::ToastOverlay`; the overlay handle is passed to the
+    widget builders so each can call `add_toast`.
+  - `integer_scale_row`, `boolean_switch_row`, `menu_combo_row`,
+    `wb_group::*`, `exposure_group::*`, `ptz_pad::*` route
+    `write_control` failures to a toast (no more `eprintln!`
+    in the write paths).
+  - Toast message format: `"Failed to set {control}: {error}"`
+    where `{error}` is the `Display` of `obsbot_core::Error`.
+  - GSettings save errors keep `eprintln!` (justified inline).
+  - All four cargo gates green.
+  - **User validation pending**: pull the camera USB cable
+    mid-drag; confirm a toast appears (instead of silent stderr).
+  - Commit `feat(gui): toast-based write-error surfacing (T-108)`.
+
+### T-109 — AppStream releases entry for v0.2.0
+- **State**: TODO
+- **Depends on**: T-009 (metainfo + desktop file).
+- **Description**: Tag-readiness prep: the AppStream metainfo
+  has carried an implicit "no releases" section since T-009.
+  Add a `<releases>` block with an entry for `v0.2.0` (date
+  filled at tag time; this task lands the structure + draft
+  notes covering every v0.2 task T-099..T-108). The notes use
+  the AppStream `<description>` mini-format (`<p>`, `<ul>`,
+  `<li>`); no marketing prose.
+- **Acceptance criteria**:
+  - `data/io.github.domatix.ObsbotCamControl.metainfo.xml.in`
+    gains a `<releases>` element with a `<release
+    version="0.2.0" date="@RELEASE_DATE@">` placeholder; the
+    Meson `configure_file()` step substitutes `@RELEASE_DATE@`
+    (default `unreleased` for cargo-run; real ISO date at tag).
+  - Release notes cover: PTZ pad (T-101), menu writes + INACTIVE
+    grey-out (T-102), WB group (T-103), Exposure group (T-104),
+    GSettings persistence (T-105), About dialog (T-106), gettext
+    scaffolding (T-107), toast errors (T-108).
+  - `meson test -C builddir validate-metainfo` still passes
+    (i.e. `appstreamcli validate --no-net --explain` is green).
+  - All four cargo gates green (no Rust changes, but the gates
+    still have to run cleanly).
+  - Commit `docs(appstream): v0.2.0 release notes (T-109)`.
+
+### T-110 — Hot-plug REMOVE resilience
+- **State**: TODO
+- **Depends on**: T-013b (hot-plug poll listener).
+- **Description**: SPEC §6.4 requires surviving camera
+  disconnect/reconnect during runtime. T-013b's poll listener
+  re-mounts the body on enumeration change, but two concrete
+  edge cases need explicit handling:
+  (a) When the user has drilled into a camera detail page and
+  the camera is then unplugged, the detail page silently shows
+  stale values; `nav_view.pop_to_tag("cameras")` should fire and
+  a toast (`"Camera disconnected"`) should appear.
+  (b) On re-plug, the camera should reappear without restart.
+  T-013b already covers (b) at the list level but the detail
+  page does not auto-refresh if the user is still on it.
+  Implementation: extend the poll callback to compare per-camera
+  presence; if the current `NavigationView` top page corresponds
+  to a removed camera, pop the page and post a toast.
+- **Acceptance criteria**:
+  - `window::start_hotplug_poll` carries enough context to
+    inspect the current top page and pop it on REMOVE.
+  - Removing the camera while on the detail page: page pops to
+    the cameras list cleanly, toast appears.
+  - Re-plugging the camera: the list re-shows it (existing
+    T-013b behaviour, regression-protected).
+  - All four cargo gates green.
+  - **User validation pending**: unplug the camera USB cable
+    while on the controls page; confirm pop + toast. Re-plug;
+    confirm the camera re-appears.
+  - Commit `feat(gui): hot-plug REMOVE resilience (T-110)`.
+
 ---
 
 ## Closed milestone: v0.1 — Scaffolding & Detection (v0.1.0)

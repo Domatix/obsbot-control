@@ -8,19 +8,23 @@
 
 active_task: none
 active_task_state: idle
-last_completed_task: T-105
+last_completed_task: T-106
 last_milestone: v0.1.0  # tag 5e005fd
-last_commit: feat(gui): per-camera GSettings persistence (T-105)  # d7a13a8
-last_step: Autonomous run T-101..T-105 closed. v0.2 milestone status — T-099 + T-100 (last session) + T-101 (PTZ pad) + T-102 (Menu writes + INACTIVE grey-out) + T-103 (White balance group widget) + T-104 (Exposure group widget) + T-105 (GSettings persistence) all DONE. v0.2 backlog remaining: T-106 About dialog, plus the symbolic-icon + Adwaita-styling polish bullet (mostly delivered already), plus any UX cleanups the user's validation pass surfaces. ADR-0019 documents the re-scope of T-102 from "Zoom slider" to "Menu writes + INACTIVE grey-out" (Zoom slider absorbed into T-101's pad). Gates: fmt / clippy / 14 unit + 1 doctest + 1 settings unit-test = 16 native tests passing; 5 / 5 hardware tests pass under `cargo test -- --ignored`. Commits since last STATE update: 0bb49b4 (T-101), c204ffd (T-102), b3e6040 (T-103), 2d67ba8 (T-104), d7a13a8 (T-105).
-next_step: Stop. The user requested 5 tasks (T-101..T-105) and then a pause. Next time we resume, T-106 (About dialog with credits + license info, the last "v0.2 hint" task) and any UX adjustments surfaced by the user's validation pass are the natural follow-ons. After T-106 + validation we can evaluate v0.2.0 tag-readiness per CLAUDE.md §7.
+last_commit: feat(gui): About dialog with credits (T-106)  # pending in this turn
+last_step: T-106 DONE — `window.blp` carries a `menu primary_menu` (About + Quit items) and a `Gtk.MenuButton` in the `Adw.HeaderBar`; `application::register_actions` now takes the App ID and registers `app.about`, whose callback presents an `adw::AboutDialog` populated from `CARGO_PKG_*` + a credits acknowledgement section for `aaronsb/obsbot-camera-control` and `taxfromdk/obsbot_tiny_reversing` (PROTOCOL.md §0). Gates: fmt, clippy -D warnings, 14 unit + 1 doctest + 1 settings unit-test = 16 native pass; 5 hardware tests still ignored (no hardware-touching code changed this task).
+next_step: Advance to T-107 (gettext scaffolding) — add top-level `po/` (LINGUAS, POTFILES.in, meson.build, empty es.po), wire `subdir('po')` in root meson.build, add `gettext-rs` to workspace deps, add `crates/obsbot-gui/src/i18n.rs` with `gettext()` + textdomain init, route user-facing string literals in window.rs / controls_view.rs / wb_group.rs / exposure_group.rs / ptz_pad.rs through it, run gates, commit `feat(gui): gettext scaffolding (T-107)`.
 blockers: none.
 working_tree:
   pre_commit_modified: []
   pre_commit_untracked: []
   pre_commit_deleted: []
 pending_user_actions:
-  # All five tasks of this run share one validation pass — list collected
-  # for the user to walk through in a single GUI session.
+  # First autonomous run (T-101..T-105) + second autonomous run
+  # (T-106..T-110) accumulate here for one single validation pass.
+  - T-106: click the hamburger button in the header bar → "About
+    Obsbot Cam Control" → confirm version, license, repo link,
+    issue-tracker link, and the "Reverse-engineering references"
+    acknowledgement block render correctly.
   - T-101: drag the 8 PTZ buttons + center-reset, confirm pan/tilt;
     drag the vertical zoom slider, confirm the frame zooms; toggle
     "Auto-focus" off and drag "Manual focus" — focus distance changes.
@@ -45,4 +49,4 @@ pending_user_actions:
     when you launch the app.
   - T-017 (Arch stakeholder, whenever): build/install/remove the
     PKGBUILD on Arch.
-updated_at: 2026-05-14T00:40:00Z  # five-task autonomous run closed, awaiting user validation
+updated_at: 2026-05-14T01:00:00Z  # T-106 closed, T-107 next in the autonomous batch

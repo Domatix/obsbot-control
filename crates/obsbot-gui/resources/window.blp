@@ -21,6 +21,22 @@
 using Gtk 4.0;
 using Adw 1;
 
+// Primary menu (T-106). Two items for now — "About" opens the
+// AdwAboutDialog registered in `application::register_actions`,
+// "Quit" reuses the same `app.quit` action wired to Ctrl+Q.
+menu primary_menu {
+  section {
+    item {
+      label: _("About Obsbot Cam Control");
+      action: "app.about";
+    }
+    item {
+      label: _("Quit");
+      action: "app.quit";
+    }
+  }
+}
+
 Adw.ApplicationWindow window {
   title: "Obsbot Cam Control";
   default-width: 720;
@@ -33,7 +49,15 @@ Adw.ApplicationWindow window {
 
       child: Adw.ToolbarView {
         [top]
-        Adw.HeaderBar {}
+        Adw.HeaderBar {
+          [end]
+          Gtk.MenuButton {
+            icon-name: "open-menu-symbolic";
+            menu-model: primary_menu;
+            tooltip-text: _("Main Menu");
+            primary: true;
+          }
+        }
 
         content: Adw.Bin body_slot {
           vexpand: true;

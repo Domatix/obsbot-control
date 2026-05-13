@@ -596,6 +596,105 @@ commit `build(gui): Blueprint pipeline (T-099)` packages the
 seven changed/added files plus `Cargo.lock` (glib-build-tools
 0.20.0 transitive deps).
 
+### [2026-05-14T01:00:00Z] [T-106] DONE — About dialog with credits
+
+`resources/window.blp`:
+* New top-level `menu primary_menu { section { item { ... } } }`
+  declaring two items wired to `app.about` and `app.quit` (the
+  latter reuses the existing Ctrl+Q-bound `quit` action — no
+  duplication).
+* `Adw.HeaderBar` gains a `[end] Gtk.MenuButton` with
+  `icon-name: "open-menu-symbolic"`, `menu-model: primary_menu`,
+  `primary: true`, and a translatable `tooltip-text: _("Main
+  Menu")` matching the GNOME HIG primary-menu pattern.
+
+`src/application.rs`:
+* `register_actions` now takes the App ID by `&str` so the
+  about-action closure can pass it down to
+  `present_about_dialog` (`'static` capture of an owned `String`
+  — the action entry outlives the function scope).
+* `connect_startup`'s captured `icon_name` rebound to
+  `app_id_owned` to make the dual use (window-icon + about-dialog
+  application-icon) self-documenting.
+* New `present_about_dialog(app, app_id)` builds an
+  `adw::AboutDialog` (HIG-preferred over `AdwAboutWindow` since
+  libadwaita 1.5; the workspace `0.7 + v1_6` pin makes the API
+  available). Fields pulled at compile time from `CARGO_PKG_*`:
+  - `application_name`: literal `"Obsbot Cam Control"` (matches
+    `.metainfo.xml.in` <name> and the window title).
+  - `application_icon`: the App ID (resolves to the hicolor
+    icon installed by T-010 / `data/icons/`).
+  - `version`: `env!("CARGO_PKG_VERSION")` — currently `0.1.0`;
+    the v0.2.0 bump is left for tag time (separate scoping
+    decision, no SPEC/ROADMAP change here).
+  - `developer_name` + `developers`: `CARGO_PKG_AUTHORS`
+    (`Domatix and contributors`).
+  - `copyright`: literal `© 2026 Domatix and contributors`.
+  - `license_type`: `gtk::License::Gpl30`.
+  - `website` / `issue_url`: `CARGO_PKG_HOMEPAGE` (`https://
+    github.com/Domatix/obsbot-control`) and the same with
+    `/issues` appended via `concat!`.
+* `add_acknowledgement_section("Reverse-engineering references",
+  &[...])` credits Aaron Brown's Qt6 reference and
+  `taxfromdk/obsbot_tiny_reversing` (both cited in PROTOCOL.md
+  §0). These are load-bearing for the family-detection /
+  control-mapping work and deserve top-billing in About.
+* `dialog.present(app.active_window().as_ref())` parents the
+  dialog to the current window if any (AdwDialog supports an
+  optional parent widget since 1.5).
+
+Gates:
+  cargo fmt --all --check                                → exit 0
+  cargo clippy --workspace --all-targets -- -D warnings  → exit 0
+  cargo test --workspace                                 → 14 unit
+                                                           + 1 settings unit
+                                                           + 1 doctest, all pass;
+                                                           5 hardware tests
+                                                           still `#[ignore]`d
+                                                           (no hardware-touching
+                                                           code changed in this
+                                                           task).
+
+Files touched:
+  * crates/obsbot-gui/resources/window.blp          (+18 / -1)
+  * crates/obsbot-gui/src/application.rs            (+45 / -5)
+  * docs/PLAN.md                                    (T-106 DONE block)
+  * docs/STATE.md                                   (active → idle, last → T-106)
+  * docs/PROGRESS.md                                (this entry + start entry)
+
+User validation accumulates with the previous run; entry added
+to `STATE.pending_user_actions`. Commit `feat(gui): About dialog
+with credits (T-106)` follows; T-107 (gettext scaffolding) is
+next.
+
+### [2026-05-14T00:50:00Z] [T-106] Started — About dialog with credits
+
+User asked for 5 more tasks (T-106..T-110) with accumulated
+validation (they can't validate the GUI right now). Same Modo-A
+working agreement as the previous autonomous run.
+
+T-106 is the last "v0.2 hint" task per ROADMAP / STATE.md.
+Plan: `Adw.HeaderBar` in `resources/window.blp` gains a
+`MenuButton` (`icon-name: "open-menu-symbolic"`,
+`menu-model: primary_menu`) backed by a top-level `menu
+primary_menu { ... }` declaring two items pointing at
+`app.about` and `app.quit`. `application.rs` registers the
+`app.about` `ActionEntry`; the callback fetches the active
+window and `present`s an `adw::AboutDialog` (HIG-preferred over
+`AdwAboutWindow` since libadwaita 1.5; the workspace pin is
+`0.7 + v1_6` so the API is available). The dialog's fields are
+populated from `env!("CARGO_PKG_VERSION")` (currently `0.1.0`;
+the v0.2.0 bump is a separate decision left to tag time),
+`license-type: Gpl3_0`, `website: "https://github.com/Domatix/
+obsbot-control"`, `issue-url: ".../issues"`, plus an explicit
+`acknowledgement-section` block crediting
+`aaronsb/obsbot-camera-control` (Qt6 reference, cited in
+SPEC.md §10) and `taxfromdk/obsbot_tiny_reversing` (cited in
+PROTOCOL.md §0). Gate set: `fmt`, `clippy -D warnings`, `test`,
+plus a `cargo build -p obsbot-gui` to make sure Blueprint
+recompiles cleanly. Commit `feat(gui): About dialog with
+credits (T-106)`.
+
 ### [2026-05-14T00:40:00Z] [session-checkpoint] Autonomous T-101..T-105 run closed
 
 User asked for 5 tasks (T-101..T-105) executed autonomously
