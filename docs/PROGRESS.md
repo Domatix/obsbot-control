@@ -596,6 +596,60 @@ commit `build(gui): Blueprint pipeline (T-099)` packages the
 seven changed/added files plus `Cargo.lock` (glib-build-tools
 0.20.0 transitive deps).
 
+### [2026-05-14T00:05:00Z] [T-104] DONE — Exposure group widget
+
+Mirror of T-103 for the Camera-class exposure pair:
+
+* `crates/obsbot-gui/src/exposure_group.rs` (new, ~70 lines):
+  `EXPOSURE_GROUP_IDS = [0x009a_0901, 0x009a_0902]` covers
+  `auto_exposure` (menu: Auto / Manual / Aperture Priority) +
+  `exposure_time_absolute` (int, 1..2500, ×100 μs).
+  `build_exposure_group` returns an `Option<adw::
+  PreferencesGroup>` titled "Exposure" with a one-sentence
+  description, mounts both rows via `control_row`, calls
+  `set_sensitive(is_active)` so the slider greys out
+  automatically in Auto / Aperture-Priority modes per
+  PROTOCOL §2.2.
+* `crates/obsbot-gui/src/controls_view.rs`:
+  - `control_row`'s class gate widens from `User` to `User |
+    Camera`, since the only Camera-class control left that
+    is NOT inside a curated group is now `auto_exposure` /
+    `exposure_time_absolute` — handled here. (PTZ pad already
+    owns pan/tilt/zoom/focus/speed.)
+  - `render_controls` adds the exposure group between PTZ pad
+    and WB group; `EXPOSURE_GROUP_IDS` join `PTZ_PAD_IDS` /
+    `WB_GROUP_IDS` in the filter set.
+* `crates/obsbot-gui/src/main.rs` declares `mod exposure_group;`.
+
+Net effect on the page render order:
+1. **PTZ pad** (3×3 buttons + zoom + focus).
+2. **Exposure** (auto-mode combo + exposure time slider).
+3. **White balance** (auto switch + temperature + red/blue
+   balance).
+4. **User Controls** — what's left (brightness, contrast,
+   saturation, hue, gain, sharpness, backlight_compensation,
+   power_line_frequency).
+5. **Camera Controls** — empty (all Camera-class controls
+   are now in groups 1-2); the heading does not appear when
+   the group has zero rows.
+6. **Other** — empty by construction.
+
+Gates: fmt / clippy / test all green. No new hardware test;
+`auto_exposure` is covered by T-102's `power_line_frequency`
+round-trip (same Menu write code path),
+`exposure_time_absolute` is covered by T-100's `brightness`
+round-trip (same Integer write code path).
+
+PLAN T-104 DONE. Commit `feat(gui): exposure group widget
+(T-104)`. STATE advances to T-105 (the last task before the
+stop point requested by the user).
+
+**User validation queued**: open the GUI, find the "Exposure"
+group below the PTZ pad. Change "Exposure, Auto" to "Manual"
+and drag "Exposure Time, Absolute" — the preview should get
+darker / brighter. Switch back to "Auto" and confirm the
+exposure-time slider greys out.
+
 ### [2026-05-13T23:55:00Z] [T-103] DONE — White balance group widget
 
 Small composition task. New module

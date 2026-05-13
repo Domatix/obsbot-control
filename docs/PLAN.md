@@ -369,7 +369,8 @@
   - Commit `feat(gui): white balance group widget (T-103)`.
 
 ### T-104 — Exposure group widget
-- **State**: TODO
+- **State**: DONE
+- **Completed**: 2026-05-14T00:05:00Z
 - **Depends on**: T-102.
 - **Description**: Symmetric to T-103 for exposure. Group:
   `auto_exposure` (Camera-class menu, AdwComboRow) +

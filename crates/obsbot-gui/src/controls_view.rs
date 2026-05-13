@@ -39,6 +39,7 @@ use obsbot_core::{
     ControlValue,
 };
 
+use crate::exposure_group::{build_exposure_group, EXPOSURE_GROUP_IDS};
 use crate::ptz_pad::{build_ptz_pad, PTZ_PAD_IDS};
 use crate::wb_group::{build_wb_group, WB_GROUP_IDS};
 
@@ -85,11 +86,15 @@ fn build_body(cam: &CameraInfo) -> gtk::Widget {
 fn render_controls(controls: &[ControlDescriptor], path: &Path) -> adw::PreferencesPage {
     let page = adw::PreferencesPage::new();
 
-    // PTZ pad + White balance group consume a curated subset of
-    // controls. Mount them at the top of the page and filter the
-    // consumed IDs out of the generic per-class render below.
+    // Curated groups (PTZ pad, White balance, Exposure) consume a
+    // specific subset of controls. Mount them at the top of the page
+    // and filter the consumed IDs out of the generic per-class render
+    // below.
     if let Some(ptz_group) = build_ptz_pad(controls, path) {
         page.add(&ptz_group);
+    }
+    if let Some(exposure_group) = build_exposure_group(controls, path) {
+        page.add(&exposure_group);
     }
     if let Some(wb_group) = build_wb_group(controls, path) {
         page.add(&wb_group);
@@ -100,7 +105,10 @@ fn render_controls(controls: &[ControlDescriptor], path: &Path) -> adw::Preferen
     let mut other_group: Option<adw::PreferencesGroup> = None;
 
     for ctrl in controls {
-        if PTZ_PAD_IDS.contains(&ctrl.id) || WB_GROUP_IDS.contains(&ctrl.id) {
+        if PTZ_PAD_IDS.contains(&ctrl.id)
+            || WB_GROUP_IDS.contains(&ctrl.id)
+            || EXPOSURE_GROUP_IDS.contains(&ctrl.id)
+        {
             continue;
         }
         let group = match ctrl.class {
@@ -130,18 +138,25 @@ fn make_group(title: &str) -> adw::PreferencesGroup {
     adw::PreferencesGroup::builder().title(title).build()
 }
 
-/// Build a row for one control. User-class Integer controls get an
+/// Build a row for one control. Integer controls get an
 /// `AdwActionRow` with a [`gtk::Scale`] (drag-bar), a [`gtk::SpinButton`]
 /// (precise manual entry), and a reset-to-default button as suffixes;
-/// User-class Boolean controls get an [`AdwSwitchRow`]; User-class Menu
-/// controls get an [`adw::ComboRow`]. Every other shape stays a
-/// read-only [`AdwActionRow`] until its dedicated write path lands.
+/// Boolean controls get an [`AdwSwitchRow`]; Menu controls get an
+/// [`adw::ComboRow`]. Every other shape stays a read-only
+/// [`AdwActionRow`].
+///
+/// The User + Camera classes both go through this writable path
+/// (T-104 generalized from T-102's User-only scope so the
+/// `exposure_group` can render `auto_exposure` (Camera-class menu)
+/// without ad-hoc code). The `Other` class stays read-only — we have
+/// no hardware-tested write semantics for codec / image-source
+/// controls.
 ///
 /// `pub(crate)` so sibling group modules (`wb_group`, `exposure_group`)
 /// can reuse the exact same widgets inside their dedicated groups
 /// without duplicating any of the T-100 / T-102 widget builders.
 pub(crate) fn control_row(ctrl: &ControlDescriptor, path: &Path) -> gtk::Widget {
-    if ctrl.class == ControlClass::User {
+    if matches!(ctrl.class, ControlClass::User | ControlClass::Camera) {
         match &ctrl.kind {
             ControlKind::Integer {
                 current,

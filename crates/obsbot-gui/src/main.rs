@@ -24,6 +24,7 @@
 
 mod application;
 mod controls_view;
+mod exposure_group;
 mod ptz_pad;
 mod wb_group;
 mod window;
