@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Copyright © 2026 Domatix and contributors -->
+<component type="desktop-application">
+  <id>@APP_ID@</id>
+  <launchable type="desktop-id">@APP_ID@.desktop</launchable>
+
+  <name>Obsbot Cam Control</name>
+  <summary>Control your OBSBOT webcam</summary>
+
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+
+  <description>
+    <p>
+      Obsbot Cam Control is a native GNOME application for configuring
+      OBSBOT Tiny 2 family webcams over USB. It relies only on free,
+      open-source code paths (V4L2 standard controls, UVC extension
+      units, and direct USB requests); the OBSBOT proprietary SDK is
+      not used.
+    </p>
+    <p>Planned capabilities:</p>
+    <ul>
+      <li>Pan, tilt, and zoom (continuous and absolute).</li>
+      <li>Brightness, contrast, saturation, hue, and sharpness.</li>
+      <li>White balance and exposure (auto and manual).</li>
+      <li>HDR, field of view, and auto-framing via vendor controls.</li>
+      <li>Per-camera settings persistence.</li>
+    </ul>
+    <p>
+      Supported hardware: OBSBOT Tiny 2 (USB 3564:fef8) and Tiny 2 Lite
+      (USB 3564:fef9). Other OBSBOT cameras are best-effort.
+    </p>
+    <p>
+      This is an unofficial third-party application, not affiliated
+      with or endorsed by OBSBOT or Remo Tech Co., Ltd.
+    </p>
+  </description>
+
+  <categories>
+    <category>AudioVideo</category>
+    <category>Video</category>
+  </categories>
+
+  <keywords>
+    <keyword>OBSBOT</keyword>
+    <keyword>Tiny</keyword>
+    <keyword>Tiny 2</keyword>
+    <keyword>Tiny 2 Lite</keyword>
+    <keyword>webcam</keyword>
+    <keyword>camera</keyword>
+    <keyword>PTZ</keyword>
+    <keyword>UVC</keyword>
+  </keywords>
+
+  <url type="homepage">https://github.com/Domatix/obsbot-control</url>
+  <url type="bugtracker">https://github.com/Domatix/obsbot-control/issues</url>
+  <url type="vcs-browser">https://github.com/Domatix/obsbot-control</url>
+
+  <developer id="io.github.domatix">
+    <name>Domatix and contributors</name>
+  </developer>
+
+  <content_rating type="oars-1.1" />
+
+  <provides>
+    <binary>obsbot-cam-control</binary>
+  </provides>
+
+  <supports>
+    <control>keyboard</control>
+    <control>pointing</control>
+    <control>touch</control>
+  </supports>
+
+  <releases>
+    <release version="@VERSION@" date="2026-05-13" type="development">
+      <description>
+        <p>
+          Initial development release. Scaffolding only: the
+          application window opens but does not yet detect or control
+          cameras. See the project roadmap for the planned milestones.
+        </p>
+      </description>
+    </release>
+  </releases>
+</component>

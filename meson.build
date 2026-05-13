@@ -79,9 +79,11 @@ cargo_build = custom_target(
   console: true,
 )
 
-# Data files, translations, icons, GSettings schemas land here when
-# their owning tasks introduce them (see header comment).
-# subdir('data')
+# Data files (.desktop, AppStream metainfo) land in data/ from T-009.
+# Future tasks extend it: T-010 icons, T-105 GSettings schema. The
+# `po/` subdir + gettext wiring will land when real translatable
+# strings emerge (deferred from T-009 — see data/meson.build).
+subdir('data')
 # subdir('po')
 
 summary(

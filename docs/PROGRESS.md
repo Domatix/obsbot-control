@@ -569,6 +569,83 @@ preserved by `git add`), `build-aux/.gitkeep` (deleted —
 directory now has real content, matching the [[T-005]] precedent
 for `crates/`), and the three docs files.
 
+### [2026-05-13T12:54:51Z] [T-009] DONE — both validators green, install paths confirmed
+
+`meson setup builddir` resolved everything cleanly (gtk4 4.18.6,
+libadwaita-1 1.7.6, glib/gio 2.84.4, cargo, the build-aux shim, and
+both validators — `appstreamcli` and `desktop-file-validate`).
+`configure_file()` substituted `@APP_ID@` →
+`io.github.domatix.ObsbotCamControl` and `@VERSION@` → `0.1.0` in
+both templates.
+
+  meson test -C builddir                                     → 2/2 OK
+    validate-desktop                                         → 0.00s
+    validate-metainfo                                        → 0.01s
+  LC_ALL=C appstreamcli validate --no-net --explain \
+    builddir/.../metainfo.xml                                → exit 0
+  desktop-file-validate builddir/.../<id>.desktop            → exit 0 (silent)
+
+Only diagnostic surfaced (only when `--pedantic` is added):
+  P: cid-contains-uppercase-letter on `ObsbotCamControl`
+The Component-ID's `ObsbotCamControl` segment uses TitleCase per
+[[ADR-0012]] (the App ID is fixed by the namespace ADR; renaming
+to lowercase would require a superseding ADR, a project-wide
+search-and-replace across already-committed docs, and is unjustified
+here — AppStream allows mixed case, it just prefers lowercase).
+Not surfaced at the default validation level; recorded as a known
+intentional pedantic note.
+
+`meson install -C builddir --destdir /tmp/install-test` adds two
+new files to the install tree relative to the T-008 baseline:
+  /tmp/install-test/usr/local/share/applications/<app-id>.desktop
+  /tmp/install-test/usr/local/share/metainfo/<app-id>.metainfo.xml
+The `Icon=io.github.domatix.ObsbotCamControl` line in the installed
+`.desktop` will start resolving to a real icon at T-010; until then
+GNOME Shell falls back to a generic application glyph (acceptable
+for a scaffolding milestone — `desktop-file-validate` does not check
+that the referenced icon resource exists).
+
+PLAN.md T-009 set to DONE with the Outcome block. STATE.md returns
+to idle; T-010 (placeholder icon) is the natural next task — same
+data/ subtree, can extend `data/meson.build` to install
+`data/icons/scalable/apps/<app-id>.svg`. Commit `feat: AppStream
+metainfo and desktop file (T-009)` follows, bundling: `data/`
+(three new files, `.gitkeep` deleted), `meson.build` (the
+`subdir('data')` uncomment), and the three docs files.
+
+### [2026-05-13T12:50:39Z] [T-009] Started — AppStream metainfo + `.desktop`
+
+Plan: create `data/io.github.domatix.ObsbotCamControl.metainfo.xml.in`
+(AppStream `component type="desktop-application"`; `<summary>` ≤ 35 chars
+per `appstreamcli validate`; `<metadata_license>` `CC0-1.0`,
+`<project_license>` `GPL-3.0-or-later`; OARS 1.1 content rating "all
+clear"; trademark disclaimer in the description per [[ADR-0012]]; both
+Tiny 2 family PIDs surfaced in `<keywords>` per [[ADR-0014]]) and
+`data/io.github.domatix.ObsbotCamControl.desktop.in` (`Exec=
+obsbot-cam-control`, `Icon=@APP_ID@`, `Categories=AudioVideo;Video;`,
+`Keywords=` listing OBSBOT / Tiny / PTZ / UVC, `StartupWMClass=
+obsbot-cam-control` matching what xwininfo reported during T-007).
+Both files use `@APP_ID@` / `@VERSION@` placeholders so a single
+`configure_file()` substitution produces the installable file —
+i18n is deferred (no `_Name=` markers, no `<_summary>`) and will
+land later when actual translatable strings emerge; this keeps T-009
+strictly scoped to the two acceptance gates.
+
+`data/meson.build` (new) wires:
+  * `configure_file(input: '<id>.metainfo.xml.in', output:
+    '<id>.metainfo.xml', configuration: cdata, install: true,
+    install_dir: datadir / 'metainfo')`.
+  * Same for the `.desktop.in` → `datadir / 'applications'`.
+  * `test('validate-metainfo', appstreamcli, args: ['validate',
+    '--no-net', metainfo_file])` and `test('validate-desktop',
+    desktop_file_validate, args: [desktop_file])` so `meson test`
+    enforces the acceptance criteria on every CI/local run.
+
+Top-level `meson.build` swaps the placeholder `# subdir('data')`
+comment for the real call. `data/.gitkeep` is removed (directory
+now has real content — matches the [[T-005]] / `crates/` and
+[[T-008]] / `build-aux/` precedent).
+
 ### [2026-05-13T12:42:08Z] [session-end] Clean checkpoint at end of session
 
 User asked to end the session. No active task, no partial work, no

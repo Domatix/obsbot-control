@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Version=1.5
+Name=Obsbot Cam Control
+GenericName=Camera Control
+Comment=Configure your OBSBOT Tiny 2 family webcam
+Exec=obsbot-cam-control
+Icon=@APP_ID@
+Terminal=false
+Categories=AudioVideo;Video;
+Keywords=OBSBOT;Tiny;Tiny 2;Tiny 2 Lite;Webcam;Camera;PTZ;UVC;
+StartupNotify=true
+StartupWMClass=obsbot-cam-control

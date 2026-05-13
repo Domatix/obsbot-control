@@ -255,16 +255,49 @@
   matching the [[T-005]] precedent for `crates/`).
 
 ### T-009 — Create AppStream metainfo and desktop file
-- **State**: TODO
+- **State**: DONE
+- **Started**: 2026-05-13T12:50:39Z
+- **Completed**: 2026-05-13T12:54:51Z
 - **Depends on**: T-002 (namespace), T-008
 - **Description**: Write `io.github.domatix.ObsbotCamControl.metainfo.xml.in`
   with description, summary (≤ 35 chars), categories, license, content
   rating. Write `io.github.domatix.ObsbotCamControl.desktop.in` with name,
   comment, exec, icon, categories.
 - **Acceptance criteria**:
-  - `appstreamcli validate` passes with zero errors.
-  - `desktop-file-validate` passes.
+  - `appstreamcli validate` passes with zero errors. **DONE** — `LC_ALL=C
+    appstreamcli validate --no-net --explain` exits 0 with no E/W/I
+    messages; one pedantic (`P:`) note `cid-contains-uppercase-letter`
+    on `ObsbotCamControl` is intentional per [[ADR-0012]] (the App ID
+    is fixed; AppStream recommends lowercase but allows mixed case —
+    not an error).
+  - `desktop-file-validate` passes. **DONE** — silent exit 0.
   - Commit: `feat: AppStream metainfo and desktop file (T-009)`.
+- **Outcome**: two GNOME-Circle-shaped templates land under `data/`:
+  the `.desktop.in` (13 lines, `Categories=AudioVideo;Video;`,
+  `StartupWMClass` matching what T-007's xwininfo capture observed,
+  Keywords listing both Tiny 2 PIDs verbatim per [[ADR-0014]]) and
+  the `.metainfo.xml.in` (96 lines, `<summary>` "Control your OBSBOT
+  webcam" = 26/35 chars, `<metadata_license>` `CC0-1.0` +
+  `<project_license>` `GPL-3.0-or-later`, OARS-1.1 content-rating
+  declared all-clear via the empty-element form, `<developer
+  id="io.github.domatix">` per the post-1.0 AppStream schema, single
+  `<release type="development">` for v0.1.0 with prose pointing at the
+  scaffolding-only status, trademark disclaimer per [[ADR-0012]],
+  supported-input controls declared as keyboard/pointing/touch).
+  Both files carry `@APP_ID@` / `@VERSION@` placeholders substituted
+  by `data/meson.build`'s `configure_file()` calls; the substituted
+  output installs at `share/applications` / `share/metainfo` as
+  freedesktop expects. `data/meson.build` also wires both validators
+  as `meson test` cases (`required: false` so CI without
+  appstreamcli/desktop-file-validate skips rather than fails). i18n
+  via gettext intentionally **not** added — the templates have no
+  `_Name=` / `<_summary>` markers and no `subdir('po')` yet; a later
+  task will plug gettext in when actual translatable strings emerge
+  (e.g. preset labels in v0.2). `data/.gitkeep` removed (the dir now
+  has real content — matches the [[T-005]] / `crates/` and [[T-008]]
+  / `build-aux/` precedent). Top-level `meson.build` swaps the
+  placeholder `# subdir('data')` comment for the real call; the
+  `# subdir('po')` hook stays as a comment.
 
 ### T-010 — Add icon (placeholder OK)
 - **State**: TODO
