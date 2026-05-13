@@ -1,8 +1,11 @@
 # Rust
 target/
-Cargo.lock
 **/*.rs.bk
 *.pdb
+# Cargo.lock IS committed: this workspace ships binaries (obsbot-cli,
+# obsbot-gui), so the lockfile guarantees reproducible builds for
+# Flathub and Linux distros. See:
+# https://doc.rust-lang.org/cargo/faq.html#why-have-cargolock-in-version-control
 
 # Meson
 builddir/

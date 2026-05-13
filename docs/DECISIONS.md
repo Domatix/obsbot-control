@@ -293,5 +293,57 @@ out of scope for this ADR.
 
 ---
 
+## ADR-0013 — T-004 validation: `cargo metadata` instead of `cargo check --workspace`
+
+**Date**: 2026-05-13
+**Status**: accepted (amends T-004 acceptance criteria in [[PLAN.md]])
+**Context**: T-004 was specified with acceptance criteria
+"`cargo check --workspace` passes (even if crates are empty)" and
+"`cargo fmt --check` passes". After installing the toolchain (rustc
+1.85.0 from Debian trixie) and writing the root `Cargo.toml`, both
+commands fail with `manifest is virtual, and the workspace has no
+members` because `members = ["crates/*"]` expands to the empty set —
+the `crates/` directory only contains a `.gitkeep`. The original
+criteria implicitly assumed at least one stub member existed, which is
+not the case until T-005. Cargo's behavior here is by design: a
+virtual workspace with zero members is a hard error for `cargo check`
+and `cargo fmt`, not a warning.
+
+Three alternatives were considered:
+1. Merge T-004 and T-005 into a single commit so a member exists at
+   validation time. Rejected: breaks task atomicity and reduces commit
+   granularity ([[ADR-0008]] favors fine-grained commits).
+2. Add a throwaway placeholder member crate to be deleted in T-005.
+   Rejected: clutters history, easy to forget to delete.
+3. Adapt T-004's validation to "manifest parses correctly" (via
+   `cargo metadata --no-deps`) and move the `cargo check --workspace`
+   + `cargo fmt --check` enforcement to T-005, which naturally
+   introduces the first member crate.
+
+**Decision**: Adopt option 3.
+- T-004 acceptance criteria become:
+  - `cargo metadata --no-deps --format-version 1` succeeds (manifest
+    parses, workspace.dependencies resolve).
+  - `[workspace.package]` and `[workspace.dependencies]` blocks
+    follow [[ADR-0003]] (MSRV 1.83, edition 2021) and [[ARCHITECTURE
+    §1]] (pinned versions of gtk4, libadwaita, gstreamer family, v4l,
+    nusb, etc.).
+  - Commit: `build: create cargo workspace (T-004)`.
+- T-005 acceptance criteria gain (additive, not replacing existing):
+  - `cargo check --workspace` passes after `obsbot-core` is added.
+  - `cargo fmt --all --check` passes after `obsbot-core` is added.
+  - `cargo clippy -p obsbot-core -- -D warnings` passes (already in
+    T-005).
+
+**Consequence**: T-004 closes cleanly today with toolchain validation
+limited to manifest parsing. T-005 picks up the full lint/format gate
+when there is real source code to lint, which is its natural home
+anyway. No code change to `Cargo.toml` is needed; the manifest as
+drafted already parses. `PLAN.md` is amended in-place to reflect the
+new criteria, and the original criteria's intent is preserved (just
+relocated by one task).
+
+---
+
 <!-- Append new ADRs above this line, never below. Newest ADRs go at the bottom
      of the list but new entries are added; do not edit old ones. -->

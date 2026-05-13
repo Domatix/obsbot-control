@@ -52,8 +52,12 @@
   past PROGRESS entries and ADR-0009/ADR-0010 left intact (append-only).
 
 ### T-003 — Capture and document Tiny 2 USB descriptor
-- **State**: TODO
+- **State**: BLOCKED
+- **Started**: 2026-05-12T11:00:00Z
 - **Depends on**: T-001
+- **Blocker**: awaiting the user's hardware capture (lsusb / v4l2-ctl
+  outputs against a plugged-in Tiny 2). Procedure handed off in the
+  session of 2026-05-12.
 - **Description**: With the user's help (they must run the commands; Claude
   cannot touch hardware), capture `lsusb -v` and `v4l2-ctl --all` and
   `v4l2-ctl --list-ctrls-menus` output for the connected Tiny 2. Identify XU
@@ -69,16 +73,39 @@
   what to paste.
 
 ### T-004 — Set up Cargo workspace
-- **State**: TODO
+- **State**: DONE
+- **Started**: 2026-05-12T11:00:00Z
+- **Completed**: 2026-05-13T10:05:00Z
 - **Depends on**: T-002
 - **Description**: Create `Cargo.toml` at root declaring the three crates
   (`obsbot-core`, `obsbot-cli`, `obsbot-gui`) as a workspace. Add shared
   workspace dependencies block with pinned versions (`gtk4`, `libadwaita`,
   `gstreamer`, `tracing`, etc.).
-- **Acceptance criteria**:
-  - `cargo check --workspace` passes (even if crates are empty).
-  - `cargo fmt --check` passes.
+- **Acceptance criteria** (amended by [[ADR-0013]] — original `cargo check
+  --workspace` + `cargo fmt --check` criteria moved to T-005 because they
+  require ≥1 member crate, which T-004 does not yet create):
+  - `cargo metadata --no-deps --format-version 1` succeeds (manifest parses,
+    `[workspace.dependencies]` resolve).
+  - `[workspace.package]` honors [[ADR-0003]] (MSRV 1.83, edition 2021).
+  - `[workspace.dependencies]` pins the runtime stack from `ARCHITECTURE §1`.
   - Commit: `build: create cargo workspace (T-004)`.
+- **Outcome**: root `Cargo.toml` declares `[workspace] resolver = "2",
+  members = ["crates/*"]`, shared `[workspace.package]` (version 0.1.0,
+  edition 2021, rust-version 1.83, license GPL-3.0-or-later, Domatix
+  authors/repo), `[workspace.dependencies]` pinning the runtime stack
+  per [[ADR-0003]] + [[ARCHITECTURE §1]] (gtk4 0.9, libadwaita 0.7,
+  glib/gio 0.20, gstreamer family 0.23, v4l 0.14, nusb 0.1, nix 0.29
+  +ioctl, tracing 0.1, tracing-subscriber 0.3 +env-filter, thiserror 2,
+  anyhow 1, clap 4 +derive, async-channel 2, gettext-rs 0.7
+  +gettext-system), and a `[profile.release]` (lto thin, codegen-units
+  1, strip symbols). `.gitignore` amended: `Cargo.lock` is committed
+  (this workspace ships binaries; reproducible Flathub/distro builds
+  require pinned lockfile — inline comment links Cargo FAQ).
+  Validation: `cargo metadata --no-deps --format-version 1` exit 0 and
+  `cargo verify-project` returns `{"success":"true"}` against rustc
+  1.85.0 from Debian trixie. Acceptance via [[ADR-0013]]-amended
+  criteria; full `cargo check --workspace` + `cargo fmt --check`
+  enforcement deferred to T-005's first member crate.
 
 ### T-005 — Stub `obsbot-core` crate
 - **State**: TODO
@@ -88,6 +115,8 @@
   trait methods can be stubs returning `Err(Unsupported)`). Add `CameraInfo`,
   `Capabilities`, `error::Error` types.
 - **Acceptance criteria**:
+  - `cargo check --workspace` passes (inherited from T-004 via [[ADR-0013]]).
+  - `cargo fmt --all --check` passes (inherited from T-004 via [[ADR-0013]]).
   - `cargo test -p obsbot-core` passes (compiles, zero tests).
   - `cargo clippy -p obsbot-core -- -D warnings` passes.
   - Public API documented with `///` comments.
