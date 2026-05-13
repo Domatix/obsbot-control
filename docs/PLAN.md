@@ -772,7 +772,8 @@
   private when reached.
 
 ### T-016 — Test-artifact: `.deb` via `cargo-deb`
-- **State**: TODO
+- **State**: IN_PROGRESS
+- **Started**: 2026-05-13T18:30:00Z
 - **Depends on**: T-007 (runnable GUI), T-013a (the diagnostics view's
   initial-scan list is enough for the installed app to "show
   something" — full hot-plug + V4L2 controls per [[ADR-0016]] are

@@ -6,16 +6,16 @@
 
 ---
 
-active_task: none
-active_task_state: idle
+active_task: T-016
+active_task_state: IN_PROGRESS
 last_completed_task: T-014
-last_commit: fix(flatpak): runtime fixes + close T-014 (T-014)  # accd9c0
-last_step: T-014 DONE. flatpak + flatpak-builder + GNOME 48 runtime/SDK + rust-stable SDK extension installed by the user. First flatpak-builder run failed (bindgen couldn't find libclang inside the sandbox); fix = `org.freedesktop.Sdk.Extension.llvm19//24.08` added as a second sdk-extension + `LIBCLANG_PATH=/usr/lib/sdk/llvm19/lib` in build-options.env. Second run failed at the export stage (`flatpak-validate-icon: Format not recognized` on the symbolic SVG); fix = remove the SPDX/copyright SVG comments between the XML declaration and the `<svg>` root from both T-010 icons (bisected to those comments; the symbolic loader is stricter than the regular SVG loader at 16x16). Third run succeeded; the app installs as `io.github.domatix.ObsbotCamControl 0.1.0 master`. User-confirmed via `flatpak run`: camera row, drill-down with 22 controls, and hot-plug all work identically to the native binary; `--device=all` grants /dev/video0 access from the sandbox. Two commits on `main`: `4476d43` (initial manifest) + `accd9c0` (three fixes + closure).
-next_step: T-015 (CI workflows — BLOCKED until repo is public per its PLAN note), T-016 (.deb test artifact via cargo-deb), T-017 (Arch PKGBUILD) to close v0.1. Bumping GNOME 48 to a supported runtime (EOL'd 2026-03-24) becomes a pre-v1.0 readiness task — note recorded in T-014 outcome.
-blockers: none for T-016/T-017. T-015 is BLOCKED on repo being public on GitHub.
+last_commit: docs: forbid co-author trailers; resync SHA references  # 291245a
+last_step: T-016 code-complete + static validation green. `build-aux/build-deb.sh` (cargo deb 2.12.1 pinned at `^2.10` because 3.7.0 needs rustc 1.88) produces `build-aux/dist/obsbot-cam-control_0.1.0-1_amd64.deb` (201 KB; installed-size 558 KB). `dpkg-deb -I/-c` confirms control fields (`Section: video`, `Priority: optional`, auto-detected `Depends: libadwaita-1-0 (>= 1.4~beta), libc6 (>= 2.34), libglib2.0-0t64 (>= 2.54.0), libgtk-4-1 (>= 4.0.0)`) and the seven freedesktop-standard install paths (binary, desktop, metainfo, scalable+symbolic icons, copyright). `desktop-file-validate` + `appstreamcli validate --no-net` pass on the substituted templates. Remaining acceptance criteria are install / launch / remove on the user's machine.
+next_step: ask the user to `sudo apt install ./build-aux/dist/obsbot-cam-control_0.1.0-1_amd64.deb`, launch `obsbot-cam-control` to confirm the camera row + drill-down still work installed-as-deb, then `sudo apt remove obsbot-cam-control` and verify no stray files under `/usr/share/{applications,icons/hicolor,metainfo,doc/obsbot-cam-control}`. After confirmation: PLAN T-016 → DONE, single commit `build(deb): test-artifact .deb via cargo-deb (T-016)`, then T-017 (Arch PKGBUILD) closes v0.1.
+blockers: none. T-015 remains BLOCKED on public repo.
 working_tree:
-  pre_commit_modified: [.gitignore, build-aux/io.github.domatix.ObsbotCamControl.json, data/icons/scalable/apps/io.github.domatix.ObsbotCamControl.svg, data/icons/symbolic/apps/io.github.domatix.ObsbotCamControl-symbolic.svg, docs/PLAN.md, docs/STATE.md, docs/PROGRESS.md]
-  pre_commit_untracked: []
+  pre_commit_modified: [Cargo.lock, README.md, crates/obsbot-gui/Cargo.toml, docs/PLAN.md, docs/PROGRESS.md, docs/STATE.md]
+  pre_commit_untracked: [build-aux/build-deb.sh, build-aux/dist/]
   pre_commit_deleted: []
 pending_user_actions:
   - T-013 (later, v0.1): log out / log back in to pick up the new
@@ -26,4 +26,8 @@ pending_user_actions:
     after a fresh session, file a follow-up task (the install path
     via Flatpak/distro should resolve it; we revisit only if the
     same failure persists there).
-updated_at: 2026-05-13T18:05:00Z  # session-end checkpoint, idle
+  - T-016 (this turn): once the `.deb` builds and `dpkg-deb -I/-c`
+    look clean, `sudo apt install ./build-aux/dist/obsbot-cam-control_*_amd64.deb`,
+    launch `obsbot-cam-control`, then `sudo apt remove obsbot-cam-control`
+    to verify no stray files.
+updated_at: 2026-05-13T19:32:00Z  # T-016 code-complete; awaiting install/remove validation

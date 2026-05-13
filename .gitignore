@@ -21,6 +21,10 @@ build-flatpak/
 repo/
 *.flatpak
 
+# cargo-deb test-artifact output (T-016).
+build-aux/dist/
+*.deb
+
 # IDE
 .idea/
 .vscode/

@@ -86,6 +86,37 @@ Flathub submission is a v1.0 goal — for v0.1 the manifest exists for
 local-build verification and to seed T-015 CI (when the repository
 goes public).
 
+### Test packages (Debian `.deb`)
+
+> **Scope** ([ADR-0015](docs/DECISIONS.md)): convenience artifact for
+> testers on non-Flatpak hosts. Not a Debian-policy package. Flatpak
+> via Flathub remains the supported channel.
+
+One-time tool install:
+
+```sh
+cargo install cargo-deb --locked --version '^2.10'
+```
+
+Build the artifact:
+
+```sh
+./build-aux/build-deb.sh
+```
+
+The shim runs `meson setup` so the `.desktop` / AppStream files have
+their `@APP_ID@` / `@VERSION@` placeholders substituted, then invokes
+`cargo deb -p obsbot-gui`. The resulting package lands under
+`build-aux/dist/` as `obsbot-cam-control_<version>_amd64.deb`.
+
+Install / uninstall:
+
+```sh
+sudo apt install ./build-aux/dist/obsbot-cam-control_*_amd64.deb
+obsbot-cam-control                              # launches the GUI
+sudo apt remove obsbot-cam-control              # removes everything
+```
+
 ## License
 
 Copyright © 2026 Domatix and contributors.

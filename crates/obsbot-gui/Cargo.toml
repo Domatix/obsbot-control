@@ -33,3 +33,34 @@ gtk4.workspace = true
 libadwaita.workspace = true
 glib.workspace = true
 gio.workspace = true
+
+# cargo-deb metadata (T-016).
+#
+# Produces the convenience `.deb` per [[docs/DECISIONS.md ADR-0015]].
+# Build via `build-aux/build-deb.sh` (NOT bare `cargo deb`): the wrapper
+# `meson setup`s `builddir/` first so `configure_file()` substitutes
+# @APP_ID@ / @VERSION@ in the desktop + metainfo templates before
+# cargo-deb collects them. Asset paths below resolve relative to this
+# manifest dir (`crates/obsbot-gui/`), so generated files reach in via
+# `../../builddir/...` and unmodified ones via `../../data/...`.
+[package.metadata.deb]
+name = "obsbot-cam-control"
+maintainer = "Domatix and contributors <noreply@domatix.com>"
+copyright = "2026, Domatix and contributors"
+license-file = ["../../LICENSE", "0"]
+section = "video"
+priority = "optional"
+extended-description = """\
+Native GNOME application to control OBSBOT Tiny 2 family webcams \
+(Tiny 2 and Tiny 2 Lite) over UVC/V4L2. Pre-alpha v0.1 build: \
+camera enumeration plus a diagnostics view exposing the V4L2 \
+controls the kernel exports. This is an unofficial test package; \
+Flatpak via Flathub is the supported distribution channel."""
+depends = "$auto"
+assets = [
+    ["target/release/obsbot-cam-control", "usr/bin/", "755"],
+    ["../../builddir/data/io.github.domatix.ObsbotCamControl.desktop", "usr/share/applications/", "644"],
+    ["../../builddir/data/io.github.domatix.ObsbotCamControl.metainfo.xml", "usr/share/metainfo/", "644"],
+    ["../../data/icons/scalable/apps/io.github.domatix.ObsbotCamControl.svg", "usr/share/icons/hicolor/scalable/apps/", "644"],
+    ["../../data/icons/symbolic/apps/io.github.domatix.ObsbotCamControl-symbolic.svg", "usr/share/icons/hicolor/symbolic/apps/", "644"],
+]

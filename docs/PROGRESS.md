@@ -10,7 +10,145 @@
 
 ---
 
-## 2026-05-12
+## 2026-05-13 (cont.)
+
+### [2026-05-13T18:30:00Z] [T-016] Started — `.deb` test artifact via `cargo-deb`
+
+Per [[ADR-0015]] and [[PLAN T-016]]: produce a non-policy `.deb` so
+the user's Debian trixie host can `apt install` the camera-control
+app outside the Flatpak sandbox. Scope is "convenience artifact",
+not Debian-policy; primary distribution channel stays Flathub
+(T-014 / pre-v1.0). Plan for this turn:
+
+1. **Tooling** — `cargo install cargo-deb`. Host had no copy;
+   first attempt against latest (3.7.0) failed with `E0658` (let-
+   chains land in rustc 1.88; our toolchain is Debian's 1.85.0).
+   Retrying with `^2.10` which predates the let-chain churn. If
+   that also breaks we pin to a known-good revision and document
+   the constraint inline. The cargo-deb dep is dev-only — it does
+   not enter the workspace dep graph.
+
+2. **Manifest** — `[package.metadata.deb]` in
+   `crates/obsbot-gui/Cargo.toml`:
+   * `name = "obsbot-cam-control"` so the deb package name follows
+     [[ADR-0012]] (kebab-case of the App ID's last segment) and
+     does not leak the internal `obsbot-gui` crate handle.
+   * `section = "video"`, `priority = "optional"`.
+   * `maintainer`, `copyright`, `extended-description`, `license-
+     file = ["../../LICENSE", "0"]`.
+   * `assets` list:
+     - `target/release/obsbot-cam-control` → `/usr/bin/` (mode 755).
+     - `../../builddir/data/<APP_ID>.desktop` → `/usr/share/applications/`
+       (substituted by meson's `configure_file()` at `meson setup` time).
+     - `../../builddir/data/<APP_ID>.metainfo.xml` →
+       `/usr/share/metainfo/`.
+     - The two T-010 SVGs (no substitution needed) →
+       `/usr/share/icons/hicolor/{scalable,symbolic}/apps/`.
+     - `../../LICENSE` → `/usr/share/doc/obsbot-cam-control/copyright`
+       (Debian convention).
+   * `depends = "$auto"` — let `dpkg-shlibdeps` discover the
+     libgtk-4-1 / libadwaita-1-0 / glib chain from the linked ELF;
+     re-pin only if the auto-list misbehaves on user's apt install.
+
+3. **Shim** — `build-aux/build-deb.sh`. Ensures `builddir/` exists
+   (so `configure_file()` produces the substituted data files),
+   then `cargo deb -p obsbot-gui --output build-aux/dist/`. Mirrors
+   the `cargo-build.sh` style from [[T-008]] (set -euo pipefail,
+   absolute paths, no surprises).
+
+4. **README** — short "Test packages" section pointing at the
+   shim, the resulting `.deb`, and the `sudo apt install`/`remove`
+   commands. Explicitly call out that Flatpak via Flathub is the
+   supported channel (per [[ADR-0015]]'s "convenience, not
+   policy-grade" framing).
+
+5. **Validation** — build the `.deb`, run `dpkg-deb -I` /
+   `dpkg-deb -c` to verify metadata and asset layout, then have
+   the user `apt install` it, launch `obsbot-cam-control`, and
+   `apt remove` to confirm no stray files in `/usr/share/{
+   applications,icons/hicolor,metainfo,doc}`. Hardware-touching
+   steps (launching against the connected Tiny 2 Lite) stay
+   user-driven per [[CLAUDE.md §3.3]].
+
+6. **Close** — PLAN.md DONE + outcome, STATE.md idle, single
+   commit `build(deb): test-artifact .deb via cargo-deb (T-016)`.
+
+### [2026-05-13T19:32:00Z] [T-016] Artifact built; static validation green
+
+`./build-aux/build-deb.sh` succeeded on the first run. Cargo
+compiled the workspace in release mode (1m 31s, cold cache; the
+existing T-014 Flatpak debug build's caches did not survive across
+build-tree namespaces), then `cargo-deb 2.12.1` assembled
+`build-aux/dist/obsbot-cam-control_0.1.0-1_amd64.deb` (201 KB on
+disk, installed-size 558 KB).
+
+Static validation (no install required, all pre-`apt install`
+gates Claude can drive on its own):
+
+* `dpkg-deb -I` confirms the control fields: name
+  `obsbot-cam-control`, version `0.1.0-1`, architecture `amd64`,
+  section `video`, priority `optional`, the homepage URL from
+  `[workspace.package].repository`, our maintainer line, and an
+  auto-detected `Depends: libadwaita-1-0 (>= 1.4~beta), libc6
+  (>= 2.34), libglib2.0-0t64 (>= 2.54.0), libgtk-4-1 (>= 4.0.0)`
+  — exactly the dynamic-link surface from `ldd`'s output on the
+  installed ELF. No bogus extras, no missing minor libs.
+  `libgstreamer1.0-0` is intentionally absent (no preview pipeline
+  yet — that's T-200+ scope).
+* `dpkg-deb -c` confirms the seven expected files at the
+  freedesktop-standard paths: `/usr/bin/obsbot-cam-control` (mode
+  755), the substituted `.desktop` under
+  `/usr/share/applications/`, the substituted AppStream metainfo
+  under `/usr/share/metainfo/`, the regular + symbolic SVG icons
+  under `/usr/share/icons/hicolor/{scalable,symbolic}/apps/`, and
+  the GPL-3.0 text shipped as `/usr/share/doc/obsbot-cam-control/
+  copyright` per Debian convention.
+* Binary is a stripped 64-bit PIE ELF (522 KB on disk,
+  release-profile optimisations from the workspace
+  `[profile.release]` plus `cargo-deb`'s default `strip` pass).
+* `desktop-file-validate` on the substituted file: silent exit 0.
+* `appstreamcli validate --no-net` on the substituted metainfo:
+  `Validation was successful: pedantic: 1` (same pedantic note
+  about `ObsbotCamControl` casing as in [[T-009]] — intentional
+  per [[ADR-0012]]).
+
+Two implementation notes worth recording:
+
+* `cargo-deb 3.7.0` (latest at write time) needs rustc 1.88 for
+  let-chain syntax; our toolchain is Debian's `rustc 1.85.0`.
+  Pinned to `^2.10` (resolved to 2.12.1) which has the same
+  feature surface for our needs (asset list, depends auto-
+  detection, freedesktop paths). The build-deb.sh shim and the
+  README's "one-time tool install" command both call out the
+  `^2.10` pin so a fresh contributor doesn't fall into the same
+  trap. If we later bump the workspace MSRV past 1.88 we can drop
+  the pin and recheck.
+* `~/.cargo/bin` is not on the user's `$PATH`, so `command -v
+  cargo-deb` was returning "not found" while `cargo deb` worked
+  fine (cargo's subcommand discovery walks `~/.cargo/bin`
+  directly). Switched `build-deb.sh`'s pre-flight check from
+  `command -v cargo-deb` to `cargo deb --version` so the shim is
+  robust against the PATH layout.
+
+Acceptance criteria status:
+* "`cargo deb -p obsbot-gui` succeeds locally" — **DONE** (via
+  `build-aux/build-deb.sh`).
+* "Artifact installs via `sudo apt install ./...`" — **pending
+  user-driven step** (Claude cannot sudo).
+* "After install, `obsbot-cam-control` launches and reaches T-013
+  diagnostics view" — **pending user-driven step** (same).
+* "`sudo apt remove obsbot-cam-control` leaves no stray files in
+  `/usr/share/{applications,icons/hicolor,glib-2.0/schemas}`" —
+  **pending user-driven step** (same). Note: we ship no GSettings
+  schemas yet (T-105 / v0.2), so that path is naturally clean by
+  construction; the genuine check is applications/ + icons/ +
+  metainfo/.
+
+Asking the user to run the install / launch / remove sequence
+next; static gates above are durable and would not change with
+re-runs.
+
+
 
 ### [2026-05-12T00:00:00Z] [bootstrap] Project scaffolding generated
 
