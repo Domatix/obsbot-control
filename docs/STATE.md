@@ -26,4 +26,4 @@ pending_user_actions:
     after a fresh session, file a follow-up task (the install path
     via Flatpak/distro should resolve it; we revisit only if the
     same failure persists there).
-updated_at: 2026-05-13T17:58:00Z  # T-014 SHA recorded
+updated_at: 2026-05-13T18:05:00Z  # session-end checkpoint, idle

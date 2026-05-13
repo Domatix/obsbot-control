@@ -596,6 +596,27 @@ T-014, T-016, T-017 dependency lines updated in PLAN.md to point at
 T-013a (the moment the GUI shows a real camera) instead of the
 parent T-013.
 
+### [2026-05-13T18:05:00Z] [session-end] Clean checkpoint at end of session
+
+User asked to wrap the session. No active task, no partial work, no
+uncommitted changes. Six v0.1 atoms closed this session
+(T-012 CLI `list`, T-013a initial camera list, T-013b hot-plug
+listener, T-013c V4L2 control sub-page, T-014 Flatpak manifest +
+fixes) plus one scope decision ([[ADR-0017]] deferring T-013d
+Blueprint pipeline to v0.2 as new T-099). v0.1 remaining:
+
+* **T-015 (CI)** — BLOCKED until the repo is published on GitHub
+  per its own PLAN note. Mark BLOCKED when reached.
+* **T-016 (.deb via cargo-deb)** — autonomous; depends on cargo-deb
+  install + `[package.metadata.deb]` block in obsbot-gui/Cargo.toml.
+* **T-017 (Arch PKGBUILD)** — autonomous; text file + makepkg path,
+  no host dep beyond a contributor on Arch (or fakeroot).
+
+Plus the deferred GNOME-48-EOL bump (pre-v1.0 readiness task) and
+the deferred T-099 Blueprint pipeline (v0.2 prerequisite). Next
+session resumes with T-016 unless the user opts to push the repo
+to GitHub first to unblock T-015.
+
 ### [2026-05-13T17:55:00Z] [T-014] DONE — three fixes after first runtime probe
 
 User ran the apt + flatpak install sequence and ~1-2 GB of GNOME 48
