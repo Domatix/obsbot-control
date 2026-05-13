@@ -9,7 +9,7 @@
 active_task: none
 active_task_state: idle
 last_completed_task: T-004
-last_commit: build: create cargo workspace (T-004)  # pending — to be created in this turn
+last_commit: build: create cargo workspace (T-004)  # 921fb57
 last_step: T-004 DONE via [[ADR-0013]]-amended criteria — `cargo metadata` exit 0, `cargo verify-project` success. Rust toolchain 1.85.0 from Debian trixie active.
 next_step: propose T-005 (stub `obsbot-core` crate) to the user; T-005 inherits the original `cargo check --workspace` + `cargo fmt --all --check` gates per [[ADR-0013]].
 blockers: T-003 BLOCKED on user hardware capture (Tiny 2 lsusb/v4l2-ctl).
@@ -26,4 +26,4 @@ resume_protocol: |
 pending_user_actions:
   - T-003: paste outputs of `lsusb -v -d VID:PID`, `v4l2-ctl --all`,
       `v4l2-ctl --list-ctrls-menus` (commands given 2026-05-12T11:00Z).
-updated_at: 2026-05-13T10:10:18Z
+updated_at: 2026-05-13T10:11:32Z

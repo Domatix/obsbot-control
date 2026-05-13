@@ -219,4 +219,11 @@ criteria satisfied. T-004 set to DONE in [[PLAN.md]]. Commit
 → T-005), and this PROGRESS section. Next: propose T-005 to the user
 (stub `obsbot-core` crate); T-003 stays BLOCKED on hardware capture.
 
+### [2026-05-13T10:11:32Z] [T-004] Commit landed — 921fb57
+
+`build: create cargo workspace (T-004)` committed as `921fb57` on
+`main` (6 files, +287/-20). Working tree clean. STATE.md updated
+to record the real SHA (was a placeholder during the commit-prep
+window). Trailing docs-only delta to follow.
+
 ---
