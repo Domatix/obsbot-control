@@ -7,16 +7,28 @@
 // from `window.rs` into the `body_slot` Adw.Bin below.
 //
 // IDs surfaced for `gtk::Builder::object(...)` lookups in code:
-//   * window     — root Adw.ApplicationWindow (binds to the
-//                  Adw.Application at startup).
-//   * nav_view   — Adw.NavigationView used as the window content
-//                  so each camera drill-down pushes a fresh page
-//                  on top of the "cameras" root.
-//   * body_slot  — Adw.Bin filled with the dynamic body
-//                  (PreferencesPage with rows, or StatusPage if
-//                  the enumeration is empty). T-013b's hot-plug
-//                  poll replaces the bin's child every interval
-//                  when the enumeration changes.
+//   * window         — root Adw.ApplicationWindow (binds to the
+//                      Adw.Application at startup).
+//   * toast_overlay  — Adw.ToastOverlay wrapping the entire
+//                      Adw.NavigationView (T-108 / T-110). Both
+//                      V4L2-write-failure toasts (T-108) and
+//                      hot-plug REMOVE notifications (T-110) land
+//                      here. A window-level overlay (vs the
+//                      per-page surface T-108 originally shipped)
+//                      means toasts survive navigation: a write
+//                      failure dispatched right before the user
+//                      pops the controls page still renders, and
+//                      a disconnect toast surfaces correctly when
+//                      the controls page is the one being popped.
+//   * nav_view       — Adw.NavigationView used as the window
+//                      content so each camera drill-down pushes
+//                      a fresh page on top of the "cameras" root.
+//   * body_slot      — Adw.Bin filled with the dynamic body
+//                      (PreferencesPage with rows, or StatusPage
+//                      if the enumeration is empty). T-013b's
+//                      hot-plug poll replaces the bin's child
+//                      every interval when the enumeration
+//                      changes.
 
 using Gtk 4.0;
 using Adw 1;
@@ -42,27 +54,29 @@ Adw.ApplicationWindow window {
   default-width: 720;
   default-height: 540;
 
-  content: Adw.NavigationView nav_view {
-    Adw.NavigationPage {
-      title: "Obsbot Cam Control";
-      tag: "cameras";
+  content: Adw.ToastOverlay toast_overlay {
+    Adw.NavigationView nav_view {
+      Adw.NavigationPage {
+        title: "Obsbot Cam Control";
+        tag: "cameras";
 
-      child: Adw.ToolbarView {
-        [top]
-        Adw.HeaderBar {
-          [end]
-          Gtk.MenuButton {
-            icon-name: "open-menu-symbolic";
-            menu-model: primary_menu;
-            tooltip-text: _("Main Menu");
-            primary: true;
+        child: Adw.ToolbarView {
+          [top]
+          Adw.HeaderBar {
+            [end]
+            Gtk.MenuButton {
+              icon-name: "open-menu-symbolic";
+              menu-model: primary_menu;
+              tooltip-text: _("Main Menu");
+              primary: true;
+            }
           }
-        }
 
-        content: Adw.Bin body_slot {
-          vexpand: true;
+          content: Adw.Bin body_slot {
+            vexpand: true;
+          };
         };
-      };
+      }
     }
   };
 }

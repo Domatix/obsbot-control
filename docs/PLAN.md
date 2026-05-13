@@ -598,8 +598,11 @@
   - Commit `docs(appstream): v0.2.0 release notes (T-109)`.
 
 ### T-110 — Hot-plug REMOVE resilience
-- **State**: TODO
-- **Depends on**: T-013b (hot-plug poll listener).
+- **State**: DONE
+- **Started**: 2026-05-14T01:55:00Z
+- **Completed**: 2026-05-14T02:15:00Z
+- **Depends on**: T-013b (hot-plug poll listener), T-108 (toast
+  surface).
 - **Description**: SPEC §6.4 requires surviving camera
   disconnect/reconnect during runtime. T-013b's poll listener
   re-mounts the body on enumeration change, but two concrete
@@ -607,24 +610,51 @@
   (a) When the user has drilled into a camera detail page and
   the camera is then unplugged, the detail page silently shows
   stale values; `nav_view.pop_to_tag("cameras")` should fire and
-  a toast (`"Camera disconnected"`) should appear.
+  a toast (`"Camera disconnected: <product>"`) should appear.
   (b) On re-plug, the camera should reappear without restart.
   T-013b already covers (b) at the list level but the detail
   page does not auto-refresh if the user is still on it.
   Implementation: extend the poll callback to compare per-camera
   presence; if the current `NavigationView` top page corresponds
-  to a removed camera, pop the page and post a toast.
+  to a removed camera, pop the page and post a toast. **Toast
+  surface rewire**: T-110 promotes the toast overlay from
+  per-page (T-108's initial scope) to window-level by wrapping
+  the `AdwNavigationView` in `window.blp`'s `Adw.ToastOverlay
+  toast_overlay`. `window::build` binds it once via
+  `settings::bind_toast_overlay`; `controls_view::build_controls
+  _page` no longer creates its own. Reason: a per-page surface
+  scopes toasts to the controls page and loses them when the
+  page is the one being popped (the disconnect case). Per
+  GNOME HIG, toasts overlay the entire `AdwApplicationWindow`
+  anyway, so the window-level placement is the canonically
+  correct one.
 - **Acceptance criteria**:
-  - `window::start_hotplug_poll` carries enough context to
-    inspect the current top page and pop it on REMOVE.
-  - Removing the camera while on the detail page: page pops to
-    the cameras list cleanly, toast appears.
-  - Re-plugging the camera: the list re-shows it (existing
-    T-013b behaviour, regression-protected).
-  - All four cargo gates green.
+  - `window.blp` wraps `Adw.NavigationView nav_view` in
+    `Adw.ToastOverlay toast_overlay`; the IDs comment block is
+    updated.
+  - `window::build` extracts `toast_overlay` and calls
+    `settings::bind_toast_overlay(&toast_overlay)` once.
+  - `controls_view::build_controls_page` drops its own
+    `Adw.ToastOverlay::new()` + `bind_toast_overlay` block; a
+    comment cross-references the window-level binding for
+    future readers.
+  - New `window::handle_remove_events(prev, latest, nav_view)`
+    helper:
+    * Computes the set of cameras that disappeared by
+      `(vid, pid, serial)` identity.
+    * If the visible `NavigationView` page's tag matches a
+      removed camera's `controls-{vid:04x}-{pid:04x}` tag,
+      calls `nav_view.pop_to_tag("cameras")`.
+    * Surfaces a translated toast: singular
+      `"Camera disconnected: {product}"` or plural
+      `"Cameras disconnected: {products}"` (comma-joined).
+  - Re-plug behaviour preserved: existing T-013b body re-mount
+    re-adds the camera row to the list automatically.
+  - All four cargo gates green; `meson compile -C builddir`
+    builds the release binary cleanly with the new Blueprint.
   - **User validation pending**: unplug the camera USB cable
     while on the controls page; confirm pop + toast. Re-plug;
-    confirm the camera re-appears.
+    confirm the camera re-appears in the list.
   - Commit `feat(gui): hot-plug REMOVE resilience (T-110)`.
 
 ---

@@ -35,6 +35,7 @@ use obsbot_core::{enumerate_cameras, CameraInfo};
 
 use crate::controls_view::build_controls_page;
 use crate::i18n::gettext;
+use crate::settings;
 
 /// Hot-plug poll interval. Two seconds matches GNOME Settings' rough
 /// device-panel latency while keeping the sysfs syscall load trivial.
@@ -52,6 +53,9 @@ pub fn build(app: &adw::Application) -> adw::ApplicationWindow {
     let window: adw::ApplicationWindow = builder
         .object("window")
         .expect("window.ui missing object 'window'");
+    let toast_overlay: adw::ToastOverlay = builder
+        .object("toast_overlay")
+        .expect("window.ui missing object 'toast_overlay'");
     let nav_view: adw::NavigationView = builder
         .object("nav_view")
         .expect("window.ui missing object 'nav_view'");
@@ -60,6 +64,12 @@ pub fn build(app: &adw::Application) -> adw::ApplicationWindow {
         .expect("window.ui missing object 'body_slot'");
 
     window.set_application(Some(app));
+
+    // Window-level toast surface (T-108 / T-110): bound once and
+    // reused for V4L2 write failures *and* hot-plug REMOVE notices.
+    // Lives as long as the window so toasts dispatched right around
+    // a page navigation never end up orphaned.
+    settings::bind_toast_overlay(&toast_overlay);
 
     let initial = enumerate_cameras();
     body_slot.set_child(Some(&build_body(&initial, &nav_view)));
@@ -90,6 +100,12 @@ fn start_hotplug_poll(
                 let latest = enumerate_cameras();
                 let mut prev = snapshot.borrow_mut();
                 if *prev != latest {
+                    // T-110: detect REMOVE events for the camera the
+                    // user is currently looking at, pop the controls
+                    // page, and surface a toast. Has to happen before
+                    // the body re-mount so the visible_page_tag()
+                    // lookup still sees the controls page.
+                    handle_remove_events(&prev, &latest, &nav_view);
                     body_slot.set_child(Some(&build_body(&latest, &nav_view)));
                     *prev = latest;
                 }
@@ -97,6 +113,69 @@ fn start_hotplug_poll(
             }
         ),
     );
+}
+
+/// Stable identity for hot-plug REMOVE matching (T-110). Pair the
+/// USB `(vid, pid)` with the camera serial when available — the serial
+/// distinguishes two same-model cameras, the vid/pid is the fallback
+/// when the kernel hasn't surfaced a serial for the device yet.
+fn camera_key(cam: &CameraInfo) -> (u16, u16, Option<String>) {
+    (cam.vid, cam.pid, cam.serial.clone())
+}
+
+/// Surface a "Camera disconnected" toast and pop the
+/// `Adw.NavigationView` back to the cameras list whenever a camera
+/// that was previously in the enumeration is no longer present AND
+/// the currently-visible page corresponds to that camera.
+///
+/// The page tag is `controls-{vid:04x}-{pid:04x}` (set by
+/// `controls_view::build_controls_page`); two identical-model cameras
+/// would push to the same tag, so the per-page disambiguation is
+/// approximate. For v0.2 the assumption holds: the OBSBOT Tiny 2
+/// family ships with one camera at a time on a given USB port.
+fn handle_remove_events(
+    prev: &[CameraInfo],
+    latest: &[CameraInfo],
+    nav_view: &adw::NavigationView,
+) {
+    let latest_keys: Vec<_> = latest.iter().map(camera_key).collect();
+    let removed: Vec<&CameraInfo> = prev
+        .iter()
+        .filter(|cam| !latest_keys.contains(&camera_key(cam)))
+        .collect();
+
+    if removed.is_empty() {
+        return;
+    }
+
+    // Pop the controls page if it belongs to a removed camera. The
+    // `Adw.NavigationView` API exposes the visible page; we check
+    // its tag against each removed camera's `controls-` tag.
+    let visible_tag: Option<String> = nav_view
+        .visible_page()
+        .and_then(|page| page.tag().map(|s| s.to_string()));
+
+    if let Some(tag) = visible_tag.as_deref() {
+        for cam in &removed {
+            let cam_tag = format!("controls-{:04x}-{:04x}", cam.vid, cam.pid);
+            if tag == cam_tag {
+                nav_view.pop_to_tag("cameras");
+                break;
+            }
+        }
+    }
+
+    // Always surface a toast regardless of which page is visible —
+    // even if the user is on the camera list, they want to know the
+    // camera just vanished. The window-level overlay survives
+    // navigation (T-108 / T-110 wiring in `window::build`).
+    let products: Vec<String> = removed.iter().map(|c| c.product.clone()).collect();
+    let msg = if products.len() == 1 {
+        gettext("Camera disconnected: {product}").replace("{product}", &products[0])
+    } else {
+        gettext("Cameras disconnected: {products}").replace("{products}", &products.join(", "))
+    };
+    settings::surface_error(&msg);
 }
 
 /// Decide which body widget to mount based on the current enumeration.

@@ -596,6 +596,184 @@ commit `build(gui): Blueprint pipeline (T-099)` packages the
 seven changed/added files plus `Cargo.lock` (glib-build-tools
 0.20.0 transitive deps).
 
+### [2026-05-14T02:20:00Z] [session-checkpoint] Autonomous T-106..T-110 run closed
+
+User asked for 5 more tasks executed autonomously with
+accumulated validation (they couldn't validate live at the
+start of the session). All five DONE; gates green on every
+commit; commits on `main`, none pushed (private repo,
+explicit no-push instruction in the user's working agreement).
+
+Commits in this run (oldest → newest on `main`):
+* `a688714` feat(gui): About dialog with credits (T-106)
+* `39c1206` feat(gui): gettext scaffolding (T-107)
+* `6df5294` feat(gui): toast-based write-error surfacing (T-108)
+* `ee8bcb5` docs(appstream): v0.2.0 release notes (T-109)
+* (T-110 commit pending — feat(gui): hot-plug REMOVE
+  resilience (T-110))
+
+Highlights:
+
+* T-106 closes the last "v0.2 hint" task per ROADMAP:
+  hamburger menu + `adw::AboutDialog` with metadata pulled
+  from `CARGO_PKG_*` and an acknowledgement section crediting
+  the reverse-engineering work this project builds on
+  (`aaronsb/obsbot-camera-control` + `taxfromdk/obsbot_tiny_
+  reversing`).
+* T-107 grounds i18n: `po/` populated, meson `i18n.gettext()`
+  invoked, gettext-rs wired through a thin `i18n` module,
+  user-facing strings in window / controls_view / wb_group /
+  exposure_group / ptz_pad / application routed through
+  `gettext()`. Blueprint `_()` markers added in `ptz-pad.blp`
+  for v0.6's Blueprint-extraction follow-up. Host caveat:
+  this Debian 13 box has `gettext-base` only (no `msgfmt`);
+  wiring is verified end-to-end via `strings` on the release
+  binary (`/usr/local/share/locale` + `obsbot-cam-control`
+  textdomain baked in), the .pot target itself lands on CI /
+  Flatpak builders where full gettext ships.
+* T-108 adds an in-app `adw::Toast` surface for V4L2 write
+  failures via a `thread_local!` weak ref + `settings::surface
+  _error(msg)` helper; GSettings save failures stay on
+  stderr (best-effort recovery, not user-actionable).
+  Note: T-110 then promoted the toast overlay from a per-page
+  surface to a window-level one — the entry below covers
+  the rewire.
+* T-109 lays down the v0.2.0 release-notes draft in
+  `metainfo.xml.in`: user-facing bullet list of every
+  capability that landed since v0.1.0, with vendor-XU
+  features (HDR / FOV / auto-framing) explicitly punted to
+  v0.4. `appstreamcli validate --no-net --explain
+  --pedantic` returns only the pre-existing
+  `cid-contains-uppercase-letter` note about
+  `ObsbotCamControl` TitleCase (intentional per ADR-0012).
+* T-110 hardens hot-plug: window-level `Adw.ToastOverlay`
+  wrapping the `AdwNavigationView` (declared in window.blp,
+  bound once in `window::build`), plus a new
+  `handle_remove_events(prev, latest, nav_view)` helper
+  invoked by `start_hotplug_poll` before the body re-mount.
+  On disconnect of the camera the user is currently
+  drilled into, the controls page pops back to the cameras
+  list AND a "Camera disconnected: <product>" toast (plural
+  variant if multiple cameras disappear in the same interval)
+  surfaces from the window-level overlay.
+
+No ADRs needed this run — the scope-reshuffle to make the
+toast overlay window-level (vs per-page) is documented
+inline in PLAN.md T-110 + the PROGRESS T-110 entry; it
+mirrors what GNOME HIG specifies and is not a SPEC / ROADMAP
+change.
+
+Pending user-validation list grew from T-101..T-105 (5
+items) + T-010 + T-017 (carried over from before) to ALSO
+include:
+* T-106 — hamburger → About dialog content check.
+* T-108 — write failure under disconnected device → toast.
+* T-110 — unplug-while-on-page → pop + toast; re-plug →
+  list re-add.
+
+Gates state at end of run:
+  cargo fmt --all --check                                → exit 0
+  cargo clippy --workspace --all-targets -- -D warnings  → exit 0
+  cargo test --workspace                                 → 14 unit
+                                                           + 1 settings unit
+                                                           + 1 doctest, all pass;
+                                                           5 hardware ignored.
+  meson setup builddir + meson compile -C builddir       → release binary built
+                                                           cleanly with the new
+                                                           Blueprint + AppStream
+                                                           release notes.
+  meson test -C builddir validate-metainfo               → exit 0.
+
+Next session: walk through the accumulated validation pass
+(now 10 items) and iterate fixes per finding. After
+validation is green, the v0.2.0 tag is ready — bumping
+`workspace.package.version` to `0.2.0` and tagging is the
+remaining mechanical step per CLAUDE.md §7.
+
+### [2026-05-14T02:15:00Z] [T-110] DONE — hot-plug REMOVE resilience
+
+Last task of the T-106..T-110 run. Two related sub-changes:
+
+1. **Toast surface rewire (T-108 follow-up)**. T-108 originally
+   created a fresh `adw::ToastOverlay` inside
+   `controls_view::build_controls_page` and bound it via
+   `settings::bind_toast_overlay` on every page build. That
+   scoped toasts to the controls page, which fails the
+   disconnect case: when the page is the one being popped,
+   the overlay drops with it and any toast dispatched in the
+   same poll iteration is lost. T-110 promotes the overlay to
+   window-level — `resources/window.blp` now declares
+   `Adw.ToastOverlay toast_overlay` wrapping the entire
+   `AdwNavigationView`; `window::build` extracts the object
+   and binds it once via `settings::bind_toast_overlay`.
+   `controls_view::build_controls_page` loses its own
+   `ToastOverlay::new()` / `bind_toast_overlay` block; a
+   cross-referencing comment stays in place so future readers
+   don't try to add it back. Per GNOME HIG, toasts overlay
+   the whole `AdwApplicationWindow` anyway — the window-level
+   placement is the canonical one.
+
+2. **REMOVE event handling**. New
+   `window::handle_remove_events(prev, latest, nav_view)`
+   plus a small `camera_key(cam) -> (u16, u16,
+   Option<String>)` helper. Called from `start_hotplug_poll`
+   *before* the body re-mount, so the visible page tag lookup
+   still sees the pre-remove navigation state. Algorithm:
+   * Build a set of `(vid, pid, serial)` keys for the latest
+     enumeration.
+   * Filter `prev` to find cameras whose key is not in the
+     latest set — those are the removed cameras.
+   * If `nav_view.visible_page().and_then(|p| p.tag())` equals
+     `controls-{vid:04x}-{pid:04x}` for any removed camera,
+     call `nav_view.pop_to_tag("cameras")`.
+   * Always surface a translated toast: singular
+     `gettext("Camera disconnected: {product}")` with
+     `{product}` substituted, or plural
+     `gettext("Cameras disconnected: {products}")` joined by
+     `", "`. Same `{}` placeholder convention as T-108.
+   The serial component of `camera_key` distinguishes two
+   same-model cameras even though the per-page tag is
+   currently only `vid:pid`-based (matches existing T-013c
+   tag derivation, ROADMAP §v0.2 doesn't promise
+   multi-same-model support).
+
+`crates/obsbot-gui/src/window.rs` imports gain
+`use crate::settings;` — the previous binding was indirect
+through the controls_view module. `nav_view` and `body_slot`
+were already extracted from the Builder; `toast_overlay` is
+the new third extracted object.
+
+`crates/obsbot-gui/resources/window.blp` IDs comment block
+rewritten to document `toast_overlay` and its T-108 / T-110
+role.
+
+Gates:
+  cargo fmt --all --check                                → exit 0
+  cargo clippy --workspace --all-targets -- -D warnings  → exit 0
+  cargo test --workspace                                 → 14 unit
+                                                           + 1 settings unit
+                                                           + 1 doctest, all pass;
+                                                           5 hardware ignored.
+  meson compile -C builddir                              → exit 0 (release
+                                                           binary built).
+
+Files touched:
+  * crates/obsbot-gui/resources/window.blp                (+17 / -5)
+  * crates/obsbot-gui/src/window.rs                       (+78 / -2)
+  * crates/obsbot-gui/src/controls_view.rs                (+6 / -7)
+  * docs/PLAN.md                                          (T-110 DONE block)
+  * docs/STATE.md                                         (active → idle, last → T-110, run summary)
+  * docs/PROGRESS.md                                      (this entry + the session-checkpoint above)
+
+User-validation pending — added to STATE: while on a
+controls page, unplug the USB cable; confirm the page pops
+back to the cameras list AND a "Camera disconnected:
+<product>" toast appears. Re-plug; confirm the camera
+re-appears in the list within ~2 s.
+
+Commit `feat(gui): hot-plug REMOVE resilience (T-110)`
+follows.
+
 ### [2026-05-14T01:55:00Z] [T-109] DONE — AppStream v0.2.0 release notes (draft)
 
 Fourth task of the T-106..T-110 run. Tag-readiness prep: lay
