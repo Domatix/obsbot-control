@@ -414,5 +414,79 @@ community report establishes selector compatibility.
 
 ---
 
+## ADR-0015 — Test artifacts: ship .deb and Arch packages alongside Flatpak
+
+**Date**: 2026-05-13
+**Status**: accepted (amends [[SPEC.md §4.5]] and [[ROADMAP.md v0.1]])
+**Context**: SPEC.md §4.5 originally said "Flatpak as primary distribution
+(target: Flathub). Deb/RPM packaging is a non-goal for v1.0 (community
+can package)." A project stakeholder asked on 2026-05-13 that, once
+there is a runnable build of the camera-control app, the toolchain
+also emit a `.deb` (for the user's Debian trixie machine) and an
+Arch package (`pkg.tar.zst` from a `PKGBUILD`) so the stakeholder on
+Arch can sideload-test the same revision. The intent is **internal
+test distribution**, not Debian-policy / AUR-grade upstreaming —
+artifacts to ease iteration with non-Flatpak testers, not commitments
+to long-lived package maintenance.
+
+Three alternatives were weighed:
+1. Ignore the request: contradicts a direct stakeholder need; forces
+   the Arch tester to figure out their own packaging or sideload via
+   Flatpak. Rejected.
+2. Full upstream packaging (debian/ tree submitted to Debian, PKGBUILD
+   submitted to AUR): large scope, contradicts the original §4.5 stance,
+   and is the user-community responsibility per existing decision.
+   Rejected for this iteration.
+3. **Add a "test artifact" tier**: CI / release tooling produces a
+   non-policy `.deb` (via `cargo-deb` reading metadata from
+   `Cargo.toml`) and a non-policy Arch package (via `makepkg` against
+   an in-tree `PKGBUILD`). Distributed as GitHub Release attachments
+   or downloadable CI artifacts. No commitment to track upstream
+   policy churn, no `apt`/`pacman` repository hosting.
+
+**Decision**: Adopt option 3. Concretely:
+- `cargo-deb` becomes a dev-dependency (or used via `cargo install
+  cargo-deb` in CI). Metadata for the deb lives under
+  `[package.metadata.deb]` in `crates/obsbot-gui/Cargo.toml` once
+  T-007 lands, listing runtime deps on the libgtk-4-1, libadwaita-1-0,
+  libgstreamer1.0-0, libgstreamer-plugins-base1.0-0, and a few
+  v4l/uvc system libraries (final list pinned when T-007 actually
+  builds against them).
+- `build-aux/PKGBUILD` (Arch) lives in-tree, hand-maintained, depends
+  on `gtk4 libadwaita gstreamer gst-plugins-base gst-plugins-good
+  v4l-utils`. Source pulled from a git tag.
+- Both artifacts produced by GitHub Actions at tag time (and on demand
+  via `workflow_dispatch`). README documents the install / uninstall
+  command for each.
+- Scope explicitly **not** a Debian-policy compliant package and
+  **not** an AUR submission: the README "Installation" section calls
+  them "test packages", links to the Flathub install as the supported
+  channel, and points downstream packagers to the in-tree
+  `cargo-deb`/`PKGBUILD` files as starting points if they want to
+  pursue policy compliance themselves.
+
+**Consequence**:
+- SPEC.md §4.5 amended to add the test-artifact tier alongside the
+  Flatpak primary; the "community can package" sentence kept for
+  policy-grade Debian/AUR submissions.
+- ROADMAP.md v0.1 "Includes" gains ".deb test package" and "Arch
+  test package" lines; the milestone's definition-of-done (CLAUDE.md
+  §7) gains "test packages build successfully" criteria once T-016
+  / T-017 below land.
+- PLAN.md gains two new tasks at the end of v0.1, sequenced after
+  T-013 (so there's a real GUI to install) and T-014 (Flatpak first,
+  since Flathub is still primary): **T-016 — `.deb` test package via
+  `cargo-deb`** and **T-017 — Arch `PKGBUILD` test package**.
+- CI (T-015) gains two extra jobs to produce these on tag.
+- No impact on T-005 (just landed), T-006 (about to start), T-007,
+  or any task before T-013 — the change is additive at the v0.1 tail.
+- If the .deb dependency list proves brittle across Debian releases,
+  or the PKGBUILD breaks against gtk4-rs upgrades, the test-artifact
+  status (rather than a distribution-grade promise) gives us licence
+  to skip a broken target temporarily and call it out in the release
+  notes.
+
+---
+
 <!-- Append new ADRs above this line, never below. Newest ADRs go at the bottom
      of the list but new entries are added; do not edit old ones. -->

@@ -16,7 +16,8 @@ unit of the OBSBOT **Tiny 2 family** (regular `3564:fef8` or Lite
 - Empty `AdwApplicationWindow` opens.
 - USB device enumeration finds Tiny 2 family units by VID/PID.
 - A diagnostics view shows the device's V4L2 controls (read-only).
-- CI runs fmt, clippy, test, Flatpak build.
+- CI runs fmt, clippy, test, Flatpak build, plus a `.deb` and an Arch
+  `pkg.tar.zst` test-artifact build (per [[ADR-0015]]).
 
 **Does NOT include**: any camera control, preview, or settings persistence.
 

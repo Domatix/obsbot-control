@@ -265,13 +265,59 @@
 - **State**: TODO
 - **Depends on**: T-014
 - **Description**: GitHub Actions workflows: one for `cargo fmt + clippy +
-  test`, one for the Flatpak build. Run on push and PR.
+  test`, one for the Flatpak build, one each (or one matrix) for the
+  test packages from T-016 / T-017. Run on push and PR; the test-package
+  jobs additionally upload artifacts on tag pushes (`v*`) per
+  [[ADR-0015]].
 - **Acceptance criteria**:
-  - Both workflows green on `main`.
+  - Workflows green on `main`.
   - Badge added to `README.md`.
+  - On a `v*` tag, GitHub Release attaches a `.deb` and a `.pkg.tar.zst`.
   - Commit: `ci: GitHub Actions for build and lint (T-015)`.
 - **Notes**: do not run until repo is on GitHub. Mark `BLOCKED` if still
   private when reached.
+
+### T-016 — Test-artifact: `.deb` via `cargo-deb`
+- **State**: TODO
+- **Depends on**: T-007 (runnable GUI), T-013 (diagnostics view so the
+  installed app actually shows something), ideally T-014 too (Flatpak
+  first since it stays the primary channel)
+- **Description**: Add `[package.metadata.deb]` to
+  `crates/obsbot-gui/Cargo.toml` declaring runtime depends
+  (`libgtk-4-1`, `libadwaita-1-0`, `libgstreamer1.0-0`,
+  `libgstreamer-plugins-base1.0-0`, plus whatever v4l/uvc system libs
+  the final build links against). Add a `build-aux/build-deb.sh` (or
+  Meson target) that runs `cargo deb -p obsbot-gui` and drops the
+  artifact under `build-aux/dist/`. Document the install/uninstall
+  command in `README.md`. Test on the user's Debian trixie machine.
+  Scope per [[ADR-0015]]: convenience artifact, not Debian-policy.
+- **Acceptance criteria**:
+  - `cargo deb -p obsbot-gui` succeeds locally; artifact installs via
+    `sudo apt install ./obsbot-cam-control_*_amd64.deb`.
+  - After install, `obsbot-cam-control` launches and reaches the T-013
+    diagnostics view against the user's Tiny 2 Lite.
+  - `sudo apt remove obsbot-cam-control` leaves no stray files in
+    `/usr/share/applications`, `/usr/share/icons/hicolor`,
+    `/usr/share/glib-2.0/schemas`.
+  - Commit: `build(deb): test-artifact .deb via cargo-deb (T-016)`.
+
+### T-017 — Test-artifact: Arch `PKGBUILD` (`pkg.tar.zst`)
+- **State**: TODO
+- **Depends on**: same as T-016 (T-007 + T-013, and T-014 ideally first).
+- **Description**: Add `build-aux/PKGBUILD` with `depends=(gtk4
+  libadwaita gstreamer gst-plugins-base gst-plugins-good v4l-utils)`,
+  `makedepends=(cargo rust meson)`. `source=()` points at a git tag.
+  Add a `build-aux/build-arch.sh` that runs `makepkg -f` inside a
+  container or a fakeroot (since we likely don't have a host Arch).
+  Document the install command in `README.md`. The Arch stakeholder
+  uses this artifact to sideload-test releases. Scope per
+  [[ADR-0015]]: convenience artifact, not AUR-grade.
+- **Acceptance criteria**:
+  - `makepkg -f` (run by CI or a contributor on Arch) produces
+    `obsbot-cam-control-*-x86_64.pkg.tar.zst`.
+  - On an Arch test machine, `sudo pacman -U <package>` installs
+    cleanly and `obsbot-cam-control` launches.
+  - Commit: `build(arch): test-artifact PKGBUILD (T-017)`.
 
 ---
 

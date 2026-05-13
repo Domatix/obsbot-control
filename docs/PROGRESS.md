@@ -409,6 +409,29 @@ GPL boilerplate, comments, and tests. Cargo resolved 11 transitive
 deps (thiserror 2.0.18 + tracing 0.1.44 trees), `Cargo.lock` now
 present at repo root.
 
+### [2026-05-13T11:00:09Z] [scope] Stakeholder request → ADR-0015 (.deb + Arch test packages)
+
+User relayed a stakeholder ask: "cuando llegues a la app de control
+de la cámara, que te haga un paquete .deb para que la pruebes tú y
+otro para arch" — i.e., once a runnable build exists, the toolchain
+should also emit a `.deb` (for the user's Debian trixie machine) and
+an Arch `pkg.tar.zst` (for an Arch-using stakeholder) so both can
+sideload-test the same revision. This contradicts the original
+[[SPEC.md §4.5]] stance that Deb/RPM packaging is a non-goal.
+Read of intent: **internal test distribution**, not Debian-policy /
+AUR-grade upstreaming.
+
+Recorded as [[ADR-0015]]. SPEC.md §4.5 amended to add a "test
+artifact" tier (Flatpak stays primary). ROADMAP.md v0.1 "Includes"
+gains the .deb + Arch lines. PLAN.md gains T-016 (`.deb` via
+`cargo-deb`, depends on T-007 + T-013) and T-017 (Arch `PKGBUILD`,
+same deps). T-015 (CI) acceptance criteria extended to cover the
+test-artifact jobs. Nothing about T-005 or T-006 changes; the scope
+addition is purely additive at the v0.1 tail.
+
+Commit `docs: add .deb + Arch test-package scope (ADR-0015)` follows
+before T-006 starts.
+
 ### [2026-05-13T10:52:32Z] [T-005] DONE — closing task and prepping commit
 
 All acceptance criteria satisfied (see [[PLAN T-005]] Outcome

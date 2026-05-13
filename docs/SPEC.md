@@ -73,8 +73,17 @@ the GNOME desktop, distributable through Flathub.
 - Adwaita styling, light/dark mode automatic via system.
 
 ### 4.5 Packaging
-- Flatpak as primary distribution (target: Flathub).
-- Deb/RPM packaging is a non-goal for v1.0 (community can package).
+- **Flatpak** as primary distribution (target: Flathub). This is the
+  channel the user docs recommend and the only one with a long-term
+  maintenance commitment from the project.
+- **Test artifacts** ([[ADR-0015]]): from v0.1 onwards the release
+  tooling also produces a non-policy `.deb` (via `cargo-deb`) and a
+  non-policy Arch package (via in-tree `PKGBUILD`) for stakeholder
+  sideload testing. These are convenience builds, not Debian-policy
+  or AUR-grade packages; we do not host an apt/pacman repository.
+- Policy-grade Debian / RPM / AUR packaging is a non-goal for v1.0;
+  community packagers welcome and can use our `cargo-deb` / `PKGBUILD`
+  as starting points.
 
 ## 5. Out of scope
 
