@@ -471,6 +471,218 @@ exposure) — that's v0.2's user-visible value.
 
 ## 2026-05-13 (v0.2 kickoff)
 
+### [2026-05-14T11:33:43Z] [session-end] Mid-session pivot to AI tracking; validation parked; T-300 decision deferred
+
+After T-111 and T-106 validated green, the user pivoted hard:
+*"aparca ahora mismo lo que haya para validar y ponte con el
+tracking de la cámara"*. The remaining v0.2.0 validation items
+(T-108 / T-110 / T-101 / T-102 / T-103 / T-104 / T-105 / T-010
+/ T-017) are now **parked at 100%** in `STATE.pending_user_
+actions` with a `⏸ PARKED` marker.
+
+Clarification round:
+* User picked option (1) Auto-framing firmware (face / upper
+  body / hand) as the scope of "tracking". Asked: *"la
+  aplicación que te pasé como referencia ya lo tiene
+  implementado. No?"* Answered: yes (`aaronsb/obsbot-camera-
+  control`), but **via `libdev.so` (proprietary OBSBOT SDK)**,
+  which SPEC §6.1 / §7 forbid. That is **the** reason this
+  project exists.
+* User then questioned the cost: *"realmente es necesario
+  windows? wireshark? vaya movida no?"*. That forced a deeper
+  scan of the FOSS ecosystem than the previous look (limited
+  to the three repos cited in PROTOCOL.md §6).
+
+Investigation — five Tiny 2 FOSS projects found that PROTOCOL.md
+§6 does NOT cite:
+
+| Repo                              | Lang  | License     | Stars | Push       | Notes |
+|-----------------------------------|-------|-------------|-------|------------|-------|
+| **cgevans/tiny2**                 | Rust  | EUPL-1.2    | 51    | 2026-03-29 | Iced GUI, port of `samliddicott/meet4k` to Tiny 2. `src/lib.rs` has the **fully-decoded XU table**. |
+| **OpenFoxes/Tiny4Linux**          | Rust  | EUPL-1.2    | 25    | 2026-05-12 | Active fork of `cgevans/tiny2`, adds sleep/wake, tracking speed, presets, CLI, i18n, AUR-packaged. |
+| ccoenen/obsbot-tiny2              | n/a   | EUPL-1.2    | 1     | 2024-12-17 | Personal fork of cgevans. |
+| bloopybae/obsbot-control-linux    | C++   | NOASSERTION | 13    | 2026-02-14 | Reference only (license unclear → no copy). |
+| broody / yanis-falaki             | C++   | none        | 1-3   | varies     | Default-copyright; clean-room read only. |
+
+EUPL-1.2 is OSI-approved and **explicitly listed as compatible
+with GPL-3** in its appendix → we can adapt and re-license
+under GPL-3 with attribution. The two `none` / `NOASSERTION`
+repos are read-only reference (no copying, but clean-room
+RE-implementation is legal).
+
+**The XU table** (against `bUnitID=0x2`, `bSelector=0x6` of
+the Tiny 2 Lite EU `9a1e7291-…` — exactly the EU PROTOCOL.md
+§3.1 enumerated) is now KNOWN from `cgevans/tiny2/src/lib.rs`:
+
+* `[0x16, 0x02, m, n]` — AI tracking mode:
+  - `(0,0)` NoTracking, `(2,0)` NormalTracking, `(2,1)` UpperBody,
+    `(2,2)` CloseUp, `(2,3)` Headless, `(2,4)` LowerBody,
+    `(1,0)` Group, `(3,0)` Hand, `(4,0)` Whiteboard, `(5,0)` DeskMode.
+* `[0x04, 0x01, v]` — FOV: `1`=Wide(86°), `2`=Normal(78°), `3`=Narrow(65°).
+* `[0x01, 0x01, v]` — HDR: `0`=off, `1`=on.
+* `[0x03, 0x01, v]` — Face AE: `0`=off, `1`=on.
+* Exposure manual/global: long blob (18 bytes) against selector `0x2`.
+* GET_CUR on `unit=0x2 sel=0x6` → 60-byte struct. `bytes[0x6]` =
+  HDR flag; `bytes[0x18] + bytes[0x1c]` = (m, n) of AIMode.
+* PTZ pan/tilt/zoom: UVC standard CIDs (we already have them in
+  T-101).
+
+Tiny4Linux adds (location TBD pending §3 of next session): sleep/
+wake commands, tracking speed (Headroom / Standard / Motion),
+preset positions.
+
+**Implication for PROTOCOL.md**: §3.1's `Per-selector decode`
+table currently lists `Selector 1..19 → TBD`. With the cgevans
+data we now know at minimum the command-multiplexed layout on
+selector `0x6`:
+
+| First byte | Logical meaning   | Payload bytes after first |
+|------------|-------------------|---------------------------|
+| `0x01`     | HDR               | `[len=1, value]`          |
+| `0x03`     | Face AE           | `[len=1, value]`          |
+| `0x04`     | FOV               | `[len=1, value]`          |
+| `0x16`     | AI tracking mode  | `[len=2, m, n]`           |
+
+(plus all the others from Tiny4Linux pending extraction.) The
+"19 selectors" of the EU descriptor turn out to be largely
+unused — the real interface is **one selector (`0x6`) multiplexed
+by the first command byte**, same paradigm as `samliddicott/meet4k`
+but adapted to the Tiny 2's EU layout (`unit=2` vs Meet 4K's `unit=6`).
+
+**This invalidates PROTOCOL.md §6's stated prerequisite of a
+Wireshark + Windows VM USB capture**. The OBSBOT Center reverse-
+engineering work was already done by the FOSS community; we can
+attribute, port, and ship without ever touching Windows.
+
+Refined plan presented to user (T-300 / T-301 / T-302 / T-303,
+all in `v0.5` slot but actionable *before* v0.3 preview and
+v0.4 XU basics):
+
+* **T-300** — `obsbot-core::xu` module: `UVCIOC_CTRL_QUERY`
+  wrapper + enums (`AIMode` × 10, `FOVMode` × 3, `ExposureMode` × 3)
+  + `decode_status`. Direct port of `cgevans/tiny2/src/lib.rs`
+  with EUPL-1.2 → GPL-3 attribution in new `CREDITS.md`.
+  Estimated 1-2 days.
+* **T-301** — GUI "AI & Effects" page (dropdown AI mode, toggles
+  HDR / Face AE, combo FOV). Reuses the `wb_group` / `exposure_
+  group` widget patterns. Estimated 0.5-1 day.
+* **T-302** — Tiny4Linux extras: tracking speed, preset positions,
+  sleep/wake. Estimated 1 day.
+* **T-303** — Validation + screenshots + AppStream entry + close
+  the milestone.
+
+User error attribution: in the previous turn Claude affirmed
+Windows + Wireshark were necessary. They are NOT — the
+investigation was insufficient (Claude relied on PROTOCOL.md
+§6's three citations and didn't broaden the GitHub search).
+Acknowledged explicitly to the user; this PROGRESS entry
+records the correction.
+
+**Decision pending — 4-way pivot** offered via AskUserQuestion:
+
+* (A) Start T-300 immediately on `feat/T-300-xu-tracking`,
+  leaving the dirty docs uncommitted on `main`.
+* (B) Commit T-111 + T-106 validation docs to `main` first
+  (single `docs:` commit), then branch.
+* (C) Expand investigation: read Tiny4Linux's `src/libs/`
+  end-to-end before committing to T-300 scope.
+* (D) Full pause; let the user read the cgevans / Tiny4Linux
+  repos themselves and decide next time.
+
+User did not select; instead asked to close the session and
+get a continuation prompt for next time. This entry + the
+updated STATE.md + the user's prompt-text are the handoff
+artefacts.
+
+State at session close:
+* `active_task: none`, `active_task_state: pivot_pending`.
+* `last_completed_task: T-111` (unchanged).
+* `last_commit: 9fde97d` (unchanged — no new commits this session).
+* Working tree DIRTY: `docs/STATE.md` + `docs/PROGRESS.md` modified.
+  No code touched. No new files. No branch created.
+* `STATE.pending_user_actions`: T-111 + T-106 marked validated;
+  the rest marked ⏸ PARKED per user instruction.
+* PLAN.md unchanged — T-300 / T-301 / T-302 / T-303 are
+  conversation-level proposals only, not yet entries in PLAN.md.
+* PROTOCOL.md unchanged — the XU table breakthrough is recorded
+  here in PROGRESS only; the `TBD × 19` decode table in §3.1 and
+  the §6 Wireshark prerequisite both still read as before.
+* SPEC.md / ROADMAP.md unchanged.
+
+Next session resumes per CLAUDE.md §0 (read STATE / SPEC /
+ROADMAP / PLAN + last 3 PROGRESS entries, summarize, await
+user direction). The 4-way pivot decision is the first thing
+to put back on the table.
+
+### [2026-05-14T06:53:03Z] [T-106] User-validated live — About dialog renders correctly
+
+T-106 (About dialog) validated. User opened the dialog via the
+hamburger → "About Obsbot Cam Control" path and confirmed:
+
+* Application name, version, developer, repo link and issue-
+  tracker link all render on the main pane.
+* The "Reverse-engineering references" acknowledgement block
+  is present, with both upstream credits visible.
+* License is **not** shown on the main pane. User initially
+  flagged this; clarified that `AdwAboutDialog` (HIG-preferred
+  over `AdwAboutWindow` since libadwaita 1.5) routes license
+  metadata behind a **"Legal"** sub-page accessed from a
+  button on the main pane — same pattern as GNOME Settings,
+  Nautilus, etc. Code in `application.rs:100` passes
+  `.license_type(gtk::License::Gpl30)`; that drives the sub-
+  page content. User opened the "Legal" sub-page and confirmed
+  the GPL-3.0 entry renders correctly. T-106 closes as **green
+  with a note**: the placement is HIG-compliant, no follow-up
+  needed.
+
+`STATE.pending_user_actions` updated: T-106 bullet removed,
+replaced by a `# T-106 VALIDATED` marker with the rationale.
+`STATE.last_step` and `STATE.updated_at` refreshed. No commit;
+results will be bundled with the rest of the validation pass.
+
+Next pending validation item: T-108 (toast on write failure
+via `sudo chmod 000 /dev/video0`).
+
+### [2026-05-14T06:31:21Z] [T-111] User-validated live — D / E / F.12 closed
+
+Session resumed for the v0.2.0-shipping validation pass. User
+launched `cargo run -p obsbot-gui`, drilled into the Tiny 2
+Lite controls page, and walked the five-step T-111 re-test
+from `STATE.pending_user_actions`:
+
+* `White Balance, Automatic` starting ON → WB Temperature /
+  Red Balance / Blue Balance rows render greyed-out. ✅
+* Toggle WB Auto to OFF → all three rows wake up; sliders
+  draggable. ✅
+* Toggle WB Auto back to ON → all three rows grey out
+  again. ✅
+* `Exposure, Auto` Auto Mode → Manual → Exposure Time
+  Absolute row wakes up; slider draggable. ✅
+* Switch back to Auto Mode → Exposure Time Absolute greys
+  out. ✅
+
+User reported "perfecto, validado". The
+`settings::refresh_sensitivity()` post-write hook (commit
+9fde97d) behaves correctly on live hardware against the user's
+Tiny 2 Lite (`3564:fef9`, bcdDevice 5.10, `/dev/video0`). D
+("WB sliders stay un-editable after unchecking WB Auto"), E
+("Exposure Time stays un-editable after Manual"), F.12 ("WB
+Temperature stays editable when WB Auto is ON") are all
+closed.
+
+`STATE.pending_user_actions` updated: T-111 bullet removed,
+replaced by a `# T-111 VALIDATED 2026-05-14T06:31Z` marker.
+`STATE.last_step` and `STATE.updated_at` refreshed. No commit
+yet — validation results will be bundled with the rest of the
+v0.2.0 validation pass (T-106 → T-110 → T-101 → T-102 → T-103
+→ T-104 → T-105) into a single `docs: T-106..T-111 validation
+pass complete` commit just before the `v0.2.0` tag cut.
+
+Next pending validation item: T-106 (About dialog —
+hamburger → "About Obsbot Cam Control" → version / license /
+repo link / issue tracker / reverse-engineering credits all
+render).
+
 ### [2026-05-13T21:00:00Z] [T-099] Started — Blueprint pipeline
 
 User came back from break, observed the v0.1.0 read-only
