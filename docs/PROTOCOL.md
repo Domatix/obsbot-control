@@ -259,6 +259,25 @@ them under a single "White balance" section with a sub-toggle.
   The PROCESSING_UNIT bmControls in §1.1 has no gamma bit. Treat
   gamma as XU-only on this family until disproven; if a vendor XU
   selector carries it, document under §3.
+- **Q9 — `pan_speed` / `tilt_speed` accept writes but produce no
+  motion** on Tiny 2 Lite firmware 5.10. Verified with `v4l2-ctl
+  -d /dev/videoN --set-ctrl=pan_speed=80` followed by a 1 s sleep
+  and `--get-ctrl=pan_absolute`: the kernel stored the new
+  pan_speed value (read-back confirms `80`) but `pan_absolute`
+  did not budge. Same behaviour with magnitudes 40 / 80 / 120,
+  both signs. Hypothesis: the firmware reserves the continuous-
+  motion controls for the proprietary protocol path (OBSBOT
+  Center uses XU command 0x07 / 0x08 in cgevans's notes) and
+  treats the V4L2 UVC route as no-op rather than rejecting it.
+  Consequence: T-101a's "press and hold for smooth movement"
+  cannot use `pan_speed` / `tilt_speed`. The GUI's hold path
+  instead polls `pan_absolute` / `tilt_absolute` via a 50 ms
+  recurring timer that issues `read + write(current ± 1°)`,
+  giving ≈ 20°/s effective speed without depending on the
+  broken continuous-motion controls. If a future tester reports
+  these working on a regular Tiny 2 (`3564:fef8`) or a newer
+  Tiny 2 Lite firmware, switching the hold path to the
+  cheaper-on-ioctls speed-based mode is a one-flag change.
 
 ### 2.4 Streaming formats and frame sizes
 

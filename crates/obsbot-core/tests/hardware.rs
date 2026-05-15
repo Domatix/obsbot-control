@@ -288,6 +288,84 @@ fn reads_single_v4l2_control_just_in_time() {
 
 #[test]
 #[ignore = "requires a Tiny 2 family camera plugged into the host"]
+fn polled_pan_absolute_simulates_t101a_hold() {
+    // Covers the T-101a hold-to-pan path. Tiny 2 Lite firmware 5.10
+    // *accepts* `pan_speed` / `tilt_speed` writes but does not act
+    // on them physically (see PROTOCOL.md §2.3 Q9, surfaced when
+    // the first T-101a draft validated `pan_speed = 80` via
+    // `v4l2-ctl --set-ctrl` and the camera stayed put). The GUI's
+    // hold path therefore polls pan_absolute / tilt_absolute via a
+    // glib timer rather than driving the continuous-motion
+    // controls.
+    //
+    // This test exercises the same kernel surface the GUI timer
+    // uses: 8 successive read-modify-write pan_absolute steps of 1°
+    // each, with the same 50 ms cadence as the in-app timer.
+    // Restores the camera's starting position at the end so the
+    // run leaves no visible side effect.
+    use std::thread::sleep;
+    use std::time::Duration;
+
+    const CID_PAN_ABSOLUTE: u32 = 0x009a_0908;
+    const UNITS_PER_DEGREE: i64 = 3600;
+    const HOLD_STEP: i64 = UNITS_PER_DEGREE; // 1°
+    const TICKS: i64 = 8;
+    const HOLD_REPEAT_MS: u64 = 50;
+
+    let cams = enumerate_cameras();
+    let path = cams
+        .first()
+        .and_then(|c| c.video_path.as_deref())
+        .expect("a connected Tiny 2 family camera with a /dev/videoN node");
+
+    let ControlValue::Integer(starting_pan) = read_control(path, CID_PAN_ABSOLUTE)
+        .expect("read_control(pan_absolute) must succeed at test start")
+    else {
+        panic!("pan_absolute must be Integer-typed");
+    };
+
+    // Pick a direction that keeps us inside the rail. Tiny 2 family
+    // pan_absolute range is -468_000..=468_000 (±130°); 8° one way
+    // fits comfortably either way.
+    let direction: i64 = if starting_pan < 0 { 1 } else { -1 };
+
+    for _ in 0..TICKS {
+        let current = match read_control(path, CID_PAN_ABSOLUTE)
+            .expect("read_control(pan_absolute) inside the loop must succeed")
+        {
+            ControlValue::Integer(v) => v,
+            other => panic!("unexpected ControlValue: {other:?}"),
+        };
+        let target = (current + direction * HOLD_STEP).clamp(-468_000, 468_000);
+        write_control(path, CID_PAN_ABSOLUTE, ControlValue::Integer(target))
+            .expect("write_control(pan_absolute) inside the loop must succeed");
+        sleep(Duration::from_millis(HOLD_REPEAT_MS));
+    }
+
+    // After the burst the kernel-current value must reflect the
+    // last write (within a step's tolerance — pan_absolute reports
+    // in `step` increments of UNITS_PER_DEGREE).
+    let ControlValue::Integer(after_pan) = read_control(path, CID_PAN_ABSOLUTE)
+        .expect("read_control(pan_absolute) after the burst must succeed")
+    else {
+        panic!("pan_absolute must still be Integer-typed");
+    };
+    let delta = (after_pan - starting_pan).abs();
+    let expected_delta = TICKS * HOLD_STEP;
+    assert!(
+        delta >= expected_delta - HOLD_STEP,
+        "pan_absolute should have advanced by ≈{expected_delta} units \
+         after {TICKS} ticks (started at {starting_pan}, ended at \
+         {after_pan}, delta={delta})",
+    );
+
+    // Restore the user's pre-test framing.
+    write_control(path, CID_PAN_ABSOLUTE, ControlValue::Integer(starting_pan))
+        .expect("restore pan_absolute must succeed");
+}
+
+#[test]
+#[ignore = "requires a Tiny 2 family camera plugged into the host"]
 fn writes_v4l2_power_line_frequency_round_trip() {
     // Exercises the T-102 menu-write path on a known menu control.
     // V4L2_CID_POWER_LINE_FREQUENCY = 0x00980918 per PROTOCOL §2.1.

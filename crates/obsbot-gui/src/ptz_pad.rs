@@ -31,23 +31,43 @@
 //! not surfaced (PROTOCOL §2.3 quirk Q2 — driver reports values
 //! exceeding the advertised range).
 //!
-//! The pan/tilt button handlers **re-read the kernel-current position
-//! before every step** rather than tracking a local cache. The
-//! cache-based approach used in the initial v0.2 implementation
-//! drifted whenever the camera moved itself between clicks (AI
-//! tracking landing on a face, preset recall, the on-device gesture),
-//! producing the symptom the user observed in T-303 validation:
-//! pressing "up" four times would sometimes move down, then snap to
-//! the top once the stale cache finally caught up with reality.
-//! Each click now issues `VIDIOC_G_EXT_CTRLS` for the controlling
-//! axis, computes `clamp(current + step, min, max)`, and writes
-//! that absolute target. Two ioctls per click is acceptable for
-//! discrete PTZ — the smooth/continuous joystick mode is a v0.3.1
-//! follow-up (T-101a) that will drive `pan_speed` / `tilt_speed`
-//! while a button is held.
+//! ## Discrete + continuous input model
+//!
+//! Each of the 8 directional buttons supports two interaction modes:
+//!
+//! * **Tap** (< 200 ms) — emits the standard GTK "clicked" signal,
+//!   which our handler maps to a single 5° absolute-step delta. The
+//!   handler **re-reads the kernel-current position before every
+//!   step** rather than tracking a local cache; the cache-based
+//!   approach used in the initial v0.2 implementation drifted
+//!   whenever the camera moved itself between clicks (AI tracking
+//!   landing on a face, preset recall, the on-device gesture),
+//!   producing the symptom the user observed in T-303 validation:
+//!   pressing "up" four times would sometimes move down, then snap
+//!   to the top once the stale cache finally caught up with
+//!   reality. Each tap now issues `VIDIOC_G_EXT_CTRLS` for the
+//!   controlling axis, computes `clamp(current + step, min, max)`,
+//!   and writes that absolute target.
+//! * **Hold** (≥ 200 ms) — engages "continuous" mode via T-101a: a
+//!   recurring `glib` timeout fires every [`HOLD_REPEAT_MS`]
+//!   milliseconds and runs the same JIT-read + `pan_absolute` /
+//!   `tilt_absolute` write as the tap path, but with a small
+//!   [`HOLD_STEP_DEGREES`] step. At 1°/50 ms the result feels close
+//!   to OBSBOT Center's joystick mode without engaging the
+//!   V4L2 `pan_speed` / `tilt_speed` continuous-motion controls,
+//!   which **the Tiny 2 Lite firmware 5.10 accepts but does not act
+//!   on** (PROTOCOL.md §2.3 Q9 — surfaced when the first T-101a
+//!   draft validated against `v4l2-ctl --set-ctrl=pan_speed=80` and
+//!   the camera failed to move).
+//!
+//! Keyboard activation (Space / Enter on a focused button) emits
+//! "clicked" directly without a press/release pair, so it always
+//! takes the tap path — accessibility regression-free.
 
+use std::cell::{Cell, RefCell};
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
+use std::time::Duration;
 
 use gtk4 as gtk;
 use libadwaita as adw;
@@ -88,6 +108,22 @@ const UNITS_PER_DEGREE: i64 = 3600;
 /// Step size per directional click, in degrees.
 const PAN_TILT_STEP_DEGREES: i64 = 5;
 const PAN_TILT_STEP: i64 = PAN_TILT_STEP_DEGREES * UNITS_PER_DEGREE;
+
+/// Hold duration (ms) that promotes a press into continuous mode
+/// (T-101a). Anything shorter is treated as a tap and runs the
+/// discrete-step path via the standard GTK "clicked" signal.
+const LONG_PRESS_MS: u64 = 200;
+/// Inter-tick interval (ms) for the continuous-mode timer. The first
+/// tick fires [`LONG_PRESS_MS`] after press; every subsequent tick
+/// runs the same per-step write. 50 ms yields 20 ticks/second, which
+/// is well below the V4L2 ioctl ceiling and visually smooth.
+const HOLD_REPEAT_MS: u64 = 50;
+/// Per-tick step size during continuous mode, in degrees. 1° feels
+/// fluid at the 50 ms cadence (≈ 20°/s), versus the tap path's 5°
+/// jump. A future user-facing speed slider will route through a
+/// `GSettings` key.
+const HOLD_STEP_DEGREES: i64 = 1;
+const HOLD_STEP: i64 = HOLD_STEP_DEGREES * UNITS_PER_DEGREE;
 
 /// Read-once snapshot of an integer control's range + current value.
 #[derive(Debug, Clone, Copy)]
@@ -254,16 +290,21 @@ struct DirectionCtx {
     serial: Rc<Option<String>>,
 }
 
-/// Wire one directional button to a (`pan_delta`, `tilt_delta`) write.
-/// `dx` / `dy` are the per-click step direction in units of
-/// [`PAN_TILT_STEP_DEGREES`]; they multiply into V4L2 raw units before
-/// writing.
+/// Wire one directional button to its tap + hold handlers.
 ///
-/// Reads the current `pan_absolute` / `tilt_absolute` from the kernel
-/// on every click (see the module-level doc-block for the rationale)
-/// and falls back to the descriptor's snapshot value only if the read
-/// itself errors — that way a transient read failure does not freeze
-/// the pad.
+/// `dx` / `dy` are the per-axis sign in `{-1, 0, +1}`. The tap path
+/// (standard GTK "clicked" signal, also fires on keyboard activation)
+/// reads the current `pan_absolute` / `tilt_absolute` from the kernel
+/// and writes `current + sign * step` — see the module-level doc-
+/// block for why the JIT read replaces the v0.2 cache. The hold path
+/// (T-101a) engages continuous-mode after [`LONG_PRESS_MS`] of held
+/// press by scheduling a recurring [`HOLD_REPEAT_MS`] timer that
+/// runs the same JIT-read + write with a smaller [`HOLD_STEP`] step;
+/// on release it cancels the timer and suppresses the trailing
+/// "clicked" event so the tap path does not double-fire. The V4L2
+/// `pan_speed` / `tilt_speed` continuous-motion controls are
+/// **not** used — Tiny 2 Lite firmware 5.10 accepts them but does
+/// not act on them (PROTOCOL §2.3 Q9).
 fn wire_direction(builder: &gtk::Builder, button_id: &str, dx: i64, dy: i64, ctx: &DirectionCtx) {
     let button: gtk::Button = builder
         .object(button_id)
@@ -274,7 +315,83 @@ fn wire_direction(builder: &gtk::Builder, button_id: &str, dx: i64, dy: i64, ctx
     let tilt = ctx.tilt;
     let path = ctx.path.clone();
     let serial = ctx.serial.clone();
+
+    // Shared state between the press/release gesture and the
+    // clicked-signal handler. `hold_active` distinguishes "we engaged
+    // continuous mode and now released, ignore the click" from "this
+    // was a short tap, let the clicked handler step once". The
+    // `timeout_handle` slot stores either the pending engage timer
+    // (before LONG_PRESS_MS elapses) or the active repeat timer
+    // (after the threshold) so release can cancel whichever is live.
+    let suppress_next_click = Rc::new(Cell::new(false));
+    let hold_active = Rc::new(Cell::new(false));
+    let timeout_handle: Rc<RefCell<Option<glib::SourceId>>> = Rc::new(RefCell::new(None));
+
+    // Press / release via GestureClick (handles mouse + touch). The
+    // standard `connect_clicked` signal still fires on release of a
+    // primary-mouse-button press, and on keyboard activation — see
+    // the click handler below.
+    let gesture = gtk::GestureClick::new();
+    gesture.set_button(gtk::gdk::BUTTON_PRIMARY);
+    {
+        let path = path.clone();
+        let serial = serial.clone();
+        let hold_active = hold_active.clone();
+        let timeout_handle = timeout_handle.clone();
+        gesture.connect_pressed(move |_, _, _, _| {
+            let path_engage = path.clone();
+            let serial_engage = serial.clone();
+            let hold_active_engage = hold_active.clone();
+            let timeout_handle_engage = timeout_handle.clone();
+            let id =
+                glib::timeout_add_local_once(Duration::from_millis(LONG_PRESS_MS), move || {
+                    hold_active_engage.set(true);
+                    // First tick on engage so motion feels responsive
+                    // right at the 200 ms threshold rather than
+                    // 250 ms in.
+                    hold_tick(dx, dy, pan, tilt, &path_engage, &serial_engage);
+                    // Recurring tick every HOLD_REPEAT_MS until the
+                    // user releases. The closure returns
+                    // ControlFlow::Continue while the source is live;
+                    // the release handler removes the source.
+                    let path_tick = path_engage.clone();
+                    let serial_tick = serial_engage.clone();
+                    let repeat_id =
+                        glib::timeout_add_local(Duration::from_millis(HOLD_REPEAT_MS), move || {
+                            hold_tick(dx, dy, pan, tilt, &path_tick, &serial_tick);
+                            glib::ControlFlow::Continue
+                        });
+                    timeout_handle_engage.replace(Some(repeat_id));
+                });
+            timeout_handle.replace(Some(id));
+        });
+    }
+    {
+        let suppress_next_click = suppress_next_click.clone();
+        let hold_active = hold_active.clone();
+        let timeout_handle = timeout_handle.clone();
+        gesture.connect_released(move |_, _, _, _| {
+            // Cancel whichever timer is currently scheduled — engage-
+            // pending (release before threshold) or active repeat
+            // (release after threshold).
+            if let Some(id) = timeout_handle.replace(None) {
+                id.remove();
+            }
+            if hold_active.replace(false) {
+                // We were in continuous mode. Suppress the trailing
+                // "clicked" event so the tap path does not
+                // double-fire one extra discrete step.
+                suppress_next_click.set(true);
+            }
+        });
+    }
+    button.add_controller(gesture);
+
+    // Tap path — also runs for keyboard activation (Space / Enter).
     button.connect_clicked(move |_| {
+        if suppress_next_click.replace(false) {
+            return;
+        }
         if dx != 0 {
             let current = current_axis(&path, CID_PAN_ABSOLUTE, pan.current);
             let new_pan = (current + dx * PAN_TILT_STEP).clamp(pan.min, pan.max);
@@ -296,6 +413,32 @@ fn current_axis(path: &Path, id: u32, snapshot: i64) -> i64 {
     match read_control(path, id) {
         Ok(ControlValue::Integer(v)) => v,
         _ => snapshot,
+    }
+}
+
+/// One tick of the T-101a hold-to-pan timer. Computes the kernel-
+/// current pan / tilt, adds [`HOLD_STEP`] (1°) in the direction
+/// dictated by `dx` / `dy`, clamps to the descriptor range, and
+/// writes back. Shared with the engage handler (first tick at
+/// `LONG_PRESS_MS`) and with the recurring `glib::timeout_add_local`
+/// callback (every `HOLD_REPEAT_MS` thereafter).
+fn hold_tick(
+    dx: i64,
+    dy: i64,
+    pan: IntRange,
+    tilt: IntRange,
+    path: &Rc<PathBuf>,
+    serial: &Rc<Option<String>>,
+) {
+    if dx != 0 {
+        let current = current_axis(path, CID_PAN_ABSOLUTE, pan.current);
+        let new_pan = (current + dx * HOLD_STEP).clamp(pan.min, pan.max);
+        write(path, CID_PAN_ABSOLUTE, "pan_absolute", new_pan, serial);
+    }
+    if dy != 0 {
+        let current = current_axis(path, CID_TILT_ABSOLUTE, tilt.current);
+        let new_tilt = (current + dy * HOLD_STEP).clamp(tilt.min, tilt.max);
+        write(path, CID_TILT_ABSOLUTE, "tilt_absolute", new_tilt, serial);
     }
 }
 

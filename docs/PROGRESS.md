@@ -471,6 +471,81 @@ exposure) — that's v0.2's user-visible value.
 
 ## 2026-05-14 (pivot to v0.3 AI tracking)
 
+### [2026-05-15T13:45:00Z] [T-101a] DONE — PTZ press-and-hold (with a hardware quirk plot-twist)
+
+Original plan: drive `pan_speed` / `tilt_speed` via
+`gtk::GestureClick` press → speed != 0, release → speed = 0.
+Plot twist surfaced when the first draft's hardware test ran
+against the connected Tiny 2 Lite:
+
+```
+test continuous_pan_speed_moves_the_camera ... FAILED
+  pan_absolute should have changed after a 300 ms pan_speed
+  burst (started at 0, ended at 0)
+```
+
+Cross-checked with `v4l2-ctl` directly:
+
+```
+$ v4l2-ctl -d /dev/video3 --set-ctrl=pan_speed=80 && sleep 1
+$ v4l2-ctl -d /dev/video3 --get-ctrl=pan_speed,pan_absolute
+pan_speed: 80          ← kernel stored the write
+pan_absolute: 0        ← camera did not move
+```
+
+Tiny 2 Lite firmware 5.10 *accepts* writes to `pan_speed` /
+`tilt_speed` but does not act on them physically. Same
+behaviour for magnitudes 40 / 80 / 120, both signs. The
+firmware appears to reserve continuous-motion semantics for
+the proprietary XU protocol path (cgevans's notes name XU
+opcodes 0x07 / 0x08 as OBSBOT Center's joystick path) and
+treats the V4L2 UVC route as a silent no-op.
+
+Logged as **PROTOCOL.md §2.3 Q9**.
+
+**Approach switched**: the hold path now polls `pan_absolute`
+/ `tilt_absolute` via a `glib::timeout_add_local` recurring
+source firing every `HOLD_REPEAT_MS = 50` ms, each tick
+running the same JIT-read + write as the tap path but with a
+smaller `HOLD_STEP_DEGREES = 1`. Effective speed ≈ 20°/s.
+Press / release plumbing via `gtk::GestureClick`:
+
+* On press: schedule `LONG_PRESS_MS = 200` engage timer.
+* On engage: set `hold_active`, immediately run first
+  `hold_tick`, then start the recurring 50 ms tick source.
+* On release: cancel whichever timer is live (engage-pending
+  or active-repeat); if `hold_active`, set
+  `suppress_next_click` to swallow the trailing GTK clicked
+  event so the tap path does not double-fire.
+* Tap (release before 200 ms): `connect_clicked` runs the
+  discrete 5° step (kernel JIT-read).
+* Keyboard activation: emits `clicked` directly without
+  press/release pair → always takes the tap path, no
+  accessibility regression.
+
+New hardware test
+`polled_pan_absolute_simulates_t101a_hold` exercises the same
+kernel surface the GUI timer drives: 8 ticks × 1° × 50 ms,
+asserts `pan_absolute` advanced ≈ 8°, restores the starting
+framing on exit. All 7 obsbot-core hardware tests + 1 XU
+hardware test pass.
+
+Files touched on `feat/T-101a`:
+```
+crates/obsbot-core/tests/hardware.rs   +73 -0
+crates/obsbot-gui/src/ptz_pad.rs       +98 -7
+docs/PROTOCOL.md                       +22 -0
+docs/PLAN.md                           +30 -2
+```
+
+Cargo gates: fmt + clippy -D warnings + test --workspace all
+exit 0 (56 unit tests; `#[ignore]`d hardware suite green when
+run with --ignored).
+
+Commit message
+`feat(gui): PTZ press-and-hold smooth movement via pan_absolute polling (T-101a)`.
+Branch `feat/T-101a` ready for review-or-merge.
+
 ### [2026-05-15T12:45:00Z] [T-105fix] DONE — schema realigned to runtime, persistence works end-to-end
 
 Pre-existing bug surfaced during T-301: the GSettings schema at

@@ -1383,9 +1383,11 @@
   testable end-to-end; live-validation re-queued under
   parked.
 
-### T-101a — PTZ smooth movement via pan_speed / tilt_speed (post-v0.3 follow-up)
+### T-101a — PTZ smooth movement (post-v0.3 follow-up)
 
-- **State**: TODO
+- **State**: DONE
+- **Started**: 2026-05-15T13:00:00Z
+- **Completed**: 2026-05-15T13:45:00Z
 - **Depends on**: T-303 closed and v0.3.0 tagged (so this can
   ship as v0.3.1 or roll into v0.4 — milestone decision when
   starting; user explicitly chose to defer this past the v0.3
@@ -1434,6 +1436,32 @@
   is already linear and smooth enough); accelerometer-style
   ramp-up; multi-button chord input. Those can land as
   T-101b / T-101c if validation reveals a need.
+- **Outcome**: Implemented in `crates/obsbot-gui/src/ptz_pad.rs`
+  on branch `feat/T-101a`. **Plot twist during implementation**:
+  the originally-planned `pan_speed` / `tilt_speed`
+  continuous-motion path turned out to be inert on Tiny 2 Lite
+  firmware 5.10 — `v4l2-ctl --set-ctrl=pan_speed=80` is
+  accepted (read-back confirms 80) but the camera does not
+  move. Logged as **PROTOCOL.md §2.3 Q9**. Switched approach:
+  the hold path now polls `pan_absolute` / `tilt_absolute` via
+  a `glib::timeout_add_local` recurring source firing every
+  `HOLD_REPEAT_MS = 50` ms, each tick running the same JIT-
+  read + write as the tap path but with `HOLD_STEP_DEGREES = 1`
+  (≈ 20°/s effective speed). Press / release implemented via
+  `gtk::GestureClick`; tap (< 200 ms) routes through
+  `connect_clicked` (also covers keyboard activation); hold
+  (≥ 200 ms) engages the recurring timer and suppresses the
+  trailing clicked event. New hardware test
+  `polled_pan_absolute_simulates_t101a_hold` covers the kernel
+  surface the GUI timer drives (8 ticks × 1° × 50 ms cadence,
+  asserts pan_absolute advanced ≈ 8°, restores starting
+  framing). All 8 hardware tests pass.
+
+  If a future user reports `pan_speed`/`tilt_speed` working on
+  regular Tiny 2 (`3564:fef8`) or a newer Lite firmware, the
+  switch back to the speed-based path is a one-flag change —
+  the magnitudes already computed in the original draft are
+  preserved in the git history of this branch.
 
 ---
 
