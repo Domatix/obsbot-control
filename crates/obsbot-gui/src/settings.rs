@@ -283,4 +283,74 @@ mod tests {
         assert_eq!(serial, "Tiny2L:00:11:22");
         assert_eq!(name, "Power Line Frequency");
     }
+
+    /// Schema / runtime alignment (T-105fix): the compiled schema in
+    /// `OUT_DIR/schemas/` (produced by `build.rs` from `data/`) must
+    /// declare the same key name and type that `settings.rs` writes
+    /// against. If a future schema edit drifts away from
+    /// `(KEY, a{si})`, this catches it without needing the GUI to be
+    /// launched.
+    ///
+    /// Uses [`settings_handle`] (the same loader used in production)
+    /// and exercises set/get on the live `gio::Settings` object —
+    /// `from_directory` + `Settings::new_full` with `SettingsBackend::
+    /// NONE` keeps the test self-contained, no dconf side-effects.
+    #[test]
+    fn schema_round_trip_with_runtime_key() {
+        // Skip gracefully if the test runner lacks GLib type init
+        // (some sandboxed CI). Calling `gio::Settings::*` before
+        // `glib::MainContext` exists triggers warnings rather than
+        // panics, but the round-trip itself needs no main loop.
+        let Some(settings) = settings_handle() else {
+            // Build did not produce a compiled schema — should not
+            // happen because `build.rs` always runs, but bail if so.
+            panic!(
+                "settings_handle() returned None — compiled schema \
+                 not loadable from OBSBOT_DEV_SCHEMA_DIR"
+            );
+        };
+
+        // Start from a clean slate inside the in-memory backend.
+        let empty: HashMap<String, i32> = HashMap::new();
+        settings
+            .set(KEY, &empty)
+            .expect("schema must accept an empty a{si} for `control-values`");
+
+        // Write a representative composite key + read it back.
+        let mut map: HashMap<String, i32> = HashMap::new();
+        map.insert(dict_key("Tiny2L:00:11:22", "Brightness"), 75);
+        map.insert(dict_key("Tiny2L:00:11:22", "Auto Exposure"), 1);
+        settings
+            .set(KEY, &map)
+            .expect("schema must accept a{si} writes against `control-values`");
+
+        let read: HashMap<String, i32> = settings.get(KEY);
+        assert_eq!(
+            read.len(),
+            2,
+            "expected 2 entries after the write, got {}",
+            read.len()
+        );
+        assert_eq!(
+            read.get(&dict_key("Tiny2L:00:11:22", "Brightness"))
+                .copied(),
+            Some(75),
+        );
+        assert_eq!(
+            read.get(&dict_key("Tiny2L:00:11:22", "Auto Exposure"))
+                .copied(),
+            Some(1),
+        );
+
+        // `load_for_camera` filters by serial prefix — verify it
+        // returns the per-camera subset stripped of the prefix.
+        let per_camera = load_for_camera("Tiny2L:00:11:22");
+        assert_eq!(per_camera.get("Brightness").copied(), Some(75));
+        assert_eq!(per_camera.get("Auto Exposure").copied(), Some(1));
+        assert_eq!(
+            per_camera.len(),
+            2,
+            "load_for_camera should return exactly the matching entries",
+        );
+    }
 }

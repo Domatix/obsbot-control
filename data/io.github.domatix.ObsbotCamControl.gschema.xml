@@ -2,7 +2,7 @@
 <!--
   SPDX-License-Identifier: GPL-3.0-or-later
 
-  GSettings schema for Obsbot Cam Control (T-105).
+  GSettings schema for Obsbot Cam Control (T-105 / T-105fix).
 
   Stores per-camera V4L2 control values keyed by serial number, so the
   next launch can restore the camera to the last-known state. Values
@@ -12,21 +12,30 @@
   Schema layout:
     - id: io.github.domatix.ObsbotCamControl
     - path: /io/github/domatix/ObsbotCamControl/
-    - cameras: dict-of-dict — outer key is the camera serial (string,
-      from CameraInfo.serial), inner map is control-name (string,
-      from ControlDescriptor.name) to i32 value.
+    - control-values: flat dict — key is "<serial>\x1f<control-name>"
+      (ASCII Unit Separator is reserved in both V4L2 names and OBSBOT
+      serials), value is i32.
+
+  History: the original v0.1 schema declared key `cameras` of type
+  `a{sa{si}}` (nested dict), but `crates/obsbot-gui/src/settings.rs`
+  was always written against a flat `control-values` of type `a{si}`.
+  The mismatch made persistence silently never work — `g_settings_
+  get_value("control-values")` aborted with a critical warning. T-105fix
+  in v0.3.1 realigned the schema to the runtime (Option A) rather than
+  rewriting settings.rs (Option B), preserving the existing flat dict
+  layout that the GUI was already encoding by hand.
 -->
 <schemalist>
   <schema id="io.github.domatix.ObsbotCamControl"
           path="/io/github/domatix/ObsbotCamControl/">
-    <key name="cameras" type="a{sa{si}}">
+    <key name="control-values" type="a{si}">
       <default>[]</default>
       <summary>Saved per-camera V4L2 control values</summary>
       <description>
-        Dictionary keyed by camera serial number. The inner dictionary
-        maps a V4L2 control name (e.g. "Brightness") to its last
-        known integer value. Used to restore camera state on the next
-        launch.
+        Flat dictionary mapping a "&lt;serial&gt;\x1f&lt;control-name&gt;"
+        composite key to its last known integer value, where \x1f is
+        the ASCII Unit Separator. Used to restore camera state on the
+        next launch.
       </description>
     </key>
   </schema>

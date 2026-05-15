@@ -471,6 +471,59 @@ exposure) — that's v0.2's user-visible value.
 
 ## 2026-05-14 (pivot to v0.3 AI tracking)
 
+### [2026-05-15T12:45:00Z] [T-105fix] DONE — schema realigned to runtime, persistence works end-to-end
+
+Pre-existing bug surfaced during T-301: the GSettings schema at
+`data/io.github.domatix.ObsbotCamControl.gschema.xml` declared
+key `cameras` of type `a{sa{si}}` (nested), but
+`crates/obsbot-gui/src/settings.rs` reads/writes key
+`control-values` of type `a{si}` (flat, with the ASCII Unit
+Separator joining serial + control name in the composite key).
+The mismatch made `g_settings_get_value("control-values")` abort
+with a critical warning every time — T-105 persistence had been
+silently no-oping since v0.1.
+
+Option A taken (recommended in PLAN.md): rewrite the schema XML
+to match the runtime, not the other way around. settings.rs's
+flat-dict approach plays nicer with `gsettings get` from the
+CLI and avoids restructuring the read/write path. Diff is ~6
+lines (key rename + type change + description rewrite).
+
+The Rust side needed no functional change — `settings_handle`
+already reads `KEY = "control-values"`, `dict_key` already
+joins with `\x1f`. New unit test
+`schema_round_trip_with_runtime_key` (in `settings.rs::tests`)
+loads the compiled schema via the same `settings_handle()` as
+production, writes 2 composite-key entries, reads them back,
+and runs `load_for_camera("Tiny2L:00:11:22")` to assert the
+prefix-strip filter works. The test catches future schema
+drift without launching the GUI; runs in 1 ms with no
+side-effects (uses `gio::SettingsBackend::NONE` — pure
+in-memory).
+
+T-105 (the parked v0.2 validation gate — change brightness=75,
+restart app, drill in, expect 75) is now testable end-to-end.
+Re-queued under `STATE.v0_2_pending_validation.parked` since
+hardware loop is still user-driven.
+
+Cargo gates:
+- `cargo fmt --all --check` → exit 0
+- `cargo clippy --workspace --all-targets -- -D warnings` →
+  exit 0
+- `cargo test --workspace` → 56 pass (was 55; new test +1)
+- `cargo test -p obsbot-gui` → 2 pass (was 1)
+
+Files touched:
+```
+data/io.github.domatix.ObsbotCamControl.gschema.xml  +21 -10
+crates/obsbot-gui/src/settings.rs                    +76 -0
+docs/PLAN.md                                         +15 -1
+```
+
+Going straight to `main` per CLAUDE.md §2.4 ("Small changes
+go straight to main"); commit message
+`fix(gui): align GSettings schema and runtime key (T-105fix)`.
+
 ### [2026-05-15T12:15:00Z] Milestone v0.3.0 reached
 
 Per CLAUDE.md §7 definition of done for a milestone:

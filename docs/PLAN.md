@@ -1324,7 +1324,9 @@
 
 ### T-105fix — GSettings schema / runtime key mismatch (v0.3.1)
 
-- **State**: TODO
+- **State**: DONE
+- **Started**: 2026-05-15T12:30:00Z
+- **Completed**: 2026-05-15T12:45:00Z
 - **Depends on**: v0.3.0 tagged.
 - **Origin**: surfaced 2026-05-14 during T-301 implementation.
   `data/io.github.domatix.ObsbotCamControl.gschema.xml`
@@ -1366,6 +1368,20 @@
 - **Out of scope**: XU value persistence (a future T-104a
   layered on top of the corrected T-105 path); user-visible
   Reset to defaults button (lives in T-100 plumbing).
+- **Outcome**: Option A taken — schema realigned to runtime.
+  `data/io.github.domatix.ObsbotCamControl.gschema.xml`
+  renames key `cameras` → `control-values` and switches the
+  type from `a{sa{si}}` to `a{si}`. `settings.rs` was
+  already encoding `"<serial>\x1f<control-name>"` as the
+  composite key, so no runtime change beyond verifying the
+  test path. New unit test
+  `settings::tests::schema_round_trip_with_runtime_key`
+  exercises `set/get` against the compiled schema loaded
+  via the same `settings_handle()` used in production —
+  catches future schema drift without launching the GUI.
+  T-105 persistence (the parked v0.2 validation) is now
+  testable end-to-end; live-validation re-queued under
+  parked.
 
 ### T-101a — PTZ smooth movement via pan_speed / tilt_speed (post-v0.3 follow-up)
 
