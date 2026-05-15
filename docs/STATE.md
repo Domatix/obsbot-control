@@ -10,8 +10,8 @@ active_task: none  # v0.3.0 shipped; awaiting user-direction for the next milest
 active_task_state: —
 active_branch: main  # post-merge; feat/T-300-xu-tracking kept for reference, do not delete without explicit ask
 last_completed_task: T-303  # v0.3.0 milestone closure
-last_milestone: v0.3.0  # tag cut 2026-05-15; commit SHA recorded in PROGRESS milestone entry
-last_commit_on_main: feat: v0.3.0 Vendor XU & AI tracking (T-300 / T-301 / T-302 / T-303)  # squash-merge of feat/T-300-xu-tracking
+last_milestone: v0.3.0  # tag cut 2026-05-15 on commit 6c954e5
+last_commit_on_main: feat: v0.3.0 Vendor XU & AI tracking (T-300 / T-301 / T-302 / T-303)  # 6c954e5 (squash-merge of feat/T-300-xu-tracking)
 last_step: T-303 closed. User validated every GUI gate green (AI and effects 4 rows + 10 AI modes + HDR + FOV; Power state and presets 5 rows; PTZ pad post-cache-drift hot-fix; dump dialog with clipboard). Hardware suite ran in-session (7/7 pass). Three hot-fix commits during validation: 3c04e57 (zero-pad SET_CUR), d3fce26 (descope XU Exposure mode + Face metering), f38a7ff (refresh PTZ from kernel). Quirk resolutions per PROTOCOL.md §3.2: Q4 accepted as-is (Hand setter m=3), Q5 retired by descope, Q8 documented (FOV Narrow no-op on Tiny 2 Lite firmware 5.10). Branch `feat/T-300-xu-tracking` squash-merged into main; annotated `v0.3.0` tag cut. PUSH HELD per private-repo policy.
 next_step: User picks the next direction. Three candidates queued in PLAN.md: (a) **T-105fix** — GSettings schema vs runtime alignment, v0.3.1 hot-fix train, ~10 lines; (b) **T-101a** — PTZ smooth movement via pan_speed/tilt_speed press-and-hold, milestone TBD (v0.3.1 or v0.4); (c) **T-200** — start the v0.4 Live Preview pipeline. Plus the parked v0.2 validation list (T-108 / T-110 / T-101 / T-102 / T-103 / T-104 / T-105). Plus the post-v1.0 **T-400** Add OBSBOT Meet to the model matrix.
 blockers: none

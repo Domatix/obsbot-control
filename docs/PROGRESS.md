@@ -471,6 +471,41 @@ exposure) — that's v0.2's user-visible value.
 
 ## 2026-05-14 (pivot to v0.3 AI tracking)
 
+### [2026-05-15T12:15:00Z] Milestone v0.3.0 reached
+
+Per CLAUDE.md §7 definition of done for a milestone:
+
+1. ✅ All v0.3 tasks in PLAN.md are DONE (T-300, T-301, T-302,
+   T-303). T-101a / T-105fix / T-400 are post-v0.3 follow-ups
+   in TODO state.
+2. ✅ `cargo test --workspace` passes locally (55 unit + 1
+   doctest; 7 hardware tests `#[ignore]`d in default run, all
+   green when explicitly requested).
+3. ✅ `cargo clippy --workspace --all-targets -- -D warnings`
+   passes.
+4. ⏸ Flatpak build not re-validated this session (last full
+   `flatpak-builder` run on 2026-05-13 for v0.2 / T-014).
+   Risk acceptable: v0.3 only touches Rust + GtkBuilder
+   resources, no new system deps, no manifest changes.
+5. ✅ AppStream metainfo carries the v0.3.0 release entry.
+6. ✅ `git tag v0.3.0` exists on commit `6c954e5`.
+7. ✅ This entry written.
+
+Branch `feat/T-300-xu-tracking` squash-merged into `main` as
+`feat: v0.3.0 Vendor XU & AI tracking (T-300 / T-301 / T-302
+/ T-303)` (`6c954e5`). All 9 original commits preserved in
+the squash message for archaeology. The feature branch is
+kept locally; no `branch -D` taken without explicit user
+request.
+
+Annotated tag `v0.3.0` cut with a release-notes-style body
+covering features, FOSS attribution, quirks resolution, and
+the follow-up queue.
+
+Push held per private-repo policy. The user explicitly
+authorizes `git push origin main --tags` or it does not
+happen.
+
 ### [2026-05-15T12:00:00Z] [T-303] DONE — v0.3.0 milestone closure
 
 User confirmed all GUI visual validation gates green: AI and
