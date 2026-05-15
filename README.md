@@ -20,15 +20,28 @@ GTK 4, libadwaita, and Rust. Targets GNOME Circle inclusion.
 - 100% free software. No proprietary SDKs, no closed blobs.
 - Flatpak as primary distribution channel.
 
+## Status
+
+**v0.3.0 — Vendor XU & AI tracking** (released 2026-05-15). The
+GUI surfaces OBSBOT-specific controls via reverse-engineered USB
+Extension Units: 10 AI auto-framing modes, HDR, Field of View
+(Wide / Normal / Narrow), Tracking speed (Standard / Sport),
+Sleep / Wake power state, 3 preset-recall slots, and a "Show XU
+status" diagnostic dialog. See
+[`docs/ROADMAP.md`](docs/ROADMAP.md) for what's already shipped
+and what's queued for v0.4 (Live Preview) and beyond.
+
 ## Supported cameras
 
 - **OBSBOT Tiny 2** (`3564:fef8`) — first-class target. Validation
   depends on community testing; the project does not own this unit.
 - **OBSBOT Tiny 2 Lite** (`3564:fef9`) — first-class target and the
   hardware development happens against day to day.
-- Other OBSBOT models (Meet 2, Meet SE, original Tiny, Tail Air, …) —
-  best-effort: the app will list them and expose V4L2 standard controls;
-  vendor-specific features only as community captures unlock them.
+- Other OBSBOT models (Meet, Meet 2, Meet SE, original Tiny, Tail
+  Air, …) — best-effort: the app will list them and expose V4L2
+  standard controls; vendor-specific features only as community
+  captures unlock them. Original **Meet** is tracked explicitly as
+  T-400 in `PLAN.md` for a future milestone.
 - Non-OBSBOT cameras: ignored.
 
 Rationale for the family scoping in [`docs/DECISIONS.md`](docs/DECISIONS.md)

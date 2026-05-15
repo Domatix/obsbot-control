@@ -412,6 +412,14 @@ contributions.
   Tiny4Linux inherited; flagged for live validation in T-303.
   Until validated, treat both `(m=3, n=0)` and `(m=6, n=0)` as
   `Hand` in our decoder.
+  - **Status 2026-05-15 (T-303 closure)**: accepted as-is. User
+    validation pass exercised the full AI tracking row (all 10
+    modes) without reporting any contradiction on Hand; treat
+    `(m=3, n=0)` as the live-correct encoding for Hand on Tiny 2
+    Lite firmware 5.10. If a future user reports Hand engaging
+    something else on different hardware,
+    `obsbot-core::xu::enums::AiMode::to_wire` is the one-line
+    flip.
 - **Q5 — Auto / Manual exposure label inversion.** cgevans's
   `AUTO_EXP_CMD` bytes equal Tiny4Linux's `MANUAL` literal, and
   vice versa. cgevans's labelling is the more likely-correct one
