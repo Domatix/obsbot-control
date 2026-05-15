@@ -42,6 +42,8 @@ use crate::ai_effects_view::build_ai_effects_group;
 use crate::exposure_group::{build_exposure_group, EXPOSURE_GROUP_IDS};
 use crate::extras_view::build_extras_group;
 use crate::i18n::gettext;
+#[cfg(feature = "live-preview")]
+use crate::preview::{toggle_tooltip, PreviewPipeline};
 use crate::ptz_pad::{build_ptz_pad, PTZ_PAD_IDS};
 use crate::settings;
 use crate::wb_group::{build_wb_group, WB_GROUP_IDS};
@@ -159,11 +161,20 @@ fn render_controls(
 ) -> adw::PreferencesPage {
     let page = adw::PreferencesPage::new();
 
-    // Curated groups (AI & Effects, PTZ pad, White balance, Exposure)
-    // consume a specific subset of controls. Mount them at the top of
-    // the page and filter the consumed IDs out of the generic
-    // per-class render below.
+    // Curated groups (Live preview, AI & Effects, PTZ pad, White
+    // balance, Exposure) consume a specific subset of controls.
+    // Mount them at the top of the page and filter the consumed IDs
+    // out of the generic per-class render below.
     //
+    // Live preview (T-200) only renders when the `live-preview`
+    // Cargo feature is enabled at build time — otherwise the
+    // gstreamer crate chain is not pulled in. Goes at the very top
+    // when present so the user sees frames before any control row.
+    #[cfg(feature = "live-preview")]
+    if let Some(preview_group) = build_preview_group(path) {
+        page.add(&preview_group);
+    }
+
     // AI & Effects (T-301) is the marquee v0.3 feature so it goes
     // first; the controls it surfaces are XU-only and don't overlap
     // with any V4L2 standard ID, so no filter list to merge.
@@ -222,6 +233,123 @@ fn render_controls(
 
 fn make_group(title: &str) -> adw::PreferencesGroup {
     adw::PreferencesGroup::builder().title(title).build()
+}
+
+/// Build the live-preview `AdwPreferencesGroup` (T-200). Only
+/// compiled when the `live-preview` Cargo feature is enabled.
+///
+/// Layout: a `gtk::Picture` bound to the GStreamer pipeline's
+/// paintable, hosted inside an `AdwActionRow`'s custom child; a
+/// trailing `gtk::ToggleButton` flips the pipeline on/off. Honours
+/// the `preview-default-on` GSettings key on first show — if true,
+/// the toggle starts in the active state and the pipeline starts
+/// running immediately; otherwise the user has to opt in per session.
+///
+/// Camera-busy detection: failures from
+/// [`PreviewPipeline::start`] surface as toasts via
+/// [`settings::surface_error`]. The toggle then snaps back to off
+/// so the user sees the failure without the GUI lying about state.
+///
+/// Pipeline lifecycle: stored in a `Rc<RefCell<Option<...>>>` owned
+/// by the toggle's `connect_toggled` closure. When the group is
+/// dropped (controls page replaced — T-110 hot-plug REMOVE,
+/// navigation back to camera list), the `Rc` reaches zero and
+/// `Drop for PreviewPipeline` transitions the pipeline to NULL,
+/// releasing the V4L2 device for other apps.
+#[cfg(feature = "live-preview")]
+fn build_preview_group(path: &Path) -> Option<adw::PreferencesGroup> {
+    use std::cell::RefCell;
+    use std::rc::Rc;
+
+    let group = adw::PreferencesGroup::builder()
+        .title(gettext("Live preview"))
+        .description(gettext(
+            "Show the camera's video feed inside the app. Requires \
+             the camera not to be in use by another application.",
+        ))
+        .build();
+
+    // Build the pipeline lazily on first toggle-on so opening the
+    // page does not pay the GStreamer init cost on cold open.
+    let pipeline: Rc<RefCell<Option<PreviewPipeline>>> = Rc::new(RefCell::new(None));
+    let owned_path: Rc<std::path::PathBuf> = Rc::new(path.to_path_buf());
+
+    let picture = gtk::Picture::builder()
+        .content_fit(gtk::ContentFit::Contain)
+        .height_request(240)
+        .build();
+
+    let toggle = gtk::ToggleButton::builder()
+        .icon_name("camera-video-symbolic")
+        .tooltip_text(toggle_tooltip(false))
+        .valign(gtk::Align::Center)
+        .build();
+
+    let row = adw::ActionRow::builder()
+        .title(gettext("Preview pipeline"))
+        .subtitle(gettext(
+            "v4l2src ! videoconvert ! gtk4paintablesink — feature-gated, \
+             enable with `--features live-preview`.",
+        ))
+        .activatable(false)
+        .build();
+    row.add_suffix(&toggle);
+    group.add(&row);
+
+    let frame_row = adw::ActionRow::builder().activatable(false).build();
+    frame_row.set_child(Some(&picture));
+    group.add(&frame_row);
+
+    // Honour the `preview-default-on` GSettings key on construction.
+    let default_on = settings::preview_default_on();
+    toggle.set_active(default_on);
+
+    {
+        let pipeline = pipeline.clone();
+        let owned_path = owned_path.clone();
+        let picture = picture.clone();
+        toggle.connect_toggled(move |btn| {
+            btn.set_tooltip_text(Some(&toggle_tooltip(btn.is_active())));
+            if btn.is_active() {
+                let mut slot = pipeline.borrow_mut();
+                if slot.is_none() {
+                    match PreviewPipeline::new() {
+                        Ok(p) => {
+                            picture.set_paintable(Some(&p.paintable()));
+                            *slot = Some(p);
+                        }
+                        Err(err) => {
+                            settings::surface_error(&format!(
+                                "{}: {err}",
+                                gettext("Could not initialize preview")
+                            ));
+                            btn.set_active(false);
+                            return;
+                        }
+                    }
+                }
+                if let Some(p) = slot.as_mut() {
+                    if let Err(err) = p.start(owned_path.as_path()) {
+                        settings::surface_error(&format!(
+                            "{}: {err}",
+                            gettext("Could not start preview")
+                        ));
+                        btn.set_active(false);
+                    }
+                }
+            } else if let Some(p) = pipeline.borrow_mut().as_mut() {
+                p.stop();
+            }
+        });
+    }
+
+    // Emit toggled if default_on so the pipeline actually starts on
+    // first render (set_active without a state change is a no-op).
+    if default_on {
+        toggle.emit_by_name::<()>("toggled", &[]);
+    }
+
+    Some(group)
 }
 
 /// Build a row for one control. Integer controls get an

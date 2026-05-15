@@ -471,6 +471,81 @@ exposure) — that's v0.2's user-visible value.
 
 ## 2026-05-14 (pivot to v0.3 AI tracking)
 
+### [2026-05-15T14:45:00Z] [T-200] IN_PROGRESS — live preview scaffolding (feature-gated)
+
+(Note: this entry is on branch `feat/T-200-preview`. The sibling
+branch `feat/T-101a` carries the PTZ press-and-hold work landed
+2026-05-15T13:45:00Z; both branches are independent v0.3.1
+follow-ups awaiting validation.)
+
+Branch `feat/T-200-preview` lands the full GStreamer-based live-
+preview scaffolding behind a `live-preview` Cargo feature flag,
+off by default. The motivation for the gate: `libgstreamer1.0-
+dev` + `gstreamer1.0-gtk4` are not installed on the dev host
+and the session has no passwordless sudo, so the workspace must
+stay buildable without those system packages.
+
+Architecture:
+
+* **`obsbot-gui/Cargo.toml`** — three optional deps
+  (`gstreamer`, `gstreamer-video`, `gstreamer-app` from the
+  workspace 0.23 pin) plus the `live-preview` feature that
+  wires `dep:gstreamer` + `dep:gstreamer-video` + `dep:
+  gstreamer-app`.
+* **`obsbot-gui/src/preview.rs`** (new, gated) — the
+  `PreviewPipeline` struct: builds `v4l2src ! videoconvert !
+  gtk4paintablesink` in `new()` (sans the `v4l2src`, which
+  gets rebuilt per `start(path)` so changing cameras
+  mid-session works without leaking the previous source).
+  `paintable()` exposes the cached `gdk::Paintable` from the
+  sink so the GUI binds a `gtk::Picture` once at construction
+  and rendering activates only while the pipeline is in
+  PLAYING. `Drop` transitions back to NULL, releasing the V4L2
+  device when the controls page is replaced (T-110 hot-plug
+  REMOVE, navigation back to camera list).
+* **`obsbot-gui/src/main.rs`** — `#[cfg(feature = "live-
+  preview")] mod preview;` so non-feature builds skip the
+  module entirely.
+* **`obsbot-gui/src/controls_view.rs`** —
+  `build_preview_group(path)` returns an `AdwPreferencesGroup`
+  with two action rows: header (subtitle + `gtk::ToggleButton`
+  icon `camera-video-symbolic`) and the `gtk::Picture`.
+  Toggling on builds + starts the pipeline lazily (deferred
+  GStreamer init until first toggle, so page open stays cheap
+  on cold launch). Failures surface via `settings::surface_
+  error` as toasts and the toggle snaps back to off — the GUI
+  never lies about pipeline state. Mounted at the top of the
+  page (above AI and effects) when feature is enabled.
+* **`data/io.github.domatix.ObsbotCamControl.gschema.xml`** —
+  new `preview-default-on` boolean key, default `false`.
+  Schema entry exists unconditionally even when feature is
+  off so we don't need two `.gschema.xml` variants.
+* **`obsbot-gui/src/settings.rs`** — feature-gated
+  `preview_default_on()` reader.
+
+Validation:
+
+* `cargo fmt --all --check`, `cargo clippy --workspace --all-
+  targets -- -D warnings`, `cargo test --workspace` — all
+  green (default features; 56 unit tests + 1 doctest).
+* `cargo check -p obsbot-gui --features live-preview` — fails
+  only at the pkg-config probe for `gstreamer-1.0.pc`. The
+  Rust side reaches the system-deps boundary cleanly,
+  confirming no obvious type errors in `preview.rs` /
+  `build_preview_group`.
+
+**Open question for the next session**: the user has to install
+the system packages before any of this can actually run.
+PLAN.md §T-200 carries the apt / pacman incantation. Once
+installed, `cargo run -p obsbot-gui --features live-preview` is
+enough to validate. The Flatpak manifest also needs the same
+plugin packages added (`flathub.yaml` modules); deferred to the
+v0.4 Flatpak update task once the dev-host runtime confirms
+the pipeline works.
+
+Commit message
+`feat(gui): live preview pipeline scaffold, feature-gated (T-200)`.
+
 ### [2026-05-15T12:45:00Z] [T-105fix] DONE — schema realigned to runtime, persistence works end-to-end
 
 Pre-existing bug surfaced during T-301: the GSettings schema at

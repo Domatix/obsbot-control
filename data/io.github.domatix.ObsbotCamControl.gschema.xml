@@ -38,5 +38,16 @@
         next launch.
       </description>
     </key>
+    <key name="preview-default-on" type="b">
+      <default>false</default>
+      <summary>Start the live preview on page open</summary>
+      <description>
+        When true, the live preview pipeline starts automatically each
+        time the user opens a camera's controls page. When false
+        (default), the user has to flip the preview toggle on per
+        session. Only consulted when the application was built with
+        the `live-preview` Cargo feature (T-200).
+      </description>
+    </key>
   </schema>
 </schemalist>

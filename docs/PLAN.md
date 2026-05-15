@@ -1441,10 +1441,64 @@
 
 ### T-200 — Embedded preview pane in the per-camera controls page
 
-- **State**: TODO
+- **State**: IN_PROGRESS (scaffolding committed feature-gated;
+  awaits the user installing GStreamer dev packages to compile +
+  validate)
+- **Started**: 2026-05-15T14:00:00Z
 - **Depends on**: v0.3.0 shipped (AI tracking now precedes
   preview per [[ADR-0020]] — milestone bucket renumber only,
   task scope is unchanged from when it was a v0.3 task).
+- **Progress so far**: full scaffolding landed on branch
+  `feat/T-200-preview`, all gated behind the `live-preview`
+  Cargo feature (off by default) because `libgstreamer1.0-dev`
+  + `gstreamer1.0-gtk4` are not installed on the dev host and
+  `sudo` is interactive. Files:
+  - `crates/obsbot-gui/Cargo.toml`: adds the three GStreamer
+    crates as optional deps + the `live-preview` feature flag.
+  - `crates/obsbot-gui/src/preview.rs` (new module, gated):
+    `PreviewPipeline` struct with `new`/`start`/`stop`/
+    `paintable` + a `PreviewError` enum (MissingElement,
+    PipelineStart, GstInit). Pipeline is `v4l2src device=…!
+    videoconvert ! gtk4paintablesink`; `v4l2src` rebuilt per
+    `start(path)` so changing cameras mid-session works.
+    `Drop` impl tears down on hot-plug REMOVE (T-110) or
+    controls-page navigation.
+  - `crates/obsbot-gui/src/main.rs`: `#[cfg(feature = "live-
+    preview")] mod preview;`.
+  - `crates/obsbot-gui/src/controls_view.rs`:
+    `build_preview_group(path)` mounts the preview at the top
+    of the controls page, with a `gtk::Picture` bound to the
+    paintable and a `gtk::ToggleButton` driving start/stop.
+    Failures surface as toasts via `settings::surface_error`
+    and the toggle snaps back to off so the GUI does not lie
+    about state.
+  - `data/io.github.domatix.ObsbotCamControl.gschema.xml`:
+    new `preview-default-on` boolean key (default `false`).
+  - `crates/obsbot-gui/src/settings.rs`: feature-gated
+    `preview_default_on()` reader.
+
+  Default-build cargo gates green (fmt + clippy + test); the
+  feature-on `cargo check --features live-preview` fails only
+  at the pkg-config step looking for `gstreamer-1.0.pc` —
+  confirming the Rust side compiles up to the system-deps
+  boundary. **No runtime validation possible** until the user
+  installs the system packages.
+
+  **Install incantation (Debian / Ubuntu)**:
+  ```
+  sudo apt install libgstreamer1.0-dev \
+                   libgstreamer-plugins-base1.0-dev \
+                   gstreamer1.0-plugins-good \
+                   gstreamer1.0-plugins-base \
+                   gstreamer1.0-libav \
+                   gstreamer1.0-gtk4
+  ```
+  **Arch**:
+  ```
+  sudo pacman -S gstreamer gst-plugins-base gst-plugins-good \
+                 gst-libav gst-plugin-gtk
+  ```
+  Then `cargo run -p obsbot-gui --features live-preview`.
 - **Description**: User-requested placement decision for the
   Live Preview milestone (originally seeded as a v0.3 task
   before ADR-0020 swapped priorities; ROADMAP §v0.4
