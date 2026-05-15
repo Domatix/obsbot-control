@@ -38,7 +38,9 @@ use obsbot_core::{
     read_controls, CameraInfo, ControlClass, ControlDescriptor, ControlKind, ControlValue,
 };
 
+use crate::ai_effects_view::build_ai_effects_group;
 use crate::exposure_group::{build_exposure_group, EXPOSURE_GROUP_IDS};
+use crate::extras_view::build_extras_group;
 use crate::i18n::gettext;
 use crate::ptz_pad::{build_ptz_pad, PTZ_PAD_IDS};
 use crate::settings;
@@ -114,7 +116,7 @@ fn build_body(cam: &CameraInfo) -> gtk::Widget {
     let serial = cam.serial.as_deref();
     let controls = restore_saved_values(path, &initial, serial).unwrap_or(initial);
 
-    render_controls(&controls, path, serial).upcast()
+    render_controls(cam, &controls, path, serial).upcast()
 }
 
 /// Replay every saved value for this camera, then re-read the V4L2
@@ -150,16 +152,27 @@ fn restore_saved_values(
 }
 
 fn render_controls(
+    cam: &CameraInfo,
     controls: &[ControlDescriptor],
     path: &Path,
     serial: Option<&str>,
 ) -> adw::PreferencesPage {
     let page = adw::PreferencesPage::new();
 
-    // Curated groups (PTZ pad, White balance, Exposure) consume a
-    // specific subset of controls. Mount them at the top of the page
-    // and filter the consumed IDs out of the generic per-class render
-    // below.
+    // Curated groups (AI & Effects, PTZ pad, White balance, Exposure)
+    // consume a specific subset of controls. Mount them at the top of
+    // the page and filter the consumed IDs out of the generic
+    // per-class render below.
+    //
+    // AI & Effects (T-301) is the marquee v0.3 feature so it goes
+    // first; the controls it surfaces are XU-only and don't overlap
+    // with any V4L2 standard ID, so no filter list to merge.
+    if let Some(ai_group) = build_ai_effects_group(cam) {
+        page.add(&ai_group);
+    }
+    if let Some(extras_group) = build_extras_group(cam) {
+        page.add(&extras_group);
+    }
     if let Some(ptz_group) = build_ptz_pad(controls, path, serial) {
         page.add(&ptz_group);
     }

@@ -718,27 +718,733 @@
 
 ---
 
-## v0.3 — Live Preview (planned)
+## v0.3 — Vendor XU & AI tracking (planned)
+
+> Milestone scope set by [[DECISIONS.md ADR-0020]] on 2026-05-14
+> (FOSS-pivot ADR). Collapses the previously planned v0.4
+> (Vendor XU) + v0.5 (Auto-Framing); promoted ahead of Live
+> Preview (now v0.4). Byte-level extraction from
+> `cgevans/tiny2` and `OpenFoxes/Tiny4Linux` recorded in
+> [[docs/XU_INVESTIGATION_2026-05-14.md]]; protocol summary in
+> [[PROTOCOL.md §3.2]]; attribution policy in [[CREDITS.md]].
+
+### T-300 — `obsbot-core::xu` module (UVCIOC_CTRL_QUERY wrapper + enums + decode_status)
+
+- **State**: DONE (with caveat — hardware round-trip test pending
+  user validation; see Outcome below)
+- **Started**: 2026-05-14T19:15:00Z
+- **Completed**: 2026-05-14T19:55:00Z
+- **Commit**: `feat(core): obsbot-core::xu module — UVCIOC_CTRL_QUERY,
+  enums, decode_status (T-300)`
+- **Branch**: `feat/T-300-xu-tracking`
+- **Depends on**: v0.2.0 work shipped on `main` (T-111 last);
+  none of T-200 / T-301 / T-302 / T-303 (those come later).
+- **Description**: New module `crates/obsbot-core/src/xu/`
+  porting the EUPL-1.2 XU surface from `cgevans/tiny2` and
+  `OpenFoxes/Tiny4Linux`. Pure-Rust backend — no GUI yet
+  (that's T-301 / T-302). Adopts Tiny4Linux's modular
+  factoring (`transport`, `status`, `enums`,
+  `commands/{ai_mode, fov, hdr, face_ae, exposure_mode,
+  sleep, tracking_speed, preset, exposure_mode_type}`), drops
+  the `bon` and `enum_dispatch` dependencies (replace with
+  plain Rust), keeps the same `nix` ioctl path. Files with
+  ported bytes carry the dual SPDX block per [[CREDITS.md]].
+- **Acceptance criteria**:
+  - **Workspace deps**: add `nix = "0.30"` and `errno = "0.3"`
+    to `[workspace.dependencies]`; `crates/obsbot-core/
+    Cargo.toml` gets `.workspace = true` lines for both.
+    No new transitive Tokio/libusb deps.
+  - **Transport** (`xu/transport.rs`): expose
+    `pub fn xu_query(fd: RawFd, unit: u8, selector: u8,
+    request: XuRequest, buf: &mut [u8]) -> Result<()>` that
+    wraps `UVCIOC_CTRL_QUERY` via
+    `nix::ioctl_readwrite_buf!(uvcioc_ctrl_query, b'u', 0x21,
+    uvc_xu_control_query)`. Helper
+    `pub fn get_len(fd, unit, selector) -> Result<u16>` that
+    issues `UVC_GET_LEN (0x85)` before every `GET_CUR` /
+    `SET_CUR` (mirrors cgevans's paranoia — kernel returns
+    `EINVAL` on size mismatch). Const `BUNIT_ID: u8 = 0x02`.
+  - **Request codes** (`xu/transport.rs`): `pub const`s
+    `UVC_SET_CUR = 0x01`, `UVC_GET_CUR = 0x81`,
+    `UVC_GET_MIN = 0x82`, `UVC_GET_MAX = 0x83`,
+    `UVC_GET_RES = 0x84`, `UVC_GET_LEN = 0x85`,
+    `UVC_GET_INFO = 0x86`, `UVC_GET_DEF = 0x87`.
+  - **Enums** (`xu/enums.rs`): `AIMode` (10 variants,
+    `TryFrom<(u8, u8)>` for status decode + getter
+    `fn to_wire(self) -> (u8, u8)`), `FOVMode` (Wide / Normal
+    / Narrow, `TryFrom<u8>` + `to_wire`),
+    `ExposureMode` (Auto / Manual), `FaceAeMode` (Global /
+    Face), `SleepState` (Awake / Sleep / Unknown),
+    `TrackingSpeed` (Standard / Sport, `TryFrom<u8>`).
+    AIMode decoder accepts **both** `(m=3, n=0)` and
+    `(m=6, n=0)` as `Hand` until quirk Q4 (PROTOCOL.md §3.2)
+    is hardware-validated.
+  - **Selector-0x06 opcode commands** (one file per opcode
+    under `xu/commands/`):
+    - `hdr.rs`: `set_hdr(fd, bool)` → write
+      `[0x01, 0x01, value]` on selector `0x06`.
+    - `face_ae.rs`: `set_face_ae(fd, FaceAeMode)` → write
+      `[0x03, 0x01, value]` on selector `0x06`.
+    - `fov.rs`: `set_fov(fd, FOVMode)` → write
+      `[0x04, 0x01, value]` on selector `0x06`.
+    - `ai_mode.rs`: `set_ai_mode(fd, AIMode)` → write
+      `[0x16, 0x02, m, n]` on selector `0x06`. Use the
+      exact `(m, n)` table from PROTOCOL.md §3.2 (write
+      `m=3` for `Hand` to match cgevans's setter; the
+      decoder side already accepts both).
+  - **Selector-0x02 structured frames** (`xu/command02.rs`
+    builder + one file per frame under `xu/commands/`):
+    - `command02.rs`: pure-Rust `build_command02(fg: [u8;6],
+      seq: [u8;2], cks: [u8;2], cmd: [u8;6], app:
+      Option<[u8;16]>) -> [u8;36]`. No `bon` dependency.
+    - `exposure_mode_type.rs`: write either the Auto or
+      Manual 36-byte frame per the table in PROTOCOL.md
+      §3.2. **Use cgevans's labelling (quirk Q5)** — Auto
+      sends `seq=[0x15,0x00] cks=[0xa8,0x9e] cmd=
+      [0xf9,0x27,0x01,0x32,0x00,0x00]`, Manual sends
+      `seq=[0x16,0x00] cks=[0x58,0x91] cmd=
+      [0xb2,0xaf,0x02,0x04,0x00,0x00]`. `function_group =
+      [0x0a, 0x02, 0x82, 0x29, 0x05, 0x00]`.
+    - `sleep.rs`: Awake / Sleep frames.
+    - `tracking_speed.rs`: Standard / Sport frames.
+    - `preset.rs`: `set_preset(fd, 0..=2)` with the
+      `[1.0f32; 4]` little-endian appendix (16 zero bytes
+      will NOT work — the camera rejects them).
+  - **Status decode** (`xu/status.rs`):
+    `pub fn get_status(fd) -> Result<Status>` issues
+    `UVC_GET_CUR` on selector `0x06`, allocates a 60-byte
+    buffer (verified via `get_len`), returns a `Status`
+    struct with the 5 decoded fields plus
+    `raw: [u8; 60]` for the future debug "Dump status"
+    page. Defensive accept of HDR `!= 0` for true (matches
+    Tiny4Linux's permissive decode).
+  - **V4L2 PTZ helpers** (`xu/v4l2_ptz.rs`): port cgevans's
+    `V4L2_CID_PAN/TILT/ZOOM_{ABSOLUTE,RELATIVE}` constants
+    (`0x009A0908..0x009A090E`). These back the existing
+    T-101 PTZ buttons — we keep them even though T-101
+    already accesses them via the V4L2 generic path,
+    because the upcoming T-302 preset wrapper may want to
+    read pan/tilt to *display* "Preset N is currently
+    pointing here" if Q7 (preset save) ever lands.
+  - **Errors** (`xu/errors.rs`): `pub enum XuError` via
+    `thiserror`, variants: `Io(io::Error)`, `Ioctl(Errno)`,
+    `LengthMismatch { expected, got }`, `InvalidEnum(u8)`,
+    `InvalidPresetIndex(i8)`. Convert to
+    `obsbot_core::Error::Io` at the crate boundary so
+    existing callers' `?` chains keep compiling.
+  - **Tests** (all `#[cfg(test)]` in-line, plus
+    `crates/obsbot-core/tests/xu_hardware.rs` for the
+    `#[ignore]`d live test):
+    - Unit: AIMode round-trip (`set_to_wire(AIMode::X) ==
+      (m, n) && AIMode::try_from((m, n)) == Ok(AIMode::X)`)
+      for all 10 modes EXCEPT `Hand` (Hand exercises the
+      Q4 asymmetry — separate test asserts that both
+      `(3,0)` and `(6,0)` decode to `Hand`).
+    - Unit: FOVMode / FaceAeMode / SleepState /
+      TrackingSpeed round-trips.
+    - Unit: `build_command02` produces the exact 36-byte
+      arrays for Awake / Sleep / Standard / Sport / each
+      of the three presets — fixture vectors copied from
+      the Tiny4Linux test suite (EUPL-1.2 attribution).
+    - Unit: `decode_status` against the Tiny4Linux fixture
+      vector (the 57-byte Awake + HDR-on + UpperBody +
+      Sport sample in PROTOCOL.md §3.2 sample).
+    - `#[ignore]`d hardware test: open `/dev/video0`, send
+      `set_hdr(true)`, `get_status()`, assert `status.hdr_on
+      == true`; then `set_hdr(false)`, `get_status()`,
+      assert `status.hdr_on == false`. Read-only afterwards
+      — does NOT change AI mode / exposure / sleep in
+      automated tests (those need human eyes on the camera).
+  - **License headers**: every file under
+    `crates/obsbot-core/src/xu/` that contains ported bytes
+    carries the dual SPDX block from [[CREDITS.md]]. Files
+    without ported bytes (e.g. `xu/errors.rs`) keep the plain
+    GPL-3.0-or-later line.
+  - **Cargo gates**: `cargo fmt --all --check`,
+    `cargo clippy --workspace --all-targets -- -D warnings`,
+    `cargo test --workspace` all exit 0. Hardware test
+    `cargo test -p obsbot-core --test xu_hardware --
+    --ignored` exits 0 on the user's plugged-in Tiny 2 Lite.
+  - Commit: `feat(core): obsbot-core::xu module — UVCIOC_CTRL_QUERY,
+    enums, decode_status (T-300)`.
+- **Outcome**: 17 new source files + 3 modified land on
+  `feat/T-300-xu-tracking`:
+  * `crates/obsbot-core/src/xu/mod.rs` — module root + re-exports
+    + scoped `#![allow(clippy::doc_markdown)]` for the project-name
+    prose noise (`Tiny4Linux`, `cgevans`, etc.) that doc-markdown
+    flags as false positives.
+  * `crates/obsbot-core/src/xu/transport.rs` — the unsafe surface.
+    `BUNIT_ID = 0x02`, `SELECTOR_OPCODE = 0x06`, `SELECTOR_FRAME =
+    0x02`. UVC request codes in nested `uvc::` namespace.
+    `nix::ioctl_readwrite!(...)` wrapped in a private
+    `raw_ioctl` submodule with `#[allow(missing_docs)]` so the
+    macro-generated `unsafe fn` doesn't trip the crate-wide
+    `#![warn(missing_docs)]`. Three public entry points: low-level
+    `xu_query`, plus `get_len` / `set_cur` / `get_cur` that
+    pre-check length via `UVC_GET_LEN`. Crate lint relaxed from
+    `unsafe_code = "forbid"` to `"deny"` so this single module can
+    scope `#![allow(unsafe_code)]`; every other module stays safe.
+  * `crates/obsbot-core/src/xu/enums.rs` — `AiMode` (10 variants
+    with `to_wire` + `TryFrom<(u8, u8)>`, Q4-permissive decode of
+    Hand), `FovMode` (3), `FaceAeMode` (2), `ExposureMode` (2),
+    `SleepState` (3 including Unknown), `TrackingSpeed` (2, Q6
+    gap defaults to Standard). `EnumDecodeError` carries the
+    failing wire bytes for diagnostics.
+  * `crates/obsbot-core/src/xu/errors.rs` — `XuError` with
+    `Io / LengthMismatch / Decode / InvalidPresetIndex` variants;
+    `From<XuError> for crate::Error` maps everything to
+    `Error::Io` for callers using the crate-wide error.
+  * `crates/obsbot-core/src/xu/command02.rs` — pure-Rust
+    `build(fg, seq, cks, cmd, app) -> [u8; 36]` builder (no `bon`
+    dep). `PRESET_RECALL_APPENDIX` const built at compile time as
+    four little-endian `1.0_f32`.
+  * `crates/obsbot-core/src/xu/status.rs` — `Status` struct
+    (sleep / hdr_on / ai_mode / tracking_speed + the full
+    60-byte `raw` for the future T-302 debug page). `get_status`
+    + `Status::decode`. Offset constants exposed for the GUI.
+  * `crates/obsbot-core/src/xu/v4l2_ptz.rs` — standard V4L2
+    Pan/Tilt/Zoom CIDs (`0x009A_0908`..`0x009A_090E`) for the
+    T-101 PTZ wiring to reach via a stable symbolic name.
+  * `crates/obsbot-core/src/xu/commands/{hdr, face_ae, fov,
+    ai_mode}.rs` — one file per selector-0x06 opcode. Each
+    exposes a pure `payload(...) -> [u8; N]` plus a `set_*(camera,
+    value)` wrapper. cgevans-faithful `AiMode::Hand` setter writes
+    `m=3` per Q4.
+  * `crates/obsbot-core/src/xu/commands/{exposure_mode_type,
+    sleep, tracking_speed, preset}.rs` — one file per
+    selector-0x02 frame. Bytes verbatim from Tiny4Linux's test
+    fixtures (cgevans-labelling for exposure per Q5).
+    `preset::payload(index)` validates `0..=2` and returns
+    `XuError::InvalidPresetIndex` otherwise. `sleep::payload`
+    refuses `SleepState::Unknown` with an Io error rather than
+    sending a junk frame.
+  * `crates/obsbot-core/tests/xu_hardware.rs` — `#[ignore]`d
+    integration test. Opens `/dev/video0` (or wherever
+    `enumerate_cameras` finds the Tiny 2), reads baseline state,
+    flips HDR, reads back, asserts the flip, restores baseline.
+    Read-only on AI mode / exposure / sleep / presets — those
+    have visible effects and belong in the user-driven T-303
+    validation matrix.
+
+  Gate summary at commit time:
+  ```
+  cargo fmt --all --check                                → exit 0
+  cargo clippy --workspace --all-targets -- -D warnings  → exit 0
+  cargo test --workspace                                 → 50 unit
+                                                           (8 enumerate
+                                                            + 3 controls
+                                                            + 3 camera
+                                                            + 36 xu
+                                                            ↑ obsbot-core)
+                                                           + 1 doctest
+                                                           + 3 CLI render
+                                                           + 1 GUI
+                                                           = 55 tests
+                                                           pass; 6
+                                                           hardware
+                                                           #[ignore]d
+                                                           (T-011 + T-013c
+                                                           + T-100 trio +
+                                                           T-300 hardware)
+  ```
+
+  Caveat (the "DONE with" part): the **`cargo test -p obsbot-core
+  --test xu_hardware -- --ignored`** gate has not been driven on
+  hardware yet. The test issues a single HDR toggle + restore against
+  the user's Tiny 2 Lite. Per CLAUDE.md §3.3 (touching the user's
+  hardware) the run sits in `STATE.pending_user_actions` until the
+  user invokes it. Same closure shape as T-010 (icon) and T-017
+  (Arch PKGBUILD): code-complete now, end-of-line verification
+  deferred to a user-driven step. Will roll into the T-303
+  validation matrix unless the user runs it sooner.
+
+### T-301 — GUI "AI & Effects" page
+
+- **State**: DONE (with caveat — visual confirmation pending user
+  run; see Outcome below)
+- **Started**: 2026-05-14T20:05:00Z
+- **Completed**: 2026-05-14T20:20:00Z
+- **Commit**: `feat(gui): AI & Effects page (T-301)`
+- **Depends on**: T-300 (the backend).
+- **Description**: New `AdwPreferencesPage` (or section inside
+  the existing controls page — design choice on starting)
+  exposing the selector-0x06 surface: AI tracking mode
+  dropdown (10 entries), FOV combo (3 entries), HDR switch,
+  Face AE switch (visible only when exposure is Auto),
+  exposure-mode toggle (Auto / Manual). All writes go via
+  `obsbot_core::xu::commands::*`. Reads on focus refresh
+  values from `get_status()` (60-byte poll). Persist user's
+  last selection per-camera via the T-105 GSettings module.
+  Errors surface as toasts via T-108
+  `settings::surface_error`.
+- **Acceptance criteria (draft — refine when starting)**:
+  - `crates/obsbot-gui/src/ai_effects_view.rs` (new module,
+    ~250 lines) exposing
+    `pub fn build_ai_effects_group(cam: &CameraInfo) ->
+    adw::PreferencesGroup`.
+  - Wiring: opening a camera detail page mounts the new
+    group between the WB group (T-103) and the PTZ pad
+    (T-101) — exact placement design choice when starting.
+  - Widgets: `AdwComboRow` for AI mode (model:
+    `gtk::StringList` with the 10 localized labels),
+    `AdwComboRow` for FOV (3 labels), `AdwSwitchRow` for
+    HDR, `AdwSwitchRow` for Face AE
+    (`sensitive` bound to "exposure is Auto"),
+    `AdwComboRow` for exposure mode (Auto / Manual).
+  - On row activation: call the matching
+    `obsbot_core::xu::set_*` function on a worker thread
+    via `glib::MainContext::spawn_local` so the GTK loop
+    doesn't block on the ioctl.
+  - On open: 60-byte status poll, populate widgets from the
+    decoded state.
+  - On error: toast via `settings::surface_error("Failed to
+    set <name>: <error>")` per T-108 pattern.
+  - GSettings schema gains `ai-mode`, `fov-mode`,
+    `hdr-enabled`, `face-ae`, `exposure-mode`, persisted
+    per-camera-serial via the T-105 keying convention.
+  - All four cargo gates green; GUI auto-tests N/A per
+    [[CLAUDE.md §5.4]].
+  - Commit: `feat(gui): AI & Effects page (T-301)`.
+- **Out of scope for T-301** (T-302 picks them up):
+  Sleep/Wake, Tracking speed, Preset recall, debug Dump
+  Status page.
+- **Outcome**: single new module
+  `crates/obsbot-gui/src/ai_effects_view.rs` (~280 lines, ~80
+  of which are gettext-ed label dictionaries) plus 3 modified:
+  `crates/obsbot-gui/src/main.rs` declares the new `mod
+  ai_effects_view;`, and `crates/obsbot-gui/src/controls_view.rs`
+  threads `cam: &CameraInfo` through `build_body` →
+  `render_controls` so the new group can read `cam.vid /
+  cam.pid / cam.video_path` to decide whether to mount.
+  * **Tiny-2-family gate**: `is_tiny_2_family(vid, pid)` checks
+    `obsbot_core::TINY2_FAMILY` (the same constant T-011's
+    enumerator uses). Non-Tiny-2 UVC cameras get `None` and the
+    group is skipped entirely — the controls page still renders
+    the V4L2-standard rows.
+  * **File handle ownership**: `OpenOptions::new().read(true)
+    .write(true).open(path)` once per page-build, wrapped in
+    `Rc<File>`. Every widget closure clones the `Rc` (one
+    bumped refcount per row) and the ioctl path borrows
+    `&*rc`. Single-threaded — GTK callbacks run on the main
+    loop and the ioctl is sub-millisecond on the user's
+    hardware, so no `spawn_local` lift yet.
+  * **Hydration**: `xu::get_status(&file)` on construction
+    seeds the AI-mode and HDR widgets. FOV / Face AE /
+    Exposure mode are NOT in the GET_CUR status struct, so
+    they default to `Wide / off / Auto` respectively and
+    only reflect user-driven changes; a future getter would
+    fix this (op `0x04`, op `0x03`, selector `0x02` reads
+    are not in either FOSS reference repo, so this is
+    investigation-frontier work).
+  * **Persistence deferred**: the original acceptance criterion
+    said "GSettings schema gains `ai-mode`, `fov-mode`,
+    `hdr-enabled`, `face-ae`, `exposure-mode`, persisted
+    per-camera-serial via the T-105 keying convention". On
+    inspection, T-105's schema (`data/io.github.domatix.
+    ObsbotCamControl.gschema.xml`, key `cameras a{sa{si}}`)
+    and the runtime code (`settings::write_and_save`, which
+    reads `control-values a{si}` with a unit-separator
+    encoding) are **structurally mismatched** — this is a
+    pre-existing bug separate from T-301. Persisting XU
+    state through that broken plumbing would propagate the
+    bug; we therefore re-hydrate from
+    `xu::get_status()` on every page open (the camera
+    firmware is the source of truth) and defer XU
+    persistence to a follow-on task that first sorts out
+    T-105's schema. Surfaced in PROGRESS for the user to
+    pick up; not blocking the v0.3 milestone.
+  * **Error path**: every `set_*` failure routes through
+    `settings::surface_error("Failed to set <name>:
+    <error>")` — the existing T-108 toast plumbing.
+    `XuError::Display` formats to a user-readable string;
+    `XuError::Io(EACCES)` for example renders as
+    "Permission denied (os error 13)" which is exactly the
+    same shape T-108 already surfaces for V4L2 standard
+    writes.
+  * **Mounting**: AI & Effects group is the **first** group
+    on the controls page (above PTZ pad), per the v0.3
+    marquee-feature framing. WB / Exposure / generic groups
+    follow as before. The order swap means the user's first
+    visible row on any Tiny 2 camera is now the AI tracking
+    dropdown.
+
+  Cargo gates at commit:
+  ```
+  cargo fmt --all --check                                → exit 0
+  cargo clippy --workspace --all-targets -- -D warnings  → exit 0
+  cargo test --workspace                                 → 55 pass
+                                                           (unchanged
+                                                           from T-300;
+                                                           GUI is not
+                                                           auto-tested
+                                                           per
+                                                           CLAUDE.md
+                                                           §5.4)
+  cargo build -p obsbot-gui                              → exit 0
+                                                           (1m 06s
+                                                           cold)
+  ```
+
+  Live-validation rev2 (2026-05-14 / 2026-05-15) drove two
+  bug fixes and two scope retirals on top of the original
+  T-301 commit `c1a2179`:
+  * `fix(core,gui): zero-pad SET_CUR payloads + escape group
+    titles (T-301)` (commit `3c04e57`) — kernel
+    `UVCIOC_CTRL_QUERY` requires `xqry->size ==
+    ctrl->info.size` exactly; for selector 0x06 that is 60,
+    not 3-4. Added zero-pad in
+    `obsbot_core::xu::transport::set_cur`. Also renamed
+    "AI & Effects" / "Power state & Presets" to "and"
+    variants — `AdwPreferencesGroup::title` is Pango
+    markup and the bare `&` was tripping the entity parser.
+  * `fix(gui): retire XU Exposure mode + Face metering
+    rows; FOV Narrow caveat (T-301)` (commit landing this
+    turn) — exposure mode is redundant with V4L2
+    standard `auto_exposure` (User-class menu, T-104),
+    which the user already sees in the Exposure group;
+    Q5 (label swap) ceases to matter once the duplicate is
+    retired. Face AE was only meaningful on the XU
+    auto-exposure path, which is gone with the duplicate,
+    so it is also retired. PROTOCOL.md §3.2 picks up
+    quirk Q8 (Narrow FOV is a no-op on Tiny 2 Lite
+    firmware 5.10 — the byte we send matches cgevans's
+    setter, but the Lite optics lack the path; Wide and
+    Normal work).
+
+  Caveats remaining for T-303:
+  - The "AI and effects" group appears at the top of the
+    controls page, above the PTZ pad, with **four** rows:
+    AI tracking (combo, 10 entries), Tracking speed
+    (combo, Standard / Sport), Field of view (combo, Wide
+    / Normal / Narrow — Narrow is no-op on Tiny 2 Lite per
+    Q8), HDR (switch).
+  - AI tracking + HDR + tracking speed hydrate from
+    `xu::get_status()` on page open.
+  - Each row's interaction triggers the documented
+    camera behaviour (AI mode change visible on tally /
+    motion, HDR visible in the image, tracking speed
+    changes pan/tilt acceleration on subsequent moves,
+    FOV Wide / Normal change the digital crop).
+  - Permission failures (run `sudo chmod 000 /dev/video0`,
+    click any AI row) surface as a toast — same shape
+    T-108 drives for V4L2 writes.
+
+### T-302 — Tiny4Linux extras (Sleep/Wake, Tracking Speed, Preset recall, Dump Status)
+
+- **State**: DONE (with caveat — visual confirmation pending user
+  run; see Outcome below)
+- **Started**: 2026-05-14T20:30:00Z
+- **Completed**: 2026-05-14T20:50:00Z
+- **Commit**: `feat(gui): Tiny4Linux extras (sleep/wake, tracking
+  speed, presets, dump status) (T-302)`
+- **Depends on**: T-300 (backend has the frames already),
+  T-301 (the "AI & Effects" page is the natural mounting
+  point).
+- **Description**: Add the three Tiny4Linux-only frames to
+  the GUI plus the diagnostic "Dump XU status" page that
+  exposes the 55 still-undecoded bytes of the 60-byte
+  GET_CUR struct for future community discovery. The
+  acceptance bytes are already in T-300; T-302 is purely
+  GUI + diagnostic.
+- **Acceptance criteria (draft — refine when starting)**:
+  - Sleep / Wake: an `AdwSwitchRow` (or header-bar toggle)
+    on the per-camera page wired to
+    `obsbot_core::xu::set_sleep`.
+  - Tracking speed: `AdwComboRow` (Standard / Sport) inside
+    the AI & Effects group.
+  - Preset recall: three `AdwActionRow`s labelled
+    "Preset 1 / 2 / 3" with go-next-symbolic suffix; on
+    activation call `set_preset(idx)`. README copy plus a
+    subtitle on the group explains presets must be
+    programmed via OBSBOT Center beforehand (per Q7).
+  - Debug "Dump XU status" page: a new menu item in the
+    burger menu opens an `AdwNavigationPage` showing the
+    60 status bytes as hex pairs with offsets and the 5
+    decoded fields highlighted. A "Copy hex dump" button
+    sends the raw bytes to the clipboard so users can
+    paste them into bug reports / discovery threads.
+  - Cargo gates green; commit `feat(gui): Tiny4Linux extras
+    (sleep/wake, tracking speed, presets, dump status)
+    (T-302)`.
+- **Outcome**: one new module
+  `crates/obsbot-gui/src/extras_view.rs` (~250 lines) plus
+  three small modifications:
+  * `crates/obsbot-gui/src/ai_effects_view.rs` gains a 6th row
+    (`tracking_speed_row`) between AI tracking and Field of
+    view — Tracking speed feels semantically part of "tracking"
+    so it lives in the AI & Effects group rather than the
+    Power & Presets group.
+  * `crates/obsbot-gui/src/main.rs` declares
+    `mod extras_view;`.
+  * `crates/obsbot-gui/src/controls_view.rs` mounts the new
+    group between AI & Effects and PTZ pad.
+  * `crates/obsbot-core/src/xu/mod.rs` re-exports
+    `status::STATUS_LEN` so the GUI can size the dump
+    formatter without reaching into the submodule.
+
+  The new module exposes
+  `build_extras_group(cam: &CameraInfo) -> Option<adw::
+  PreferencesGroup>` titled "Power state & Presets" with five
+  rows:
+  - `AdwSwitchRow` "Camera awake" — hydrates from
+    `xu::get_status().sleep` (Awake → on); flipping to off
+    sends `set_sleep(Sleep)`.
+  - Three `AdwActionRow` "Preset 1 / 2 / 3" — each activatable
+    (whole-row click or trailing button) and wired to
+    `recall_preset(idx)`. Group description explains preset
+    save requires OBSBOT Center (Q7).
+  - `AdwActionRow` "Show XU status (hex dump)" — opens an
+    `AdwAlertDialog` rendering the 60-byte raw payload as
+    `00:` / `10:` / etc. monospace rows in `<tt>` markup,
+    plus the 5 decoded fields listed below. "Copy hex"
+    response writes the hex grid to the clipboard via
+    `gdk::Display::clipboard().set_text(...)`. The diagnostic
+    surface promised by T-302 — gives users a clipboard-
+    pasteable artefact for community bug reports against the
+    55 undecoded bytes.
+
+  Q-validation: this commit does **not** introduce any new
+  quirks. Q4 / Q5 / Q6 / Q7 surface verbatim from T-300; the
+  GUI sends the exact bytes the backend ships. Q7 ("no preset
+  save") is acknowledged in the group description string so
+  users do not expect a "save" button.
+
+  Cargo gates at commit:
+  ```
+  cargo fmt --all --check                                → exit 0
+  cargo clippy --workspace --all-targets -- -D warnings  → exit 0
+  cargo test --workspace                                 → 55 pass
+                                                           (unchanged
+                                                           from T-301)
+  cargo build -p obsbot-gui                              → exit 0
+                                                           (3 s
+                                                           incremental
+                                                           over the
+                                                           T-301
+                                                           binary)
+  ```
+
+  Caveat: visual / interaction validation pending. Five
+  user-driven gates accumulate for T-303 in
+  `STATE.pending_t302_visual`:
+  - The "Power state & Presets" group appears below "AI &
+    Effects" on the controls page.
+  - "Camera awake" switch reflects current state; flipping
+    off causes the lens cover to descend (Sleep) and the
+    image to freeze.
+  - Tracking speed combo (in AI & Effects) reflects current
+    speed; switching to Sport makes pan/tilt move faster.
+  - Each preset-recall row, when clicked, moves the camera
+    to the slot. NOTE: the user must have **programmed**
+    each slot via OBSBOT Center beforehand; if a slot was
+    never programmed the recall is a no-op (no error).
+  - "Show XU status (hex dump)" opens an `AdwAlertDialog`
+    with a 4-column hex grid + 5 decoded fields below; the
+    "Copy hex" button puts the grid on the clipboard
+    (verify via `xclip -selection clipboard -o`).
+
+### T-303 — Validation pass, AppStream release notes, merge v0.3
+
+- **State**: DONE
+- **Started**: 2026-05-14T20:55:00Z
+- **Completed**: 2026-05-15T12:00:00Z
+- **Depends on**: T-300, T-301, T-302.
+- **Progress so far**: `data/io.github.domatix.ObsbotCamControl.
+  metainfo.xml.in` gains a `<release version="0.3.0"
+  date="2026-05-14" type="development">` entry listing every
+  user-visible v0.3 feature (10 AI modes, 3 FOV widths, HDR,
+  Face AE, Exposure mode, Tracking speed, Sleep/Wake, three
+  preset slots, the Dump XU status diagnostic) and the
+  EUPL-1.2 → GPL-3 attribution. Validated via
+  `appstreamcli validate --no-net` on a substituted copy —
+  same pedantic "redundante: 1" note as the rest of the
+  releases (the intentional `ObsbotCamControl` TitleCase per
+  ADR-0012). Four new keywords (AI / tracking / auto-framing /
+  HDR) for discoverability. Commit:
+  `docs(appstream): v0.3.0 release notes (T-303)`.
+- **Description**: Hardware validation against the user's
+  Tiny 2 Lite (`3564:fef9`, bcdDevice 5.10). Validates the
+  two outstanding FOSS-quirks (Q4 AIMode `Hand` setter,
+  Q5 Auto/Manual exposure label inversion) on live hardware,
+  refines PROTOCOL.md if needed, drafts AppStream release
+  notes for v0.3.0, and merges the feature branch back to
+  `main`.
+- **Acceptance criteria (draft — refine when starting)**:
+  - User-driven validation matrix:
+    - Each AI mode set → camera behaviour confirmed against
+      the on-screen tally (Hand mode is the critical one
+      for Q4).
+    - Auto / Manual exposure transitions confirmed (Q5);
+      sliders grey/wake correctly via T-111's sensitivity
+      refresh.
+    - HDR / Face AE / FOV toggles trigger visible image
+      change.
+    - Sleep / Wake toggles power-state.
+    - Tracking speed Standard / Sport changes pan/tilt
+      acceleration.
+    - Each preset recall moves the camera (only valid if
+      the user has programmed presets via OBSBOT Center
+      first — otherwise the recall is a no-op and we
+      observe no error).
+    - Dump status shows non-zero bytes outside the 5
+      decoded offsets.
+  - `data/io.github.domatix.ObsbotCamControl.metainfo.xml.in`
+    gains a `<release version="0.3.0">` entry summarizing the
+    XU + AI tracking work.
+  - PROTOCOL.md §3.2 updated with any corrections from the
+    live validation (Q4 / Q5 resolution recorded).
+  - Squash-merge `feat/T-300-xu-tracking` → `main` via
+    fast-forward or merge commit (decision when starting,
+    per CLAUDE.md §2.4).
+  - Tag `v0.3.0` per [[CLAUDE.md §7]] milestone DOD.
+  - Commit `docs(appstream): v0.3.0 release notes (T-303)`
+    bundled with the metainfo edit before the tag cut.
+- **Outcome**: v0.3.0 shipped on 2026-05-15. AppStream release
+  notes committed (97cc25e). Hardware suite ran in-session
+  (7/7 pass against the connected Tiny 2 Lite, including the
+  new `reads_single_v4l2_control_just_in_time`). User-driven
+  GUI validation matrix completed by the user: AI and effects
+  (4 rows × 10 AI modes + HDR + FOV) and Power state and
+  presets (sleep/wake, 3 presets, dump dialog) all green.
+  Three hot-fix commits landed during validation: zero-pad
+  SET_CUR (3c04e57), retire XU Exposure mode + Face metering
+  (d3fce26), refresh PTZ pan/tilt from kernel on every click
+  (f38a7ff — fixes the cache-drift bug surfaced during the
+  pad's "up up up up" smoke test). Quirks resolved per
+  PROTOCOL.md §3.2: **Q4** (AIMode Hand m=3) accepted as-is
+  per user's validation pass (no contradiction reported);
+  **Q5** retired by descope (XU Exposure mode + Face metering
+  rows removed in favour of the V4L2 standard `auto_exposure`
+  control); **Q8** (FOV Narrow no-op on Tiny 2 Lite firmware
+  5.10) documented, no further action. **Schema T-105 mismatch
+  punted** to v0.3.1 as `T-105fix` rather than wedging a
+  pre-existing main-branch bug into the v0.3.0 tag. Branch
+  `feat/T-300-xu-tracking` squash-merged into `main`;
+  `v0.3.0` annotated tag cut.
+
+### T-105fix — GSettings schema / runtime key mismatch (v0.3.1)
+
+- **State**: TODO
+- **Depends on**: v0.3.0 tagged.
+- **Origin**: surfaced 2026-05-14 during T-301 implementation.
+  `data/io.github.domatix.ObsbotCamControl.gschema.xml`
+  declares key `cameras` of type `a{sa{si}}` (nested dict:
+  serial → control-name → i32), but `crates/obsbot-gui/src/
+  settings.rs` reads/writes key `control-values` of type
+  `a{si}` (flat dict, encoded with a unit separator). T-105
+  persistence has been silently never working end-to-end —
+  GLib aborts with a critical warning when `g_settings_get_
+  value` is called with a key the schema doesn't know about.
+  Bug is pre-existing on `main` (predates T-300); descoped
+  from v0.3.0 closure per T-303 decision.
+- **Description**: Pick one of the two shapes and align the
+  other to it. ~10 lines either way.
+  - **Option A** (schema → runtime): rename the schema key
+    from `cameras` to `control-values`, change its type
+    from `a{sa{si}}` to `a{si}`, drop the nested dict.
+    Drops the per-serial nesting but `settings.rs` encodes
+    serial+name into the key string already, so no
+    persisted data is lost.
+  - **Option B** (runtime → schema): rewrite `settings.rs`
+    to use the nested `a{sa{si}}` shape and the `cameras`
+    key name. Keeps the schema cleaner but requires
+    rebuilding the read/write path.
+  - Recommendation when starting: **Option A** — minimal
+    schema change, no runtime restructuring, plays nicer
+    with `gsettings get` from the CLI.
+- **Acceptance criteria (draft — refine when starting)**:
+  - Schema and runtime agree on key name and type.
+  - Persistence round-trip works end-to-end: change
+    brightness=75, kill the app, restart it, drill into the
+    camera, slider sits at 75.
+  - `cargo test -p obsbot-gui` unit tests still pass; add
+    one that simulates the round-trip through a temporary
+    `GSettings` backend.
+  - `appstreamcli validate --no-net` still green.
+  - Commit: `fix(gui): align GSettings schema and runtime
+    key (T-105fix)`.
+- **Out of scope**: XU value persistence (a future T-104a
+  layered on top of the corrected T-105 path); user-visible
+  Reset to defaults button (lives in T-100 plumbing).
+
+### T-101a — PTZ smooth movement via pan_speed / tilt_speed (post-v0.3 follow-up)
+
+- **State**: TODO
+- **Depends on**: T-303 closed and v0.3.0 tagged (so this can
+  ship as v0.3.1 or roll into v0.4 — milestone decision when
+  starting; user explicitly chose to defer this past the v0.3
+  tag during T-303 validation).
+- **Origin**: surfaced during T-303 user-driven validation on
+  2026-05-15. The 3×3 directional pad (built in T-101) only
+  offers discrete 5° hops via `pan_absolute` / `tilt_absolute`.
+  SPEC §4.1 promises *"Pan / tilt / zoom controls (continuous
+  and absolute)"* — the continuous half was never wired. Same
+  validation pass also surfaced the cache-drift bug whose fix
+  is bundled with T-303 (see [[PROGRESS 2026-05-15 PTZ
+  cache-drift hot-fix]]); this task is the larger UX upgrade.
+- **Description**: While a directional button is held down,
+  set `V4L2_CID_PAN_SPEED` (`0x009a0920`) and/or
+  `V4L2_CID_TILT_SPEED` (`0x009a0921`) to a non-zero value
+  whose sign matches the direction; on release, set both back
+  to `0`. The Tiny 2 Lite advertises `pan_speed` in
+  `min=-1 max=160 step=1` and `tilt_speed` in
+  `min=-1 max=120 step=1` (cross-checked with `v4l2-ctl
+  --list-ctrls` on 2026-05-15 against firmware 5.10). This
+  mirrors how OBSBOT Center drives the camera and gives the
+  user truly continuous, smooth motion — feels like a
+  joystick rather than a step sequencer.
+- **Acceptance criteria (draft — refine when starting)**:
+  - `ptz_pad.rs`'s 8 directional buttons wire `gtk::Gesture
+    LongPress` (or a `ButtonController` + `MotionController`
+    pair) so the press and release events are both
+    observable. Per-click absolute-step behaviour stays as a
+    fallback for keyboard activation (Enter / Space) so
+    accessibility regressions don't happen.
+  - A user setting (GSettings key `ptz-speed-fast`, integer
+    1–100 default 50, or similar) chooses the magnitude;
+    expose it via a future preferences dialog.
+  - The diagonal buttons (NE / NW / SE / SW) drive both axes
+    simultaneously; pan and tilt speeds must be issued as
+    separate `set_control` calls (no `set_ext_ctrls` batching
+    yet).
+  - On hot-plug REMOVE mid-press, the speed write fails
+    silently (no toast spam) but the GUI cleans up the
+    gesture state.
+  - Hardware test (`#[ignore]`d) writes pan_speed = 40, sleeps
+    300 ms, writes pan_speed = 0, asserts the camera ended at
+    a different `pan_absolute` than it started.
+  - All four cargo gates green.
+- **Out of scope for T-101a**: continuous *zoom* (zoom slider
+  is already linear and smooth enough); accelerometer-style
+  ramp-up; multi-button chord input. Those can land as
+  T-101b / T-101c if validation reveals a need.
+
+---
+
+## v0.4 — Live Preview (planned)
 
 ### T-200 — Embedded preview pane in the per-camera controls page
+
 - **State**: TODO
-- **Depends on**: v0.2.0 shipped (this task only makes sense
-  once T-101..T-111's controls are validated).
+- **Depends on**: v0.3.0 shipped (AI tracking now precedes
+  preview per [[ADR-0020]] — milestone bucket renumber only,
+  task scope is unchanged from when it was a v0.3 task).
 - **Description**: User-requested placement decision for the
-  v0.3 milestone (ROADMAP §v0.3 "Live Preview" was previously
-  unspecified on WHERE the preview lives). The preview pane
-  has to be embedded **inside the per-camera controls
-  `AdwNavigationPage`** so the user can tweak brightness /
-  WB / exposure / PTZ and see the effect live, without
-  launching Cheese / OBS / `v4l2-ctl --stream-mmap` as a
-  side process. Approach: a GStreamer pipeline
-  `v4l2src device=/dev/videoN ! videoconvert !
-  gtk4paintablesink` whose paintable is bound to a
-  `gtk::Picture` placed at the top of the controls page,
-  above the PTZ pad. A toggle (probably in the header bar of
-  the per-camera page, near the back button) starts and
-  stops the pipeline; default-off so the page still loads
-  fast on cold open.
+  Live Preview milestone (originally seeded as a v0.3 task
+  before ADR-0020 swapped priorities; ROADMAP §v0.4
+  "Live Preview" was previously unspecified on WHERE the
+  preview lives). The preview pane has to be embedded
+  **inside the per-camera controls `AdwNavigationPage`**
+  so the user can tweak brightness / WB / exposure / PTZ
+  and see the effect live, without launching Cheese / OBS /
+  `v4l2-ctl --stream-mmap` as a side process. Approach: a
+  GStreamer pipeline `v4l2src device=/dev/videoN !
+  videoconvert ! gtk4paintablesink` whose paintable is
+  bound to a `gtk::Picture` placed at the top of the
+  controls page, above the PTZ pad. A toggle (probably in
+  the header bar of the per-camera page, near the back
+  button) starts and stops the pipeline; default-off so the
+  page still loads fast on cold open.
 - **Acceptance criteria (draft — refine when starting)**:
   - Workspace deps gain `gstreamer`, `gstreamer-video`,
     `gstreamer-app` (already pinned in `[workspace.
@@ -768,10 +1474,67 @@
   - All four cargo gates green; Flatpak manifest gains the
     GStreamer plugin packages needed for `v4l2src` and
     `gtk4paintablesink`.
-- **Out of scope for T-200** (split into separate v0.3 tasks
+- **Out of scope for T-200** (split into separate v0.4 tasks
   when this one lands): snapshot-to-file, post-process
   filters (greyscale / sepia / invert per SPEC §4.2),
   resizable preview-pane vs always-fullwidth-top placement.
+
+---
+
+## Beyond v1.0 — Multi-model OBSBOT support (planned)
+
+### T-400 — Add OBSBOT Meet (original) as a supported model
+
+- **State**: TODO
+- **Depends on**: v1.0.0 shipped (GNOME Circle accepted) OR
+  a community PR from a Meet owner; whichever happens first.
+  The Tiny 2 family stays the only first-class-supported model
+  until v1.0 cuts.
+- **Origin**: user asked on 2026-05-15 (during T-303 closure)
+  to explicitly track the **original OBSBOT Meet** — the
+  model without a numeric / `SE` suffix — as a future
+  supported target. `ROADMAP §Beyond v1.0` already mentions
+  *Meet 2 / Meet SE / original Tiny / Tail Air*; this task
+  promotes the original **Meet** from that catch-all list
+  into a concrete work item.
+- **Description**: Extend the camera support surface to the
+  OBSBOT Meet's USB ID. Likely involves:
+  - Confirming the Meet's `idVendor` (almost certainly
+    `0x3564`) and `idProduct` (TBD — the user does not own
+    a Meet, so this needs either a community tester's
+    `lsusb` output or a USB capture from a borrowed unit).
+  - Generalising `obsbot-core::enumerate::TINY2_FAMILY` (and
+    the GUI's `is_tiny_2_family` gate inside
+    `ai_effects_view.rs` / `extras_view.rs`) into a
+    per-model capability matrix. The Meet's XU surface may
+    not be identical to the Tiny 2 family — selectors,
+    GET_LEN sizes, and the layout of the 60-byte status
+    struct (PROTOCOL §3) may differ; treat each `set_*`
+    helper as opt-in per model.
+  - Live-validating each v0.3 feature against the Meet
+    before claiming support: the 10 AI modes, FOV widths,
+    HDR, Sleep/Wake, presets, Tracking speed. Anything the
+    Meet does not advertise gets hidden in the GUI rather
+    than failing at write-time.
+  - Documenting any model-specific quirks in PROTOCOL.md
+    §3 (new sub-section §3.3 reserved for Meet quirks).
+- **Acceptance criteria (draft — refine when starting)**:
+  - `obsbot-core::TINY2_FAMILY` constant either renamed
+    (`OBSBOT_FAMILY`?) or supplemented with a parallel
+    `MEET_FAMILY` constant; enumerator returns both.
+  - Per-model capability flags drive the GUI: the AI and
+    effects group / Power state and presets group either
+    render with Meet-supported subsets, or are skipped
+    entirely if the Meet does not advertise the same XU
+    surface.
+  - Hardware test (`#[ignore]`d) for the Meet round-trip,
+    contributed by whoever has the hardware.
+  - PROTOCOL.md §3.3 documents the Meet's XU surface +
+    quirks.
+  - AppStream metainfo gains "Meet" in keywords.
+- **Out of scope for T-400**: Meet 2, Meet SE, original
+  Tiny, Tail Air — those stay in the `ROADMAP §Beyond v1.0`
+  catch-all until a separate task pulls each one out.
 
 ---
 

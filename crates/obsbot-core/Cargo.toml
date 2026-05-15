@@ -10,7 +10,11 @@ repository.workspace = true
 homepage.workspace = true
 
 [lints.rust]
-unsafe_code = "forbid"
+# Relaxed from `forbid` to `deny` in T-300 so the `xu::transport`
+# module can carry a scoped `#[allow(unsafe_code)]` for the
+# `UVCIOC_CTRL_QUERY` ioctl. Every other module in this crate stays
+# safe — the allow is opt-in per module, not crate-wide.
+unsafe_code = "deny"
 
 [lints.clippy]
 pedantic = { level = "warn", priority = -1 }
@@ -20,6 +24,9 @@ module_name_repetitions = "allow"
 thiserror.workspace = true
 tracing.workspace = true
 v4l.workspace = true
+# `nix::ioctl_readwrite!(...)` macros generate the typed wrapper
+# around `UVCIOC_CTRL_QUERY` used by `obsbot-core::xu::transport`.
+nix.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true

@@ -22,9 +22,11 @@
 //! on Ctrl+Q. The diagnostics view, hot-plug listener, and per-camera
 //! controls arrive from T-013 onwards.
 
+mod ai_effects_view;
 mod application;
 mod controls_view;
 mod exposure_group;
+mod extras_view;
 mod i18n;
 mod ptz_pad;
 mod settings;

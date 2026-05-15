@@ -30,8 +30,22 @@
 //! responsive without being twitchy. `zoom_continuous` is intentionally
 //! not surfaced (PROTOCOL §2.3 quirk Q2 — driver reports values
 //! exceeding the advertised range).
+//!
+//! The pan/tilt button handlers **re-read the kernel-current position
+//! before every step** rather than tracking a local cache. The
+//! cache-based approach used in the initial v0.2 implementation
+//! drifted whenever the camera moved itself between clicks (AI
+//! tracking landing on a face, preset recall, the on-device gesture),
+//! producing the symptom the user observed in T-303 validation:
+//! pressing "up" four times would sometimes move down, then snap to
+//! the top once the stale cache finally caught up with reality.
+//! Each click now issues `VIDIOC_G_EXT_CTRLS` for the controlling
+//! axis, computes `clamp(current + step, min, max)`, and writes
+//! that absolute target. Two ioctls per click is acceptable for
+//! discrete PTZ — the smooth/continuous joystick mode is a v0.3.1
+//! follow-up (T-101a) that will drive `pan_speed` / `tilt_speed`
+//! while a button is held.
 
-use std::cell::Cell;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
@@ -39,7 +53,7 @@ use gtk4 as gtk;
 use libadwaita as adw;
 
 use adw::prelude::*;
-use obsbot_core::{ControlDescriptor, ControlKind, ControlValue};
+use obsbot_core::{read_control, ControlDescriptor, ControlKind, ControlValue};
 
 use crate::i18n::gettext;
 use crate::settings;
@@ -105,14 +119,10 @@ pub fn build_ptz_pad(
 
     let owned_path: Rc<PathBuf> = Rc::new(path.to_path_buf());
     let owned_serial: Rc<Option<String>> = Rc::new(serial.map(str::to_owned));
-    let pan_cell = Rc::new(Cell::new(pan.current));
-    let tilt_cell = Rc::new(Cell::new(tilt.current));
 
     let ctx = DirectionCtx {
         pan,
         tilt,
-        pan_cell: pan_cell.clone(),
-        tilt_cell: tilt_cell.clone(),
         path: owned_path.clone(),
         serial: owned_serial.clone(),
     };
@@ -134,13 +144,9 @@ pub fn build_ptz_pad(
         .object("btn_reset")
         .expect("ptz-pad.ui missing object 'btn_reset'");
     {
-        let pan_cell = pan_cell.clone();
-        let tilt_cell = tilt_cell.clone();
         let owned_path = owned_path.clone();
         let owned_serial = owned_serial.clone();
         btn_reset.connect_clicked(move |_| {
-            pan_cell.set(0);
-            tilt_cell.set(0);
             write(
                 &owned_path,
                 CID_PAN_ABSOLUTE,
@@ -244,8 +250,6 @@ fn find_bool(controls: &[ControlDescriptor], id: u32) -> Option<BoolValue> {
 struct DirectionCtx {
     pan: IntRange,
     tilt: IntRange,
-    pan_cell: Rc<Cell<i64>>,
-    tilt_cell: Rc<Cell<i64>>,
     path: Rc<PathBuf>,
     serial: Rc<Option<String>>,
 }
@@ -254,6 +258,12 @@ struct DirectionCtx {
 /// `dx` / `dy` are the per-click step direction in units of
 /// [`PAN_TILT_STEP_DEGREES`]; they multiply into V4L2 raw units before
 /// writing.
+///
+/// Reads the current `pan_absolute` / `tilt_absolute` from the kernel
+/// on every click (see the module-level doc-block for the rationale)
+/// and falls back to the descriptor's snapshot value only if the read
+/// itself errors — that way a transient read failure does not freeze
+/// the pad.
 fn wire_direction(builder: &gtk::Builder, button_id: &str, dx: i64, dy: i64, ctx: &DirectionCtx) {
     let button: gtk::Button = builder
         .object(button_id)
@@ -262,22 +272,31 @@ fn wire_direction(builder: &gtk::Builder, button_id: &str, dx: i64, dy: i64, ctx
 
     let pan = ctx.pan;
     let tilt = ctx.tilt;
-    let pan_cell = ctx.pan_cell.clone();
-    let tilt_cell = ctx.tilt_cell.clone();
     let path = ctx.path.clone();
     let serial = ctx.serial.clone();
     button.connect_clicked(move |_| {
         if dx != 0 {
-            let new_pan = (pan_cell.get() + dx * PAN_TILT_STEP).clamp(pan.min, pan.max);
-            pan_cell.set(new_pan);
+            let current = current_axis(&path, CID_PAN_ABSOLUTE, pan.current);
+            let new_pan = (current + dx * PAN_TILT_STEP).clamp(pan.min, pan.max);
             write(&path, CID_PAN_ABSOLUTE, "pan_absolute", new_pan, &serial);
         }
         if dy != 0 {
-            let new_tilt = (tilt_cell.get() + dy * PAN_TILT_STEP).clamp(tilt.min, tilt.max);
-            tilt_cell.set(new_tilt);
+            let current = current_axis(&path, CID_TILT_ABSOLUTE, tilt.current);
+            let new_tilt = (current + dy * PAN_TILT_STEP).clamp(tilt.min, tilt.max);
             write(&path, CID_TILT_ABSOLUTE, "tilt_absolute", new_tilt, &serial);
         }
     });
+}
+
+/// Just-in-time read of an integer axis from the kernel, falling back
+/// to `snapshot` (the value read at page-open time) on any error. The
+/// fallback keeps the pad usable on a transient read failure; the
+/// next click will retry the kernel read.
+fn current_axis(path: &Path, id: u32, snapshot: i64) -> i64 {
+    match read_control(path, id) {
+        Ok(ControlValue::Integer(v)) => v,
+        _ => snapshot,
+    }
 }
 
 /// Build a single `AdwExpanderRow`-style pair: an `AdwSwitchRow` for

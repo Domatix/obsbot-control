@@ -28,8 +28,8 @@
 use std::path::Path;
 
 use obsbot_core::{
-    enumerate_cameras, read_controls, write_control, ControlClass, ControlKind, ControlValue,
-    TINY2_FAMILY, VID_OBSBOT,
+    enumerate_cameras, read_control, read_controls, write_control, ControlClass, ControlKind,
+    ControlValue, TINY2_FAMILY, VID_OBSBOT,
 };
 
 #[test]
@@ -240,6 +240,50 @@ fn writes_v4l2_zoom_absolute_round_trip() {
     // Restore — keep the camera frame at its original framing.
     write_control(path, zoom.id, ControlValue::Integer(current))
         .expect("zoom restore must succeed");
+}
+
+#[test]
+#[ignore = "requires a Tiny 2 family camera plugged into the host"]
+fn reads_single_v4l2_control_just_in_time() {
+    // Covers the T-101 hot-fix path: the PTZ pad needs to read
+    // `pan_absolute` / `tilt_absolute` just-in-time on every click
+    // so its delta lands relative to the camera's real position
+    // rather than a stale page-open snapshot (see ptz_pad.rs
+    // module-level doc-block). This test exercises the singular
+    // `read_control` against `pan_absolute` and cross-checks the
+    // result against the bulk `read_controls` walk — they must
+    // agree at a moment when the camera is otherwise still.
+    let cams = enumerate_cameras();
+    let path = cams
+        .first()
+        .and_then(|c| c.video_path.as_deref())
+        .expect("a connected Tiny 2 family camera with a /dev/videoN node");
+
+    let bulk = read_controls(path).expect("read_controls succeeds on the connected unit");
+    let pan_descriptor = bulk
+        .iter()
+        .find(|c| c.id == 0x009a_0908)
+        .expect("pan_absolute must be present on the Tiny 2 family");
+    let ControlKind::Integer {
+        current: bulk_current,
+        ..
+    } = pan_descriptor.kind
+    else {
+        panic!("pan_absolute must be Integer-typed");
+    };
+
+    let single = read_control(path, 0x009a_0908).expect("read_control(pan_absolute) must succeed");
+    let ControlValue::Integer(single_current) = single else {
+        panic!("read_control(pan_absolute) must return Integer; got {single:?}");
+    };
+
+    // The two reads happen within microseconds of each other against
+    // a still camera, so they must agree exactly.
+    assert_eq!(
+        single_current, bulk_current,
+        "singular read_control (={single_current}) must match the bulk \
+         read_controls value (={bulk_current}) for pan_absolute",
+    );
 }
 
 #[test]

@@ -17,8 +17,16 @@
   + `--list-ctrls-menus` on `/dev/video0` and `/dev/video1`. Requires
   the `video` group membership / sudo (see §1.1 below).
 - **Vendor XU**: descriptor metadata captured (Unit ID, GUID, bmControls
-  mask). Per-selector semantics pending Wireshark capture against
-  OBSBOT Center (v0.4 milestone, T-300+).
+  mask). Per-selector semantics: **the majority of the surface is now
+  known from free-software sources** (`cgevans/tiny2` and
+  `OpenFoxes/Tiny4Linux`, both EUPL-1.2). See §3.2 below for the
+  decoded command table and [[DECISIONS.md ADR-0020]] for the FOSS
+  pivot. The previously documented "Wireshark + Windows VM" capture is
+  no longer a v0.3 prerequisite (it was the old v0.4's prereq before
+  the milestone collapse); it remains a *future, optional* avenue for
+  probing the still-unmapped opcodes (selector `0x06` opcodes
+  `0x02`, `0x05`, `0x06`-`0x15`, `0x17`+) and the 55 still-undecoded
+  bytes of the 60-byte GET_CUR status struct.
 
 ---
 
@@ -295,23 +303,166 @@ gettable/settable (`0xff = 1..8`, `0xff = 9..16`, `0x3f = 17..22`).
 3 bits set in the mask are likely reserved or padding. Selector
 numbering in UVC XU is 1-based and vendor-defined.
 
-#### Per-selector decode (pending v0.4 / T-300+)
+#### Per-selector decode
 
-| Selector | Logical meaning              | wLength | GET/SET | Source                       |
-|----------|------------------------------|---------|---------|------------------------------|
-| 1        | TBD                          | TBD     | TBD     | TBD                          |
-| …        | …                            | …       | …       | …                            |
-| 19       | TBD                          | TBD     | TBD     | TBD                          |
+The 19 advertised selectors on this XU turn out to be **largely
+unused**. The OBSBOT firmware multiplexes the entire vendor surface
+across just **two** selectors:
 
-To populate, cross-reference with:
+- **Selector `0x06`** — opcode-multiplexed. Payload format is
+  `[opcode, payload_len, ...payload_bytes]`. Four opcodes known.
+- **Selector `0x02`** — structured 18/36-byte frames. Five frame
+  shapes known (Manual/Auto exposure, Sleep/Wake, Tracking Speed,
+  three Preset recalls).
 
-- `taxfromdk/obsbot_tiny_reversing` — earlier model, may share the
-  selector numbering convention.
-- `samliddicott/meet4k` — Rust XU library for Meet 4K, same vendor.
-- A fresh Wireshark + usbmon capture of OBSBOT Center toggling each
-  feature one at a time against a Tiny 2 in a Windows VM.
+The remaining 17 selector slots in `bmControls` are advertised by the
+descriptor but not addressed by either of the two FOSS reference
+projects (see §3.2 for the full citation table).
 
-### 3.2 Tiny 2 (regular) XU
+### 3.2 Tiny 2 XU command table — known surface (FOSS-extracted)
+
+Source: end-to-end read of `cgevans/tiny2` `src/lib.rs` and
+`OpenFoxes/Tiny4Linux` `src/libs/camera/commands/*.rs`, recorded
+verbatim in [[docs/XU_INVESTIGATION_2026-05-14.md]] (2026-05-14).
+Both projects are EUPL-1.2; bytes can be re-used under our
+GPL-3.0-or-later licence per the EUPL Appendix (see
+[[CREDITS.md]] and [[DECISIONS.md ADR-0020]]).
+
+Conventions used in the tables below:
+
+- *Bytes* are the literal payload sent via `UVCIOC_CTRL_QUERY` with
+  `bRequest = UVC_SET_CUR (0x01)`, `bUnit = 0x02`, `bSelector` as
+  noted, and the appropriate `wLength` from `UVC_GET_LEN (0x85)`.
+- *Status @* is the byte offset within the 60-byte GET_CUR struct
+  on selector `0x06` where the camera reflects the resulting state.
+
+#### Selector `0x06` — opcode-multiplexed (SET_CUR)
+
+| Op   | Meaning                | Payload (bytes after op+len) | Values                                         | Status @ | Source        |
+|------|------------------------|------------------------------|------------------------------------------------|----------|---------------|
+| 0x01 | HDR on/off             | `[len=1, v]`                 | `0x00` off, `0x01` on                          | `0x06`   | cgevans + T4L |
+| 0x03 | Face Auto-Exposure     | `[len=1, v]`                 | `0x00` Global, `0x01` Face — only valid in auto-exposure mode | n/a | cgevans + T4L |
+| 0x04 | Field of View          | `[len=1, v]`                 | `0x01` Wide (86°), `0x02` Normal (78°), `0x03` Narrow (65°)   | n/a | cgevans       |
+| 0x16 | AI Tracking Mode       | `[len=2, m, n]`              | see (m, n) table below — 10 modes              | `0x18` (m) + `0x1c` (n) | cgevans + T4L |
+
+##### AI tracking mode `(m, n)` tuple (op 0x16)
+
+| AIMode           | m    | n    | Notes                                                |
+|------------------|------|------|------------------------------------------------------|
+| `NoTracking`     | 0x00 | 0x00 |                                                      |
+| `NormalTracking` | 0x02 | 0x00 |                                                      |
+| `UpperBody`      | 0x02 | 0x01 |                                                      |
+| `CloseUp`        | 0x02 | 0x02 |                                                      |
+| `Headless`       | 0x02 | 0x03 |                                                      |
+| `LowerBody`      | 0x02 | 0x04 |                                                      |
+| `DeskMode`       | 0x05 | 0x00 |                                                      |
+| `Whiteboard`     | 0x04 | 0x00 |                                                      |
+| `Hand`           | 0x06 | 0x00 | ⚠ See quirk Q4 — cgevans + Tiny4Linux setters write `m=3`, decoders read `m=6`. Validate live. |
+| `Group`          | 0x01 | 0x00 |                                                      |
+
+#### Selector `0x02` — structured 36-byte frames
+
+All frames share the layout
+`[FRAME_ID=0xaa,0x25, seq_nr(2), SEGMENT_SIZE=0x0c,0x00, checksum(2),
+function_group(6), command(6), appendix(16)]`. Checksum values are
+opaque to us (per-command constants captured by the FOSS extraction);
+do **not** attempt to recompute, copy verbatim. Appendix is zero
+unless noted.
+
+| Frame                | function_group                       | seq_nr      | checksum    | command                              | appendix              | Status @ | Source |
+|----------------------|--------------------------------------|-------------|-------------|--------------------------------------|-----------------------|----------|--------|
+| Exposure → Auto      | `0a 02 82 29 05 00`                  | `15 00`     | `a8 9e`     | `f9 27 01 32 00 00`                  | zero                  | n/a (paired with op `0x03` on sel `0x06` for Face AE selection) | cgevans |
+| Exposure → Manual    | `0a 02 82 29 05 00`                  | `16 00`     | `58 91`     | `b2 af 02 04 00 00`                  | zero                  | n/a      | cgevans |
+| Sleep → Awake        | `0a 02 c2 a0 04 00`                  | `a5 00`     | `5f ef`     | `be 07 00 00 00 00`                  | zero                  | `0x02`   | Tiny4Linux |
+| Sleep → Sleep        | `0a 02 c2 a0 04 00`                  | `42 00`     | `ea 63`     | `bf fb 01 00 00 00`                  | zero                  | `0x02`   | Tiny4Linux |
+| Tracking → Standard  | `0a 04 c4 0c 01 00`                  | `20 00`     | `ab cb`     | `e6 3f 00 00 00 00`                  | zero                  | `0x21`   | Tiny4Linux |
+| Tracking → Sport     | `0a 04 c4 0c 01 00`                  | `21 00`     | `fa 0e`     | `67 fe 02 00 00 00`                  | zero                  | `0x21`   | Tiny4Linux |
+| Recall Preset 1 (idx 0) | `0a 04 c4 39 14 00`               | `20 00`     | `6b dc`     | `d6 fb 00 00 00 00`                  | `(1.0f32)x4` (16 B)   | none     | Tiny4Linux |
+| Recall Preset 2 (idx 1) | `0a 04 c4 39 14 00`               | `1a 00`     | `4b 03`     | `eb 2a 01 00 00 00`                  | `(1.0f32)x4`          | none     | Tiny4Linux |
+| Recall Preset 3 (idx 2) | `0a 04 c4 39 14 00`               | `26 00`     | `8b c3`     | `af 19 02 00 00 00`                  | `(1.0f32)x4`          | none     | Tiny4Linux |
+
+The four `1.0_f32` little-endian floats in the Preset-recall appendix
+are `[0x00, 0x00, 0x80, 0x3f]` repeated four times; their semantic
+meaning is unknown but the camera rejects the recall without them.
+Copy verbatim.
+
+#### Selector `0x06` — GET_CUR returns 60-byte status struct
+
+| Offset | Field          | Encoding                                                               | Source |
+|--------|----------------|------------------------------------------------------------------------|--------|
+| `0x02` | Sleep state    | `0x00` Awake, `0x01` Sleep, anything else Unknown                      | Tiny4Linux |
+| `0x06` | HDR flag       | `0x00` off, non-zero on                                                | cgevans + T4L |
+| `0x18` | AI mode `m`    | first byte of `(m, n)` per the table above                             | cgevans + T4L |
+| `0x1c` | AI mode `n`    | second byte of `(m, n)` per the table above                            | cgevans + T4L |
+| `0x21` | Tracking speed | `0x00` Standard, `0x02` Sport, anything else defaults to Standard      | Tiny4Linux |
+
+Bytes `0x00`, `0x01`, `0x03`-`0x05`, `0x07`-`0x17`, `0x19`-`0x1b`,
+`0x1d`-`0x20`, `0x22`-`0x3b` are returned by the camera but
+**undecoded** by either FOSS project. They are the discovery
+frontier. The v0.3 GUI (T-302) ships a "Dump status" debug page so
+the user can capture a hex dump of any non-default state for future
+contributions.
+
+#### Known quirks (Q-series, this XU)
+
+- **Q4 — `AIMode::Hand` setter / decoder mismatch.** cgevans's
+  setter writes `[0x16, 0x02, 0x03, 0x00]` (m=3) for `Hand`;
+  the decoder maps `(m=6, n=0)` to `Hand`. Tiny4Linux mirrors the
+  same mismatch. Almost certainly a typo in cgevans's setter that
+  Tiny4Linux inherited; flagged for live validation in T-303.
+  Until validated, treat both `(m=3, n=0)` and `(m=6, n=0)` as
+  `Hand` in our decoder.
+- **Q5 — Auto / Manual exposure label inversion.** cgevans's
+  `AUTO_EXP_CMD` bytes equal Tiny4Linux's `MANUAL` literal, and
+  vice versa. cgevans's labelling is the more likely-correct one
+  (the `[0x03, 0x01, x]` Face-AE follow-up only makes sense after
+  putting the camera in auto). Our port adopts cgevans's
+  labelling; T-303 validates live.
+- **Q6 — Tracking speed value `0x21 = 0x01` is unmapped.** Gap
+  between Standard (`0x00`) and Sport (`0x02`) suggests a third
+  mode (possibly the "Headroom" mode cgevans declared in an
+  unused enum). Decoder defaults the gap value to Standard;
+  re-investigate if a user reports a third speed slider in the
+  proprietary app.
+- **Q7 — Preset save is not implemented in either FOSS project.**
+  Only recall (3 slots) is supported. Presets must be programmed
+  via the OBSBOT Center app or the camera's on-device gesture
+  mechanism beforehand. Adding preset save is deferred to a
+  follow-on milestone pending USB capture against the proprietary
+  app.
+
+- **Q8 — FOV Narrow (65°) is a no-op on Tiny 2 Lite firmware 5.10.**
+  Sending `[0x04, 0x01, 0x03]` (the byte sequence cgevans declares
+  for `FOVMode::Narrow`, byte-identical between our port and the
+  upstream) produces no visible crop change on the user's Tiny 2
+  Lite (3564:fef9, bcdDevice 5.10). Wide and Normal both work.
+  Probable root cause: the Lite's optics lack the narrowest
+  digital-crop path the regular Tiny 2 ships with, so the
+  firmware silently ignores the byte. Narrow stays in the
+  dropdown so regular-Tiny-2 owners can use it; the GUI's FOV
+  subtitle calls out the Lite case. Observed during T-301 live
+  validation, 2026-05-14.
+
+- **Q5 resolution (Auto / Manual exposure label swap).** Live
+  validation on 2026-05-14 showed cgevans's labelling produces
+  the opposite of the V4L2 standard `auto_exposure` control —
+  i.e. our XU "Auto" frame puts the camera in Manual and vice
+  versa. **Rather than flipping the labels and inheriting the
+  ambiguity, T-301 removed the XU exposure-mode widget
+  entirely.** The V4L2 standard `auto_exposure` menu (Camera
+  class, exposed by T-104) is now the sole exposure-mode entry
+  point in the GUI; it uses kernel labels (no swap risk),
+  supports three values (Auto / Manual / Aperture Priority),
+  and greys the exposure-time slider via the kernel INACTIVE
+  flag. The XU encoder
+  `obsbot_core::xu::commands::exposure_mode_type` stays
+  available for any future caller, but the GUI does not call
+  it. The same retire-rather-than-fix decision retired the
+  Face-AE row, which only meters correctly when the camera
+  is in auto-exposure via the XU frame path (and so silently
+  no-ops when the user takes the V4L2 standard route).
+
+### 3.3 Tiny 2 (regular) XU
 
 Not yet captured. Working hypothesis (to verify):
 
@@ -365,11 +516,22 @@ To be filled if needed.
   https://www.usb.org/document-library/video-class-v15-document-set
 - Wireshark USB capture tutorial:
   https://wiki.wireshark.org/CaptureSetup/USB
-- `taxfromdk/obsbot_tiny_reversing`:
-  https://github.com/taxfromdk/obsbot_tiny_reversing
-- `samliddicott/meet4k`:
+- `cgevans/tiny2` (Rust, EUPL-1.2, the primary XU reference our v0.3
+  port is based on):
+  https://github.com/cgevans/tiny2
+- `OpenFoxes/Tiny4Linux` (Rust, EUPL-1.2, AUR-packaged active fork
+  adding Sleep/Wake + Tracking Speed + Preset recall):
+  https://github.com/OpenFoxes/Tiny4Linux
+- `samliddicott/meet4k` (EUPL-1.2, the upstream pattern cgevans/tiny2
+  is "substantially based on"):
   https://github.com/samliddicott/meet4k
-- `aaronsb/obsbot-camera-control` (reference Qt6 app, uses proprietary SDK):
+- `taxfromdk/obsbot_tiny_reversing` (earlier OBSBOT Tiny — different
+  model, reference only):
+  https://github.com/taxfromdk/obsbot_tiny_reversing
+- `aaronsb/obsbot-camera-control` (reference Qt6 app, uses proprietary
+  SDK — NOT a citation source for our port):
   https://github.com/aaronsb/obsbot-camera-control
 - Linux kernel patch confirming Tiny 2 PTZ speed via standard UVC:
   http://www.mail-archive.com/linuxtv-commits@linuxtv.org/msg48291.html
+- EUPL-1.2 → GPL-3 compatibility (EUPL Appendix):
+  https://eupl.eu/1.2/en/

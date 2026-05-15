@@ -197,6 +197,39 @@ pub fn write_control(video_path: &Path, id: u32, value: ControlValue) -> Result<
     Ok(())
 }
 
+/// Read a single V4L2 control's current value from the device at
+/// `video_path`.
+///
+/// Opens the node and issues `VIDIOC_G_EXT_CTRLS` for `id`. Use this
+/// when you need the kernel-current value of one specific control
+/// without re-walking the full descriptor list via [`read_controls`]
+/// — for example the T-101 PTZ pad reads `pan_absolute` /
+/// `tilt_absolute` just-in-time on every button click so its delta
+/// always lands relative to where the camera actually is (the camera
+/// can move itself between clicks: AI tracking, preset recall, the
+/// on-device gesture).
+///
+/// Menu-typed controls surface as [`ControlValue::Integer`] (the V4L2
+/// driver stores menu selections as `__s32` values; callers that need
+/// the menu-option label must combine this with a [`read_controls`]
+/// descriptor walk).
+///
+/// # Errors
+/// * The user lacks `rw` on `video_path`.
+/// * The driver rejects the query (unknown `id`, control disabled).
+/// * The control's V4L2 type is neither Integer nor Boolean (e.g.
+///   String, Compound) — surfaces as [`Error::Unsupported`](
+///   crate::Error::Unsupported).
+pub fn read_control(video_path: &Path, id: u32) -> Result<ControlValue> {
+    let device = Device::with_path(video_path)?;
+    let ctrl = device.control(id)?;
+    match ctrl.value {
+        Value::Integer(v) => Ok(ControlValue::Integer(v)),
+        Value::Boolean(b) => Ok(ControlValue::Boolean(b)),
+        _ => Err(crate::Error::Unsupported),
+    }
+}
+
 /// Map a V4L2 control ID to its [`ControlClass`].
 ///
 /// V4L2 packs the class into the high 16 bits of the ID — see

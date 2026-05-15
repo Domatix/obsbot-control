@@ -834,5 +834,165 @@ re-mapped; user-visible deliverables are unchanged.
 
 ---
 
+## ADR-0020 — Pivot to AI tracking via FOSS lineage; collapse v0.4 + v0.5; swap with v0.3
+
+**Status**: Accepted, 2026-05-14.
+
+**Context**:
+
+Up to this session, the ROADMAP staged the milestones as:
+
+- v0.3 — Live Preview (T-200 seeded)
+- v0.4 — Vendor XU (HDR, FOV, Face AE, LED, mic, gesture, voice;
+  **prerequisite**: USB capture of OBSBOT Center on a Windows VM
+  per [[PROTOCOL.md §3.1]])
+- v0.5 — Auto-Framing & AI Features (face zones, auto-framing
+  modes; marked "risky" because reverse-engineering effort was
+  unbounded)
+
+After the user shipped the v0.2.0 controls and explicitly asked
+to pivot to *"el tracking de la cámara, lo mejor posible, sin
+necesidad de salir a VM de Windows"*, a re-investigation of the
+FOSS ecosystem surfaced two repositories that PROTOCOL.md §6 did
+not previously cite:
+
+- **cgevans/tiny2** — Rust, EUPL-1.2, 51 GitHub stars, last push
+  2026-03-29. `src/lib.rs` carries the complete Tiny 2 XU surface
+  for HDR, Face AE, FOV (3 widths), and AI Tracking Mode
+  (10 modes) on `bUnitID = 0x02`, `bSelector = 0x06`, plus
+  Manual / Auto exposure 18-byte frames on the same unit's
+  `bSelector = 0x02`, plus the GET_CUR 60-byte status decoder.
+  Wraps `UVCIOC_CTRL_QUERY` directly via `nix`. No libusb.
+- **OpenFoxes/Tiny4Linux** — Rust, EUPL-1.2, AUR-packaged active
+  fork (2026-05-12). Adds Sleep / Wake, Tracking Speed
+  (Standard / Sport), three Preset position recalls; modular
+  factoring of the 36-byte `command02` frame.
+
+Both projects are EUPL-1.2; the EUPL Appendix lists GPL-3 as a
+**compatible licence** for derivative works, with the only
+attribution requirement being the literal string
+`"Licensed under the EUPL"` plus the SPDX line on ported files
+(EUPL Article 5).
+
+The full byte-level extraction is recorded in
+[[docs/XU_INVESTIGATION_2026-05-14.md]]. Headlines:
+
+- AI tracking — `[0x16, 0x02, m, n]`, 10 modes byte-identical
+  between the two repos.
+- HDR / Face AE / FOV — `[op, 0x01, value]`, three opcodes.
+- Manual / Auto exposure — two 18-byte fixed frames.
+- Sleep / Wake, Tracking Speed, Preset recall — three 36-byte
+  frames (Tiny4Linux-only).
+- GET_CUR status — 60 bytes, 5 decoded by the two repos
+  (sleep, hdr, AI mode `m`, AI mode `n`, tracking speed); the
+  remaining 55 are the discovery frontier.
+
+**This invalidates** the Windows-VM + Wireshark prerequisite the
+ROADMAP attached to v0.4 and the speculative framing of v0.5.
+Everything the user asked for ("the best AI tracking") is
+already reverse-engineered with byte-level fidelity in
+EUPL-1.2 sources we can port. The only Wireshark+VM work still
+on the table is *future* probing of the unmapped status bytes
+and the unmapped selector-0x06 opcodes; it is no longer
+blocking the milestone.
+
+**Decision**:
+
+Five linked changes:
+
+1. **Swap v0.3 ↔ v0.4 priority.** Live Preview moves to v0.4;
+   Vendor XU + AI tracking moves to v0.3. Rationale: the user
+   explicitly requested AI tracking before preview, and the XU
+   surface is the differentiator versus a generic UVC tool
+   (anyone can ship a Preview pane; nobody else ships the
+   Tiny 2 AI modes outside the proprietary SDK).
+
+2. **Collapse old-v0.4 (Vendor XU) and old-v0.5 (Auto-Framing &
+   AI Features) into a single new v0.3 milestone titled
+   "Vendor XU & AI tracking"**. Justification: the XU surface,
+   auto-framing modes, and AI tracking are decoded by the same
+   `bUnitID=0x02 / bSelector=0x06 / op=0x16` path; separating
+   them by milestone introduced redundant work without
+   benefit. The "risky" framing of v0.5 is retired — the work
+   is bounded by the cgevans + Tiny4Linux extraction, not by
+   unbounded reverse engineering.
+
+3. **Adopt EUPL-1.2 → GPL-3 attribution model.** Create a new
+   `CREDITS.md` at repo root documenting the lineage
+   (Tiny4Linux → cgevans → meet4k). Files in
+   `crates/obsbot-core/src/xu/**` that contain ported bytes
+   carry a dual SPDX block:
+
+   ```rust
+   // SPDX-License-Identifier: GPL-3.0-or-later
+   //
+   // Portions of this file are derived from EUPL-1.2 source:
+   //   - cgevans/tiny2        (https://github.com/cgevans/tiny2)
+   //   - OpenFoxes/Tiny4Linux (https://github.com/OpenFoxes/Tiny4Linux)
+   // "Licensed under the EUPL"
+   ```
+
+   Files that are wholly original keep the plain GPL-3.0-or-later
+   SPDX line they already use.
+
+4. **Drop "Windows + Wireshark" as a milestone-level
+   prerequisite.** PROTOCOL.md §1 (Status) and §3.1
+   (per-selector decode) are amended to reflect that the bulk
+   of the XU surface is already known from FOSS sources. The
+   remaining `wireshark + Windows VM` capture is reframed as
+   an *optional follow-on* for probing the unmapped status
+   bytes and the unmapped selector-0x06 opcodes (`0x02`,
+   `0x05`, `0x06`-`0x15`, `0x17`+), gated by user availability.
+
+5. **Refresh PLAN.md.** T-200 (preview pane) moves from v0.3 to
+   v0.4 (renumbering of the milestone bucket only; the task ID
+   stays). New tasks T-300 / T-301 / T-302 / T-303 land under
+   the new v0.3 with byte-level acceptance criteria pulled
+   from the investigation report.
+
+**Consequence**:
+
+- **Scope**: SPEC.md §4.1 features that the new v0.3 covers —
+  PTZ (already shipped in T-101 via V4L2 CIDs), HDR, FOV
+  (Wide/Normal/Narrow), Face AE, Auto-framing modes (10 AI
+  modes), Manual / Auto exposure, plus Tiny4Linux extras
+  (Sleep/Wake, Tracking Speed, Preset recall). Features the
+  new v0.3 does NOT yet cover — LED brightness, mic pickup
+  pattern, Gesture control, Voice command toggle. These stay
+  in SPEC scope but are deferred to a follow-on milestone
+  pending either community discovery or a user-driven USB
+  capture session against the proprietary app.
+- **Reliability**: every byte we ship in v0.3 has been read
+  out of EUPL-1.2 source code. Two known discrepancies
+  flagged for hardware validation before tag-cut:
+  (a) `AIMode::Hand` setter writes `m=3` while the status
+  decoder reads `m=6` (likely typo in upstream cgevans);
+  (b) `AUTO_EXP_CMD` vs `MANUAL_EXP_CMD` labels are swapped
+  between cgevans and Tiny4Linux (cgevans's labelling is
+  almost certainly the correct one based on the two-step
+  Auto+FaceAE protocol). Both will be observed against the
+  user's Tiny 2 Lite in T-303.
+- **Licence hygiene**: the project remains OSI-clean. EUPL-1.2
+  → GPL-3 is a documented compatibility (EUPL Appendix); no
+  CLA, no proprietary blob, no telemetry. GNOME Circle
+  eligibility per [[ADR-0001]] is preserved.
+- **Roadmap timing**: v0.3 (XU + AI tracking) becomes the
+  next shippable milestone, ~1-2 days of T-300 + 0.5-1 day
+  of T-301 + 1 day of T-302 + validation in T-303. Live
+  Preview (now v0.4) and Polish (unchanged v0.6) follow.
+- **Task IDs**: T-200 moves to the v0.4 bucket; T-300/301/302/303
+  are the new v0.3 tasks. No task ID changes.
+- **Risk that does not disappear**: the unmapped 55 status
+  bytes and the unmapped selector-0x06 opcodes remain
+  discovery surface. We will ship a debug "Dump status" page
+  in v0.3 (T-302) so the user can capture full hex dumps for
+  future contributions without leaving the GUI.
+
+This ADR supersedes the milestone framing in [[ROADMAP.md v0.4]]
+and [[ROADMAP.md v0.5]] as they existed at commit `9651ce1`. It
+does not supersede any prior ADR.
+
+---
+
 <!-- Append new ADRs above this line, never below. Newest ADRs go at the bottom
      of the list but new entries are added; do not edit old ones. -->

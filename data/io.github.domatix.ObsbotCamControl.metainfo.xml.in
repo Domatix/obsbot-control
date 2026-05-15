@@ -50,6 +50,10 @@
     <keyword>camera</keyword>
     <keyword>PTZ</keyword>
     <keyword>UVC</keyword>
+    <keyword>AI</keyword>
+    <keyword>tracking</keyword>
+    <keyword>auto-framing</keyword>
+    <keyword>HDR</keyword>
   </keywords>
 
   <url type="homepage">https://github.com/Domatix/obsbot-control</url>
@@ -73,6 +77,43 @@
   </supports>
 
   <releases>
+    <release version="0.3.0" date="2026-05-14" type="development">
+      <description>
+        <p>
+          Release 0.3 lands the OBSBOT vendor controls. The
+          application now exposes the Tiny 2 family's UVC
+          Extension Unit surface through two new groups on the
+          per-camera page, all reverse-engineered from existing
+          free-software work (see CREDITS.md):
+        </p>
+        <ul>
+          <li>AI tracking with ten framing modes: No tracking,
+            Normal, Upper body, Close-up, Headless, Lower body,
+            Group, Desk mode, Whiteboard, and Hand.</li>
+          <li>Field of view: Wide (86°), Normal (78°),
+            Narrow (65°).</li>
+          <li>HDR on/off.</li>
+          <li>Face Auto-Exposure metering (Global / Face) and
+            global Exposure mode (Auto / Manual).</li>
+          <li>Tracking speed (Standard / Sport).</li>
+          <li>Camera power state (Sleep / Wake).</li>
+          <li>Preset position recall for three slots (program
+            slots via the OBSBOT Center app or on-device gestures
+            before recalling).</li>
+          <li>"Show XU status (hex dump)" diagnostic dialog —
+            renders the full 60-byte status payload as a hex
+            grid with the five known fields decoded inline, and a
+            "Copy hex" button for community discovery of the
+            55 still-undecoded bytes.</li>
+        </ul>
+        <p>
+          All XU bytes ported under EUPL-1.2 → GPL-3 compatibility
+          from cgevans/tiny2 and OpenFoxes/Tiny4Linux; OBSBOT's
+          proprietary SDK remains unused. Live preview is the next
+          milestone.
+        </p>
+      </description>
+    </release>
     <release version="0.2.0" date="2026-05-14" type="development">
       <description>
         <p>
