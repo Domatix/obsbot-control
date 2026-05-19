@@ -12,6 +12,53 @@
 
 ## 2026-05-19 (T-200 resumed)
 
+### [2026-05-19T02:30:00Z] Milestone v0.3.1 reached
+
+Point release on top of v0.3.0 covering three follow-ups that
+landed clean on the native build:
+
+* **T-105fix** (`9269c5d` on main, 2026-05-15): GSettings
+  schema vs runtime key alignment so per-camera persistence
+  actually works.
+* **T-200** (`cccab8c` on main, 2026-05-19): feature-gated
+  Live Preview pipeline (v4l2src ! videoconvert !
+  gtk4paintablesink) with sticky-when-active revealer,
+  header-bar toggle, discoverability banner, and async bus-
+  error → toast surfacing.
+* **T-101b** (`96e33ba` on main, 2026-05-19): PTZ press-and-
+  hold smooth motion via JIT pan_absolute polling (≈ 20°/s,
+  1° per 50 ms after a 200 ms long-press threshold) plus
+  keyboard arrow navigation that respects focused sliders.
+
+Workspace + meson version bumped 0.1.0 → 0.3.1 (the
+workspace `version` field had drifted since v0.1.0 — every
+intermediate tag was annotated, never reflected in the
+manifest). AppStream metainfo gains the v0.3.1 release block.
+README status block rewritten for v0.3.1; .deb extended-
+description updated so the "Pre-alpha v0.1 build" stub stops
+shipping.
+
+CLAUDE.md §7 milestone gate:
+
+1. All v0.3.1-bundled tasks DONE on main (T-105fix, T-200,
+   T-101b).
+2. `cargo test --workspace` passes locally (1 doctest;
+   hardware tests `#[ignore]`d as usual).
+3. `cargo clippy --workspace --all-targets -- -D warnings`
+   and the `--features obsbot-gui/live-preview` variant both
+   exit 0.
+4. Flatpak NOT re-validated for this cut — the Flatpak
+   manifest still tracks v0.3.0 because `gst-plugin-gtk` is
+   not in GNOME Platform 48 and the live-preview module is
+   queued as a v0.4 blocker. Native build (cargo) and .deb
+   are the v0.3.1 distribution channels.
+5. AppStream metainfo carries the v0.3.1 entry.
+6. Annotated `v0.3.1` tag cut against this PROGRESS commit.
+7. This entry.
+
+Push held per private-repo policy. User explicitly authorises
+`git push origin main --tags` or it does not happen.
+
 ### [2026-05-19T02:00:00Z] [T-101b] Started — port press-and-hold from T-101a, add keyboard arrows
 
 T-200 squashed to `main` as `cccab8c`. Pivot to PTZ ergonomics:

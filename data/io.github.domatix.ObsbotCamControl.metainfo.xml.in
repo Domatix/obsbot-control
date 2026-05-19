@@ -77,6 +77,45 @@
   </supports>
 
   <releases>
+    <release version="0.3.1" date="2026-05-19" type="development">
+      <description>
+        <p>
+          Point release on top of v0.3.0 bundling three earlier
+          follow-ups that were ready to ship on the native build:
+        </p>
+        <ul>
+          <li>Live preview pipeline (T-200): a feature-gated
+            v4l2src ! videoconvert ! gtk4paintablesink chain
+            renders the camera feed inside a sticky revealer
+            above the controls page. A header-bar toggle starts
+            and stops the pipeline; an Adwaita banner with a
+            "Show preview" action surfaces the feature for new
+            users. Device-busy errors (another app holding
+            /dev/videoN) show as a toast and the toggle snaps
+            back to off. Requires the gstreamer1.0-gtk4 plugin
+            on the host; opt in at build time with
+            --features live-preview.</li>
+          <li>PTZ press-and-hold + keyboard arrows (T-101b):
+            holding any of the 8 directional buttons engages a
+            smooth motion mode (about 20 degrees per second);
+            arrow keys + Home drive the same logic from the
+            keyboard while focused sliders keep consuming their
+            own arrows. Diagonals work via either the corner
+            buttons or two arrows pressed simultaneously.</li>
+          <li>Settings persistence fix (T-105fix): the GSettings
+            schema and the runtime read/write path are now
+            aligned, so per-camera control values actually
+            survive a restart. Pre-existing schema/key mismatch
+            from v0.1 silently swallowed every write.</li>
+        </ul>
+        <p>
+          The Flatpak distribution stays on v0.3.0 until the
+          gstreamer1.0-gtk4 plugin module lands in the manifest
+          — the GNOME Platform 48 runtime does not ship it. The
+          .deb / native builds work as-is.
+        </p>
+      </description>
+    </release>
     <release version="0.3.0" date="2026-05-14" type="development">
       <description>
         <p>

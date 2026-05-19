@@ -22,6 +22,21 @@ GTK 4, libadwaita, and Rust. Targets GNOME Circle inclusion.
 
 ## Status
 
+**v0.3.1 — Live preview + smooth PTZ** (released 2026-05-19).
+Native build adds the v0.4 Live Preview pipeline behind a
+`live-preview` Cargo feature flag (`gstreamer1.0-gtk4` system
+package required) — a `v4l2src ! videoconvert !
+gtk4paintablesink` chain renders the camera feed inside a sticky
+revealer above the controls page, with a header-bar toggle and
+an `AdwBanner` discoverability hint. The PTZ pad gains
+press-and-hold smooth motion (≈ 20°/s, 1° per 50 ms tick after a
+200 ms long-press threshold) plus keyboard arrow navigation
+(Left / Right / Up / Down + Home recenter) that respects focused
+sliders. Also rolls up the `T-105fix` schema/runtime alignment
+so per-camera settings persistence works end-to-end. Flatpak
+artifact still tracks v0.3.0 until the GStreamer plugin module
+lands in the manifest.
+
 **v0.3.0 — Vendor XU & AI tracking** (released 2026-05-15). The
 GUI surfaces OBSBOT-specific controls via reverse-engineered USB
 Extension Units: 10 AI auto-framing modes, HDR, Field of View
@@ -29,7 +44,8 @@ Extension Units: 10 AI auto-framing modes, HDR, Field of View
 Sleep / Wake power state, 3 preset-recall slots, and a "Show XU
 status" diagnostic dialog. See
 [`docs/ROADMAP.md`](docs/ROADMAP.md) for what's already shipped
-and what's queued for v0.4 (Live Preview) and beyond.
+and what's queued for v0.4 (Live Preview milestone wrap-up:
+snapshot, filters, Flatpak GStreamer module) and beyond.
 
 ## Supported cameras
 

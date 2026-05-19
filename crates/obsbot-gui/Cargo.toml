@@ -91,10 +91,12 @@ section = "video"
 priority = "optional"
 extended-description = """\
 Native GNOME application to control OBSBOT Tiny 2 family webcams \
-(Tiny 2 and Tiny 2 Lite) over UVC/V4L2. Pre-alpha v0.1 build: \
-camera enumeration plus a diagnostics view exposing the V4L2 \
-controls the kernel exports. This is an unofficial test package; \
-Flatpak via Flathub is the supported distribution channel."""
+(Tiny 2 and Tiny 2 Lite) over UVC/V4L2. v0.3.1 ships AI auto-framing, \
+HDR, FOV, vendor XU controls, V4L2 standard sliders, PTZ (discrete \
+clicks + press-and-hold + keyboard arrows), and a feature-gated \
+live-preview pipeline (requires gstreamer1.0-gtk4 on the host, \
+opt in at build time with --features live-preview). Unofficial \
+test package; Flatpak via Flathub is the supported channel."""
 depends = "$auto"
 assets = [
     ["target/release/obsbot-cam-control", "usr/bin/", "755"],
