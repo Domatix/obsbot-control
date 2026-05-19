@@ -12,6 +12,92 @@
 
 ## 2026-05-19 (T-200 resumed)
 
+### [2026-05-19T02:00:00Z] [T-101b] Started — port press-and-hold from T-101a, add keyboard arrows
+
+T-200 squashed to `main` as `cccab8c`. Pivot to PTZ ergonomics:
+user reported on 2026-05-19 that the discrete 5°-per-click pad
+feels "rayado" especially on diagonals, and asked for mouse
+press-and-hold + keyboard arrow navigation. `feat/T-101a`
+already carries a complete press-and-hold implementation (200 ms
+long-press disambiguation, 50 ms repeat, 1°/tick) but never
+shipped because it lacked keyboard support and the user wanted
+both. Opened `feat/T-101b-ptz-hold-keyboard` off `main` and
+brought `crates/obsbot-gui/src/ptz_pad.rs` verbatim from
+`feat/T-101a` (`git checkout feat/T-101a -- crates/obsbot-gui/
+src/ptz_pad.rs`), then layered keyboard support on top.
+
+**Keyboard handler — `wire_keyboard_arrows`** in `ptz_pad.rs`:
+* `gtk::EventControllerKey` attached to the controls page's
+  outer `gtk::Box` (the same widget returned by
+  `controls_view::render_controls`).
+* `PropagationPhase::Bubble` so the focused descendant
+  (`gtk::Scale` for image sliders, `gtk::SpinButton` for the
+  precise-entry suffix, `adw::ComboRow` for menu controls)
+  consumes arrows first; the controller only fires when no
+  descendant handled them.
+* Mapping: Left / KP_Left = pan-left, Right / KP_Right = pan-
+  right, Up / KP_Up = tilt-up (camera looks up, matches
+  `btn_n`), Down / KP_Down = tilt-down, Home / KP_Home =
+  recenter (write pan_absolute = tilt_absolute = 0). Modifier
+  combinations (Ctrl/Shift/Alt/Super) bypass the controller
+  entirely so `Ctrl+Q` still quits and any future modifier-
+  based accelerator (e.g. Shift+Arrow = larger step) has room
+  to land.
+* Per-key timers indexed by raw `gdk::Key` value (`u32` via
+  `IntoGlib::into_glib`) so simultaneous arrows (Up + Right
+  for diagonal motion) run their own axis timer independently.
+  The kernel-level keyboard auto-repeat is suppressed by
+  checking the active-hold map before scheduling — if a key is
+  already held, the controller stops propagation without
+  re-engaging.
+* Each press triggers an immediate `hold_tick` plus a
+  recurring `glib::timeout_add_local` at `HOLD_REPEAT_MS = 50
+  ms`. No `LONG_PRESS_MS` threshold for keyboard — keyboard
+  input is decisive, no tap-vs-hold ambiguity.
+* `connect_key_released` removes the matching timer from the
+  active-hold map; the `glib::SourceId::remove` call cancels
+  any pending tick.
+
+**Call site** in `controls_view::render_controls`: a single
+`wire_keyboard_arrows(&outer, controls, path, serial)` right
+before `outer.upcast()` returns. The helper exits early when
+the camera does not advertise pan/tilt, so non-PTZ cameras get
+no controller.
+
+**Files touched**:
+```
+crates/obsbot-gui/src/ptz_pad.rs       +145 -0  (port from
+                                                feat/T-101a +
+                                                wire_keyboard_
+                                                arrows function)
+crates/obsbot-gui/src/controls_view.rs   +9 -1  (import +
+                                                end-of-render
+                                                call)
+docs/PLAN.md                            +75 -3  (T-101b entry +
+                                                T-101a marked
+                                                SUPERSEDED)
+docs/STATE.md                          (rewritten for T-101b
+                                        IN_PROGRESS)
+docs/PROGRESS.md                       (this entry)
+```
+
+**Cargo gates** with the keyboard wiring landed:
+- `cargo fmt --all --check` exit 0.
+- `cargo clippy --workspace --all-targets -- -D warnings` exit 0.
+- `cargo clippy --workspace --all-targets --features
+  obsbot-gui/live-preview -- -D warnings` exit 0.
+- `cargo test --workspace` 1 doctest pass.
+- `cargo test --workspace --features obsbot-gui/live-preview`
+  2 pass.
+
+**Next sub-step**: commit on the branch, then user-driven
+hardware ergonomics validation against the connected Tiny 2
+Lite. Six gates the user will exercise: mouse tap (5° step), 
+mouse hold (smooth ≈20°/s), diagonals via the 4 corner buttons,
+keyboard arrows (←↑→↓), Home recenter, focus-on-slider isolation
+(focus a brightness slider, press arrows → slider scrubs, NOT
+camera moves).
+
 ### [2026-05-19T01:15:00Z] [T-200] DONE — visual validation green, UX iteration complete
 
 User validated the Tiny 2 Lite preview pipeline visually against

@@ -44,7 +44,7 @@ use crate::extras_view::build_extras_group;
 use crate::i18n::gettext;
 #[cfg(feature = "live-preview")]
 use crate::preview::{toggle_tooltip, PreviewPipeline};
-use crate::ptz_pad::{build_ptz_pad, PTZ_PAD_IDS};
+use crate::ptz_pad::{build_ptz_pad, wire_keyboard_arrows, PTZ_PAD_IDS};
 use crate::settings;
 use crate::wb_group::{build_wb_group, WB_GROUP_IDS};
 
@@ -293,6 +293,14 @@ fn render_controls(
     }
 
     outer.append(&page);
+
+    // T-101b — arrow-key + Home navigation of the PTZ. Attached to
+    // the outer `Box` so any descendant with focus bubbles unhandled
+    // keys up to the controller (focused sliders still consume their
+    // own arrows). Skips quietly when the camera does not advertise
+    // pan / tilt.
+    wire_keyboard_arrows(&outer, controls, path, serial);
+
     (outer.upcast(), preview_slot)
 }
 

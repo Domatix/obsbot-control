@@ -1383,9 +1383,79 @@
   testable end-to-end; live-validation re-queued under
   parked.
 
-### T-101a — PTZ smooth movement via pan_speed / tilt_speed (post-v0.3 follow-up)
+### T-101b — PTZ press-and-hold + keyboard arrows (supersedes T-101a)
 
-- **State**: TODO
+- **State**: IN_PROGRESS (impl landed on `feat/T-101b-ptz-hold-keyboard`,
+  awaiting hardware ergonomics validation against the Tiny 2 Lite)
+- **Started**: 2026-05-19T01:45:00Z
+- **Depends on**: T-200 squashed to `main` (cccab8c). T-101a is
+  superseded — its branch stays for archaeology but is not
+  merged.
+- **Origin**: 2026-05-19 user feedback after validating T-200.
+  Discrete 5°-per-click PTZ feels "rayado" (jumpy) especially on
+  diagonals; user wants press-and-hold (mantener clic = mueve
+  continuo) and keyboard arrows for accessibility.
+- **Description**: Two parallel input paths into the same
+  `hold_tick` core that writes pan/tilt absolute positions JIT-
+  read from the kernel:
+  1. **Mouse / touch**: ported verbatim from `feat/T-101a`. Each
+     of the 8 directional buttons carries a `gtk::GestureClick`
+     with `LONG_PRESS_MS = 200` to disambiguate tap from hold.
+     Tap path = single 5° step via the existing `connect_clicked`
+     handler; hold path = recurring `glib::timeout_add_local`
+     every `HOLD_REPEAT_MS = 50 ms` writing 1° steps (≈ 20°/s).
+     A trailing-click suppressor flag prevents the click handler
+     from double-firing one extra step after a hold release.
+  2. **Keyboard**: new `wire_keyboard_arrows` in `ptz_pad.rs`
+     attaches a `gtk::EventControllerKey` to the controls page's
+     outer `gtk::Box` with `PropagationPhase::Bubble`. Mapping:
+     Left/Right = pan, Up/Down = tilt (Up = camera looks up,
+     matches `btn_n`), Home = recenter (pan = tilt = 0). Keypad
+     equivalents (`KP_Left`, etc.) included. Modifiers
+     (Ctrl/Shift/Alt/Super) bypass the controller so app-level
+     shortcuts (Ctrl+Q, Ctrl+W) still reach their handlers.
+     Each pressed arrow engages an own recurring timer keyed by
+     raw `gdk::Key` value so diagonal motion via simultaneous
+     Up+Right runs both axis timers independently. Auto-repeat
+     suppression: if a key is already in the active-hold map
+     when pressed again, the controller stops propagation
+     without re-engaging.
+- **Focus safety**: `Bubble` phase means the focused widget
+  consumes arrows first. `gtk::Scale`, `gtk::SpinButton` and
+  `adw::ComboRow` all consume arrows on focus, so the keyboard
+  PTZ only fires when focus is on a non-interactive widget (the
+  page background, a button row title, etc.). User can still
+  scroll-edit slider values without moving the camera.
+- **Acceptance criteria**:
+  - [x] All four cargo gates green default + with
+        `obsbot-gui/live-preview`.
+  - [x] `gtk::GestureClick` press-and-hold imported from T-101a
+        (`crates/obsbot-gui/src/ptz_pad.rs`, +210 lines).
+  - [x] `wire_keyboard_arrows` registered via the outer Box in
+        `controls_view::render_controls`.
+  - [ ] **Hardware validation pending**: tap 5° step still
+        feels correct (no cache-drift recurrence); pressing and
+        holding any of the 8 buttons makes the camera move
+        smoothly until release; diagonals (NE/NW/SE/SW or
+        Up+Right etc.) work; keyboard arrows move the camera
+        when focus is on the page; arrows scrubbing a focused
+        slider still adjust the slider (no robbery); Home
+        recenters; modifier+arrow does not move PTZ.
+- **Out of scope for T-101b** (queued for follow-up):
+  - User-tunable hold speed (`GSettings` key
+    `ptz-speed-fast` 1–100, default 50 → maps to `HOLD_STEP_
+    DEGREES`). For now constants in `ptz_pad.rs` are static.
+  - Shift+Arrow = larger step (3°/tick) as an accelerator.
+  - Hot-plug REMOVE cancels the keyboard timers gracefully —
+    currently the controller is dropped with the page widget
+    and the timers leak briefly until the closures realise
+    their `Rc<PathBuf>` is the last ref; not a regression vs
+    T-101a but worth wiring T-110's hot-plug signal.
+
+### T-101a — PTZ smooth movement via pan_speed / tilt_speed (SUPERSEDED 2026-05-19)
+
+- **State**: SUPERSEDED by T-101b. Branch `feat/T-101a` kept
+  locally for blame archaeology; do not merge.
 - **Depends on**: T-303 closed and v0.3.0 tagged (so this can
   ship as v0.3.1 or roll into v0.4 — milestone decision when
   starting; user explicitly chose to defer this past the v0.3
