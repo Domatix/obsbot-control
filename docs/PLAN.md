@@ -1383,6 +1383,68 @@
   testable end-to-end; live-validation re-queued under
   parked.
 
+### T-101c — PTZ tuning follow-ups (speed slider + Shift accelerator + hot-plug timer cleanup)
+
+- **State**: IN_PROGRESS (code complete on
+  `feat/T-101c-ptz-tuning`; awaiting hardware ergonomics
+  validation, will squash to main when green)
+- **Started**: 2026-05-19T02:45:00Z
+- **Depends on**: T-101b squashed to `main` (96e33ba).
+- **Origin**: follow-up list queued in T-101b's PLAN entry +
+  STATE under `follow_ups_queued`.
+- **Description**: three small, related polish items bundled
+  into one squash so v0.3.1 already had a "complete PTZ" story:
+  1. `ptz-speed-fast` `GSettings` key (i, range 1..100, default
+     50). Schema-side range constraint already clamps stored
+     values. Read once per hold engage by
+     `ptz_pad::resolved_hold_step` and scaled linearly off
+     `HOLD_STEP_AT_DEFAULT`. Slowest setting still produces
+     visible motion thanks to `HOLD_STEP_FLOOR` = 0.1° / tick.
+     Mid-hold slider changes do not re-tune the active timer
+     (next engage picks up the new value).
+  2. Shift+Arrow accelerator (keyboard only). The keyboard
+     handler's modifier filter now skips Ctrl / Alt / Super
+     but inspects Shift inline — when present, the resolved
+     step is multiplied by `HOLD_ACCELERATOR_MULT = 3` for the
+     duration of the press. Mouse hold ignores Shift because
+     `gtk::GestureClick` does not expose live modifier state
+     during a hold.
+  3. Hot-plug REMOVE timer cleanup. Every recurring hold
+     timer (mouse + keyboard) now checks
+     `path_tick.exists()` at the start of each tick; when the
+     /dev/videoN node disappears the closure returns
+     `ControlFlow::Break` and the source self-cancels. Stops
+     us from writing to a vanished device after the camera
+     was unplugged mid-hold.
+- **Acceptance criteria**:
+  - [x] All four cargo gates green default + with
+        `obsbot-gui/live-preview`.
+  - [x] `gschema.xml` carries the `ptz-speed-fast` key with the
+        `<range min="1" max="100"/>` constraint and the schema-
+        default `50`.
+  - [x] `settings::ptz_speed_fast()` returns 50 when the
+        schema is unavailable (cargo run without `meson
+        install`), the stored value otherwise.
+  - [x] `ptz_pad::hold_tick` takes `step_units: i64` instead
+        of the old `HOLD_STEP` constant.
+  - [x] Mouse-hold engage and keyboard-press engage both
+        resolve `step_units` once at engage time; Shift
+        modifier multiplies by `HOLD_ACCELERATOR_MULT`.
+  - [x] Both timer closures abort cleanly when the device
+        path disappears mid-hold.
+  - [ ] Hardware ergonomics validation: a future user-facing
+        Preferences dialog will surface the slider; for now
+        the schema can be poked with
+        `gsettings set io.github.domatix.ObsbotCamControl
+        ptz-speed-fast 80` for a fast-pan smoke test.
+- **Out of scope for T-101c**:
+  - Preferences dialog UI for the speed slider — that comes
+    with v0.6 polish or as a tiny T-101d if the user wants it
+    sooner.
+  - Per-camera tuning (the slider is app-wide; per-camera
+    routing would need a serial-keyed dict like
+    `control-values`).
+
 ### T-101b — PTZ press-and-hold + keyboard arrows (supersedes T-101a)
 
 - **State**: IN_PROGRESS (impl landed on `feat/T-101b-ptz-hold-keyboard`,

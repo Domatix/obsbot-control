@@ -52,7 +52,10 @@
 //!   recurring `glib` timeout fires every [`HOLD_REPEAT_MS`]
 //!   milliseconds and runs the same JIT-read + `pan_absolute` /
 //!   `tilt_absolute` write as the tap path, but with a small
-//!   [`HOLD_STEP_DEGREES`] step. At 1°/50 ms the result feels close
+//!   [`HOLD_STEP_DEGREES_AT_DEFAULT`] step (scaled by the
+//!   `ptz-speed-fast` `GSettings` slider per T-101c — see
+//!   [`resolved_hold_step`]). At 1°/50 ms (speed = 50, the
+//!   schema default) the result feels close
 //!   to OBSBOT Center's joystick mode without engaging the
 //!   V4L2 `pan_speed` / `tilt_speed` continuous-motion controls,
 //!   which **the Tiny 2 Lite firmware 5.10 accepts but does not act
@@ -120,12 +123,28 @@ const LONG_PRESS_MS: u64 = 200;
 /// runs the same per-step write. 50 ms yields 20 ticks/second, which
 /// is well below the V4L2 ioctl ceiling and visually smooth.
 const HOLD_REPEAT_MS: u64 = 50;
-/// Per-tick step size during continuous mode, in degrees. 1° feels
-/// fluid at the 50 ms cadence (≈ 20°/s), versus the tap path's 5°
-/// jump. A future user-facing speed slider will route through a
-/// `GSettings` key.
-const HOLD_STEP_DEGREES: i64 = 1;
-const HOLD_STEP: i64 = HOLD_STEP_DEGREES * UNITS_PER_DEGREE;
+/// Per-tick step size during continuous mode at speed = 50 (the
+/// schema default), in degrees. T-101c scales this linearly with
+/// the `ptz-speed-fast` `GSettings` key (1..100, default 50) so a
+/// user-tunable slider can land later without re-touching this
+/// module. At 1° / 50 ms = ≈ 20°/s — comparable to OBSBOT
+/// Center's joystick mode.
+const HOLD_STEP_DEGREES_AT_DEFAULT: i64 = 1;
+const HOLD_STEP_AT_DEFAULT: i64 = HOLD_STEP_DEGREES_AT_DEFAULT * UNITS_PER_DEGREE;
+/// Minimum per-tick step (units) so the slowest setting still
+/// produces visible motion. 0.1° at the 50 ms cadence = ≈ 2°/s,
+/// slow but deliberate (good for framing pull-quotes).
+const HOLD_STEP_FLOOR: i64 = UNITS_PER_DEGREE / 10;
+/// Schema-side range of `ptz-speed-fast` (mirrored here so we do
+/// not have to introspect the schema). Stays in lockstep with the
+/// `<range min="1" max="100"/>` in `gschema.xml`.
+const PTZ_SPEED_DEFAULT: f64 = 50.0;
+/// Shift+Arrow accelerator multiplier — multiplies whatever the
+/// resolved per-tick step is by 3, so press-and-hold becomes a
+/// "fast pan" without re-tuning the slider. Mouse hold ignores
+/// this because `GestureClick` does not expose live modifier
+/// state during a hold; keyboard-only feature.
+const HOLD_ACCELERATOR_MULT: i64 = 3;
 
 /// Read-once snapshot of an integer control's range + current value.
 #[derive(Debug, Clone, Copy)]
@@ -301,7 +320,8 @@ struct DirectionCtx {
 /// block for why the JIT read replaces the v0.2 cache. The hold path
 /// (T-101a) engages continuous-mode after [`LONG_PRESS_MS`] of held
 /// press by scheduling a recurring [`HOLD_REPEAT_MS`] timer that
-/// runs the same JIT-read + write with a smaller [`HOLD_STEP`] step;
+/// runs the same JIT-read + write with the resolved hold step
+/// (see [`resolved_hold_step`]);
 /// on release it cancels the timer and suppresses the trailing
 /// "clicked" event so the tap path does not double-fire. The V4L2
 /// `pan_speed` / `tilt_speed` continuous-motion controls are
@@ -345,22 +365,33 @@ fn wire_direction(builder: &gtk::Builder, button_id: &str, dx: i64, dy: i64, ctx
             let serial_engage = serial.clone();
             let hold_active_engage = hold_active.clone();
             let timeout_handle_engage = timeout_handle.clone();
+            // Resolve the per-tick step from `ptz-speed-fast` once
+            // at engage time; mid-hold slider changes do not re-tune
+            // an active timer (T-101c).
+            let step_units = resolved_hold_step();
             let id =
                 glib::timeout_add_local_once(Duration::from_millis(LONG_PRESS_MS), move || {
                     hold_active_engage.set(true);
                     // First tick on engage so motion feels responsive
                     // right at the 200 ms threshold rather than
                     // 250 ms in.
-                    hold_tick(dx, dy, pan, tilt, &path_engage, &serial_engage);
+                    hold_tick(dx, dy, step_units, pan, tilt, &path_engage, &serial_engage);
                     // Recurring tick every HOLD_REPEAT_MS until the
                     // user releases. The closure returns
                     // ControlFlow::Continue while the source is live;
-                    // the release handler removes the source.
+                    // the release handler removes the source. Hot-
+                    // plug REMOVE (T-110) is caught by the path
+                    // existence check — the timer self-cancels once
+                    // /dev/videoN disappears so we do not keep
+                    // writing to a vanished device.
                     let path_tick = path_engage.clone();
                     let serial_tick = serial_engage.clone();
                     let repeat_id =
                         glib::timeout_add_local(Duration::from_millis(HOLD_REPEAT_MS), move || {
-                            hold_tick(dx, dy, pan, tilt, &path_tick, &serial_tick);
+                            if !path_tick.exists() {
+                                return glib::ControlFlow::Break;
+                            }
+                            hold_tick(dx, dy, step_units, pan, tilt, &path_tick, &serial_tick);
                             glib::ControlFlow::Continue
                         });
                     timeout_handle_engage.replace(Some(repeat_id));
@@ -418,15 +449,22 @@ fn current_axis(path: &Path, id: u32, snapshot: i64) -> i64 {
     }
 }
 
-/// One tick of the T-101a hold-to-pan timer. Computes the kernel-
-/// current pan / tilt, adds [`HOLD_STEP`] (1°) in the direction
-/// dictated by `dx` / `dy`, clamps to the descriptor range, and
-/// writes back. Shared with the engage handler (first tick at
-/// `LONG_PRESS_MS`) and with the recurring `glib::timeout_add_local`
-/// callback (every `HOLD_REPEAT_MS` thereafter).
+/// One tick of the hold-to-pan timer. Computes the kernel-current
+/// pan / tilt, adds `step_units` in the direction dictated by
+/// `dx` / `dy`, clamps to the descriptor range, and writes back.
+/// Shared with the engage handler (first tick at `LONG_PRESS_MS`)
+/// and with the recurring `glib::timeout_add_local` callback
+/// (every `HOLD_REPEAT_MS` thereafter).
+///
+/// `step_units` is resolved at engage time from
+/// [`resolved_hold_step`] (or that value × [`HOLD_ACCELERATOR_MULT`]
+/// when Shift+Arrow engaged the hold) so changing the
+/// `ptz-speed-fast` `GSettings` slider mid-hold does not retune
+/// the active timer; the next hold picks up the new value.
 fn hold_tick(
     dx: i64,
     dy: i64,
+    step_units: i64,
     pan: IntRange,
     tilt: IntRange,
     path: &Rc<PathBuf>,
@@ -434,14 +472,29 @@ fn hold_tick(
 ) {
     if dx != 0 {
         let current = current_axis(path, CID_PAN_ABSOLUTE, pan.current);
-        let new_pan = (current + dx * HOLD_STEP).clamp(pan.min, pan.max);
+        let new_pan = (current + dx * step_units).clamp(pan.min, pan.max);
         write(path, CID_PAN_ABSOLUTE, "pan_absolute", new_pan, serial);
     }
     if dy != 0 {
         let current = current_axis(path, CID_TILT_ABSOLUTE, tilt.current);
-        let new_tilt = (current + dy * HOLD_STEP).clamp(tilt.min, tilt.max);
+        let new_tilt = (current + dy * step_units).clamp(tilt.min, tilt.max);
         write(path, CID_TILT_ABSOLUTE, "tilt_absolute", new_tilt, serial);
     }
+}
+
+/// Resolve the per-tick step in V4L2 raw units from the
+/// `ptz-speed-fast` `GSettings` slider (T-101c). Linearly scales
+/// [`HOLD_STEP_AT_DEFAULT`] by `speed / 50` and floors at
+/// [`HOLD_STEP_FLOOR`] so the slowest setting still produces
+/// visible motion. Caller multiplies by [`HOLD_ACCELERATOR_MULT`]
+/// when Shift+Arrow is in play (keyboard only).
+fn resolved_hold_step() -> i64 {
+    let speed = f64::from(settings::ptz_speed_fast());
+    #[allow(clippy::cast_precision_loss)] // step well below f64 mantissa
+    let scaled = (HOLD_STEP_AT_DEFAULT as f64) * speed / PTZ_SPEED_DEFAULT;
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    let scaled_i = scaled.round() as i64;
+    scaled_i.max(HOLD_STEP_FLOOR)
 }
 
 /// Attach an `EventControllerKey` to `target` so the arrow keys + Home
@@ -497,16 +550,17 @@ pub fn wire_keyboard_arrows<W>(
         let owned_path = owned_path.clone();
         let owned_serial = owned_serial.clone();
         controller.connect_key_pressed(move |_, keyval, _keycode, state| {
-            // Modifier keys → let app-level shortcuts (Ctrl+Q, etc.)
-            // and any future Shift+arrow grouping reach their handlers.
+            // Ctrl / Alt / Super → let app-level shortcuts (Ctrl+Q, etc.)
+            // reach their handlers. Shift is handled inline below as
+            // the T-101c "accelerator" multiplier.
             if state.intersects(
                 gtk::gdk::ModifierType::CONTROL_MASK
-                    | gtk::gdk::ModifierType::SHIFT_MASK
                     | gtk::gdk::ModifierType::ALT_MASK
                     | gtk::gdk::ModifierType::SUPER_MASK,
             ) {
                 return glib::Propagation::Proceed;
             }
+            let shift_accelerator = state.contains(gtk::gdk::ModifierType::SHIFT_MASK);
 
             let (dx, dy) = match keyval {
                 gtk::gdk::Key::Left | gtk::gdk::Key::KP_Left => (-1, 0),
@@ -541,14 +595,28 @@ pub fn wire_keyboard_arrows<W>(
                 return glib::Propagation::Stop;
             }
 
+            // Resolve the per-tick step once at engage time
+            // (T-101c). Shift modifier multiplies by the
+            // accelerator constant for one-shot fast pans without
+            // re-tuning the slider.
+            let mut step_units = resolved_hold_step();
+            if shift_accelerator {
+                step_units = step_units.saturating_mul(HOLD_ACCELERATOR_MULT);
+            }
+
             // First tick immediately so press feels responsive,
             // then schedule the recurring HOLD_REPEAT_MS ticker.
-            hold_tick(dx, dy, pan, tilt, &owned_path, &owned_serial);
+            // Hot-plug REMOVE (T-110) self-cancels the timer via
+            // the path existence check on each tick.
+            hold_tick(dx, dy, step_units, pan, tilt, &owned_path, &owned_serial);
             let path_tick = owned_path.clone();
             let serial_tick = owned_serial.clone();
             let source =
                 glib::timeout_add_local(Duration::from_millis(HOLD_REPEAT_MS), move || {
-                    hold_tick(dx, dy, pan, tilt, &path_tick, &serial_tick);
+                    if !path_tick.exists() {
+                        return glib::ControlFlow::Break;
+                    }
+                    hold_tick(dx, dy, step_units, pan, tilt, &path_tick, &serial_tick);
                     glib::ControlFlow::Continue
                 });
             active_holds.borrow_mut().insert(key_id, source);

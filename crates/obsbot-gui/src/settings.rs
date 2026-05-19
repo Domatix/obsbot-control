@@ -58,6 +58,14 @@ const KEY: &str = "control-values";
 /// not need a different `.gschema.xml`.
 #[cfg(feature = "live-preview")]
 const KEY_PREVIEW_DEFAULT_ON: &str = "preview-default-on";
+/// `GSettings` key for the T-101c PTZ press-and-hold speed slider
+/// (1 = slow, 100 = fast; default 50). Read once per hold engage
+/// by [`ptz_speed_fast`], not per timer tick.
+const KEY_PTZ_SPEED_FAST: &str = "ptz-speed-fast";
+/// Schema default for [`KEY_PTZ_SPEED_FAST`]. Mirrored here so the
+/// reader can fall back to the same value when no schema is loaded
+/// (cargo run without `meson install`).
+const DEFAULT_PTZ_SPEED_FAST: i32 = 50;
 /// Duration in seconds before a write-failure toast auto-dismisses.
 /// `adw::Toast` interprets `0` as "never auto-dismiss"; we want users
 /// to actually notice the message but not be hostage to it.
@@ -215,6 +223,14 @@ pub fn load_for_camera(serial: &str) -> HashMap<String, i32> {
 #[cfg(feature = "live-preview")]
 pub fn preview_default_on() -> bool {
     settings_handle().is_some_and(|s| s.boolean(KEY_PREVIEW_DEFAULT_ON))
+}
+
+/// Read the `ptz-speed-fast` integer (T-101c). Returns
+/// [`DEFAULT_PTZ_SPEED_FAST`] when the schema cannot be opened
+/// (cargo run without `meson install`); the schema's own range
+/// constraint already clamps stored values to [1, 100].
+pub fn ptz_speed_fast() -> i32 {
+    settings_handle().map_or(DEFAULT_PTZ_SPEED_FAST, |s| s.int(KEY_PTZ_SPEED_FAST))
 }
 
 /// Persist one control's value under `(serial, control_name)`.

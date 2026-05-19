@@ -49,5 +49,20 @@
         the `live-preview` Cargo feature (T-200).
       </description>
     </key>
+    <key name="ptz-speed-fast" type="i">
+      <range min="1" max="100"/>
+      <default>50</default>
+      <summary>PTZ press-and-hold motion speed (1=slow, 100=fast)</summary>
+      <description>
+        Scales the per-tick step size used by the T-101b press-and-
+        hold and keyboard-arrow handlers. 50 (default) maps to the
+        original 1° step per 50 ms tick (~20°/s). 1 maps to ~0.1°
+        per tick (~2°/s, deliberate framing) and 100 maps to ~2°
+        per tick (~40°/s, fast pan). The discrete-tap step (5°)
+        does not depend on this setting. Shift+Arrow multiplies
+        the resulting step by 3 for a one-shot accelerator
+        regardless of this slider.
+      </description>
+    </key>
   </schema>
 </schemalist>
