@@ -27,10 +27,34 @@
     },
     "modules": [
         {
+            "name": "gst-plugin-gtk4",
+            "buildsystem": "simple",
+            "build-options": {
+                "env": {
+                    "CARGO_HOME": "/run/build/gst-plugin-gtk4/cargo"
+                },
+                "build-args": [
+                    "--share=network"
+                ]
+            },
+            "build-commands": [
+                "cargo build --release -p gst-plugin-gtk4",
+                "install -Dm644 target/release/libgstgtk4.so /app/lib/gstreamer-1.0/libgstgtk4.so"
+            ],
+            "sources": [
+                {
+                    "type": "git",
+                    "url": "https://gitlab.freedesktop.org/gstreamer/gst-plugins-rs.git",
+                    "tag": "0.13.5"
+                }
+            ]
+        },
+        {
             "name": "obsbot-cam-control",
             "buildsystem": "meson",
             "config-opts": [
-                "--buildtype=release"
+                "--buildtype=release",
+                "-Dlive-preview=true"
             ],
             "sources": [
                 {

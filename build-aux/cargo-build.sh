@@ -6,7 +6,7 @@
 # so meson.build stays declarative.
 #
 # Usage:
-#   cargo-build.sh <manifest> <target-dir> <profile> <package> <bin-name> <out-file> <localedir>
+#   cargo-build.sh <manifest> <target-dir> <profile> <package> <bin-name> <out-file> <localedir> [feature]
 #
 # Arguments:
 #   manifest    Absolute path to the workspace Cargo.toml.
@@ -19,11 +19,15 @@
 #               OBSBOT_LOCALEDIR for build.rs to re-emit via
 #               cargo:rustc-env so i18n.rs::init() can bind the
 #               textdomain at runtime.
+#   feature     Optional cargo feature to enable (T-203). Empty
+#               string = no extra feature (default). Currently the
+#               only value the meson.build wires is 'live-preview'
+#               when -Dlive-preview=true.
 
 set -euo pipefail
 
-if [ "$#" -ne 7 ]; then
-    echo "usage: $0 <manifest> <target-dir> <profile> <package> <bin-name> <out-file> <localedir>" >&2
+if [ "$#" -lt 7 ] || [ "$#" -gt 8 ]; then
+    echo "usage: $0 <manifest> <target-dir> <profile> <package> <bin-name> <out-file> <localedir> [feature]" >&2
     exit 64
 fi
 
@@ -34,10 +38,14 @@ package="$4"
 bin_name="$5"
 out_file="$6"
 localedir="$7"
+feature="${8:-}"
 
 export OBSBOT_LOCALEDIR="$localedir"
 
 args=(build --manifest-path="$manifest" --target-dir="$target_dir" -p "$package")
+if [ -n "$feature" ]; then
+    args+=(--features "$feature")
+fi
 case "$profile" in
     release)
         args+=(--release)

@@ -97,7 +97,15 @@ pub fn build_controls_page(cam: &CameraInfo) -> adw::NavigationPage {
             let header_bar: adw::HeaderBar = builder
                 .object("header_bar")
                 .expect("controls-view.ui missing object 'header_bar'");
-            header_bar.pack_end(&build_preview_toggle(handles));
+            // pack_end stacks right-to-left: the first pack_end ends
+            // up rightmost. Final layout:
+            //     [<back]   …   [grayscale] [snapshot] [toggle]
+            let toggle = build_preview_toggle(&handles);
+            let snapshot = build_snapshot_button(&handles);
+            let grayscale = build_grayscale_toggle(&handles);
+            header_bar.pack_end(&toggle);
+            header_bar.pack_end(&snapshot);
+            header_bar.pack_end(&grayscale);
         }
     }
     #[cfg(not(feature = "live-preview"))]
@@ -400,7 +408,7 @@ fn build_preview_widgets(path: &Path) -> (adw::Banner, gtk::Revealer, PreviewHan
 /// emits `toggled` once at construction so the pipeline starts and
 /// the revealer opens on first render.
 #[cfg(feature = "live-preview")]
-fn build_preview_toggle(handles: PreviewHandles) -> gtk::ToggleButton {
+fn build_preview_toggle(handles: &PreviewHandles) -> gtk::ToggleButton {
     let toggle = gtk::ToggleButton::builder()
         .icon_name("camera-video-symbolic")
         .tooltip_text(toggle_tooltip(false))
@@ -422,21 +430,26 @@ fn build_preview_toggle(handles: PreviewHandles) -> gtk::ToggleButton {
     let default_on = settings::preview_default_on();
     toggle.set_active(default_on);
 
+    let banner = handles.banner.clone();
+    let revealer = handles.revealer.clone();
+    let pipeline = handles.pipeline.clone();
+    let picture = handles.picture.clone();
+    let path = handles.path.clone();
     toggle.connect_toggled(move |btn| {
         let active = btn.is_active();
         btn.set_tooltip_text(Some(&toggle_tooltip(active)));
-        handles.revealer.set_reveal_child(active);
+        revealer.set_reveal_child(active);
         // Hide the discoverability banner while the preview is on
         // (the user has clearly found it); bring it back when the
         // preview is off so it remains a visual anchor.
-        handles.banner.set_revealed(!active);
+        banner.set_revealed(!active);
 
         if active {
-            let mut slot = handles.pipeline.borrow_mut();
+            let mut slot = pipeline.borrow_mut();
             if slot.is_none() {
                 match PreviewPipeline::new() {
                     Ok(p) => {
-                        handles.picture.set_paintable(Some(&p.paintable()));
+                        picture.set_paintable(Some(&p.paintable()));
                         *slot = Some(p);
                     }
                     Err(err) => {
@@ -450,7 +463,7 @@ fn build_preview_toggle(handles: PreviewHandles) -> gtk::ToggleButton {
                 }
             }
             if let Some(p) = slot.as_mut() {
-                if let Err(err) = p.start(&handles.path) {
+                if let Err(err) = p.start(&path) {
                     settings::surface_error(&format!(
                         "{}: {err}",
                         gettext("Could not start preview")
@@ -458,7 +471,7 @@ fn build_preview_toggle(handles: PreviewHandles) -> gtk::ToggleButton {
                     btn.set_active(false);
                 }
             }
-        } else if let Some(p) = handles.pipeline.borrow_mut().as_mut() {
+        } else if let Some(p) = pipeline.borrow_mut().as_mut() {
             p.stop();
         }
     });
@@ -468,6 +481,110 @@ fn build_preview_toggle(handles: PreviewHandles) -> gtk::ToggleButton {
     }
 
     toggle
+}
+
+/// Grayscale-filter toggle (T-202). Flips the `videobalance`
+/// `saturation` property on the live pipeline between 1.0 (color)
+/// and 0.0 (grayscale). Cheap — no pipeline state change, no
+/// relink. State persists per page lifetime; closing and reopening
+/// the page resets the toggle to off.
+#[cfg(feature = "live-preview")]
+fn build_grayscale_toggle(handles: &PreviewHandles) -> gtk::ToggleButton {
+    let btn = gtk::ToggleButton::builder()
+        .icon_name("view-reveal-symbolic")
+        .tooltip_text(gettext("Toggle grayscale filter"))
+        .build();
+    let pipeline = handles.pipeline.clone();
+    btn.connect_toggled(move |btn| {
+        let on = btn.is_active();
+        if let Some(p) = pipeline.borrow().as_ref() {
+            p.set_grayscale(on);
+        }
+    });
+    btn
+}
+
+/// Snapshot button (T-201). Captures the latest paintable into a
+/// `gdk::Texture` via `GskRenderer::render_texture` and writes it
+/// to `~/Pictures/obsbot-camera-<timestamp>.png`. Falls back to
+/// `~/` if the user's `Pictures` XDG dir is missing. Surfaces both
+/// success and failure via the toast overlay so the user gets
+/// confirmation without a modal dialog.
+#[cfg(feature = "live-preview")]
+fn build_snapshot_button(handles: &PreviewHandles) -> gtk::Button {
+    let btn = gtk::Button::builder()
+        .icon_name("camera-photo-symbolic")
+        .tooltip_text(gettext("Save snapshot to Pictures"))
+        .build();
+    let picture = handles.picture.clone();
+    btn.connect_clicked(move |_| match save_snapshot(&picture) {
+        Ok(path) => {
+            settings::surface_error(&format!(
+                "{}: {}",
+                gettext("Snapshot saved"),
+                path.display()
+            ));
+        }
+        Err(msg) => {
+            settings::surface_error(&format!("{}: {msg}", gettext("Snapshot failed")));
+        }
+    });
+    btn
+}
+
+/// Render the latest frame from the gtk4paintablesink's paintable
+/// into a `gdk::Texture` and save it as PNG. Returns the saved
+/// path. The paintable is the same one bound to the `gtk::Picture`
+/// (stable for the pipeline's lifetime); pulling a render-node
+/// snapshot is the gtk4-native equivalent of pulling an appsink
+/// buffer and avoids a second pipeline branch.
+///
+/// Failure modes:
+/// - `intrinsic_width` / `intrinsic_height` are zero or negative
+///   (preview is off or has not produced a first frame yet) →
+///   `Err("No frame available")`.
+/// - `gtk::Snapshot::to_node()` returns `None` (paintable rendered
+///   an empty subtree, same idea as above) → `Err`.
+/// - `Native::renderer()` returns `None` (widget not yet realized;
+///   should not happen after the page is on-screen, but covered).
+/// - `gdk::Texture::save_to_png` IO failure → propagates.
+#[cfg(feature = "live-preview")]
+fn save_snapshot(picture: &gtk::Picture) -> Result<std::path::PathBuf, String> {
+    use gtk::prelude::*;
+
+    let paintable = picture
+        .paintable()
+        .ok_or_else(|| "preview pipeline has no paintable".to_string())?;
+    let width = paintable.intrinsic_width();
+    let height = paintable.intrinsic_height();
+    if width <= 0 || height <= 0 {
+        return Err(gettext("No frame available — start the preview first"));
+    }
+    let snapshot = gtk::Snapshot::new();
+    paintable.snapshot(
+        snapshot.upcast_ref::<gtk::gdk::Snapshot>(),
+        f64::from(width),
+        f64::from(height),
+    );
+    let node = snapshot
+        .to_node()
+        .ok_or_else(|| gettext("Preview produced no frame yet"))?;
+    let renderer = picture
+        .native()
+        .and_then(|n| n.renderer())
+        .ok_or_else(|| "no GskRenderer available on this surface".to_string())?;
+    #[allow(clippy::cast_precision_loss)]
+    let bounds = gtk::graphene::Rect::new(0.0, 0.0, width as f32, height as f32);
+    let texture = renderer.render_texture(node, Some(&bounds));
+
+    let dir = glib::user_special_dir(glib::UserDirectory::Pictures).unwrap_or_else(glib::home_dir);
+    let stamp = glib::DateTime::now_local()
+        .ok()
+        .and_then(|d| d.format("%Y%m%d-%H%M%S").ok())
+        .map_or_else(|| "snapshot".to_string(), |s| s.to_string());
+    let path = dir.join(format!("obsbot-camera-{stamp}.png"));
+    texture.save_to_png(&path).map_err(|e| e.to_string())?;
+    Ok(path)
 }
 
 /// Build a row for one control. Integer controls get an

@@ -127,6 +127,15 @@ impl PreviewPipeline {
         let videoconvert = gst::ElementFactory::make("videoconvert")
             .build()
             .map_err(|_| PreviewError::MissingElement("videoconvert".to_string()))?;
+        // T-202: `videobalance` sits in the pipeline unconditionally
+        // with saturation = 1.0 (identity transform — costs only the
+        // YUV ↔ YUV passthrough on each frame). Toggling grayscale
+        // is a property write on this element, no relink needed.
+        let videobalance = gst::ElementFactory::make("videobalance")
+            .name("vb_filter")
+            .property("saturation", 1.0f64)
+            .build()
+            .map_err(|_| PreviewError::MissingElement("videobalance".to_string()))?;
         let sink = gst::ElementFactory::make("gtk4paintablesink")
             .build()
             .map_err(|_| PreviewError::MissingElement("gtk4paintablesink".to_string()))?;
@@ -134,17 +143,27 @@ impl PreviewPipeline {
         let paintable: gtk::gdk::Paintable = sink.property::<gtk::gdk::Paintable>("paintable");
 
         pipeline
-            .add_many([&videoconvert, &sink])
-            .expect("pipeline.add_many(videoconvert+sink) cannot fail with fresh elements");
-        videoconvert
-            .link(&sink)
-            .expect("videoconvert → gtk4paintablesink link cannot fail");
+            .add_many([&videoconvert, &videobalance, &sink])
+            .expect("pipeline.add_many on fresh elements cannot fail");
+        gst::Element::link_many([&videoconvert, &videobalance, &sink])
+            .expect("videoconvert → videobalance → gtk4paintablesink link cannot fail");
 
         Ok(Self {
             pipeline,
             paintable,
             is_playing: false,
         })
+    }
+
+    /// Toggle the T-202 grayscale filter on or off. Implemented as a
+    /// saturation property on the always-present `videobalance`
+    /// element (1.0 = identity, 0.0 = pure luma). Cheap — no
+    /// relinking, no pipeline state change.
+    pub fn set_grayscale(&self, on: bool) {
+        let saturation = if on { 0.0f64 } else { 1.0f64 };
+        if let Some(el) = self.pipeline.by_name("vb_filter") {
+            el.set_property("saturation", saturation);
+        }
     }
 
     /// Borrow the paintable that callers bind to a `gtk::Picture`.

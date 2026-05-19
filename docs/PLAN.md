@@ -1707,6 +1707,118 @@
   when this one lands): snapshot-to-file, post-process
   filters (greyscale / sepia / invert per SPEC §4.2),
   resizable preview-pane vs always-fullwidth-top placement.
+
+### T-201 — Snapshot to file (v0.4)
+
+- **State**: IN_PROGRESS (impl on
+  `feat/T-201-202-203-v04`, awaiting hardware visual
+  validation: pulse the snapshot button while preview is on
+  → file appears under `~/Pictures/`).
+- **Started**: 2026-05-19T03:00:00Z
+- **Depends on**: T-200 squashed to main.
+- **Description**: header-bar `camera-photo-symbolic` button
+  pulls the latest paintable from the `gtk4paintablesink`,
+  renders it to a `gdk::Texture` via `GskRenderer::
+  render_texture` (the same path GTK uses internally for
+  `Inspector → Save image`), and writes it as PNG to
+  `<XDG_PICTURES_DIR>/obsbot-camera-<YYYYMMDD-HHMMSS>.png`.
+  Falls back to `$HOME` when the Pictures XDG dir is absent.
+  Both success and failure surface as toasts via
+  `settings::surface_error` (which is actually a generic
+  toast surface despite the name).
+- **Acceptance criteria**:
+  - [x] Cargo gates green default + with
+        `obsbot-gui/live-preview`.
+  - [x] Button only renders with the `live-preview` Cargo
+        feature enabled (no compile-time cost when off).
+  - [ ] Hardware validation: start preview, push button,
+        verify the PNG lands at `~/Pictures/obsbot-camera-*.
+        png`, opens fine in `eog`, dimensions match the
+        camera's negotiated caps.
+- **Out of scope**: file-chooser dialog (just always saves
+  to Pictures; preferences-dialog override comes later);
+  JPEG output (PNG only); EXIF / metadata embedding.
+
+### T-202 — Post-process filters (greyscale) (v0.4)
+
+- **State**: IN_PROGRESS (greyscale toggle on
+  `feat/T-201-202-203-v04`, awaiting hardware visual
+  validation. Sepia / invert deferred to a follow-up).
+- **Started**: 2026-05-19T03:00:00Z
+- **Depends on**: T-200 squashed to main.
+- **Description**: `videobalance` (name = `vb_filter`) sits
+  in the pipeline unconditionally with `saturation = 1.0`
+  (identity transform). A header-bar
+  `view-reveal-symbolic` ToggleButton flips it to
+  `saturation = 0.0` for grayscale. Cheap — no pipeline
+  state change, no relink, just a property write.
+- **Acceptance criteria**:
+  - [x] `videobalance` element added to
+        `PreviewPipeline::new`, linked in the chain.
+  - [x] `PreviewPipeline::set_grayscale(on: bool)` setter.
+  - [x] Header-bar toggle wired.
+  - [x] Cargo gates green default + with
+        `obsbot-gui/live-preview`.
+  - [ ] Hardware validation: toggle grayscale while preview
+        is on, observe colour → black-and-white instantly;
+        toggle off → colour returns; toggle when preview is
+        off → no-op (no crash, no toast).
+- **Out of scope**: sepia (needs a color matrix or
+  frei0r-filter-sepia0r — `gst-plugins-bad` dependency);
+  invert (needs `videoflip method=other` or similar). Both
+  queued as follow-ups when sepia / invert demand surfaces.
+
+### T-203 — Flatpak GStreamer plugin module (v0.4)
+
+- **State**: IN_PROGRESS (manifest edited on
+  `feat/T-201-202-203-v04`; not yet run through
+  `flatpak-builder` — the host's Flatpak install is paused
+  per private-repo policy).
+- **Started**: 2026-05-19T03:00:00Z
+- **Depends on**: T-200 squashed to main.
+- **Description**: the GNOME Platform 48 runtime ships
+  gstreamer core / base / good / bad / ugly libraries but
+  **not** the `gtk4paintablesink` plugin (which lives in
+  `gst-plugins-rs` upstream). Without it, the Flatpak cut
+  of the app crashes the moment the preview toggle fires.
+  The fix is a `simple` Flatpak module that builds
+  `gst-plugin-gtk4` from the official `gst-plugins-rs.git`
+  tag 0.13.5 and installs `libgstgtk4.so` under
+  `/app/lib/gstreamer-1.0/`. The app module then passes
+  `-Dlive-preview=true` so meson tells cargo to compile
+  with `--features live-preview`.
+- **Plumbing**:
+  - `meson_options.txt` (new) declares
+    `option('live-preview', type: 'boolean', value:
+    false)`. Default off so a plain
+    `meson setup builddir && meson install` keeps working
+    on hosts without GStreamer dev libs.
+  - `meson.build` reads the option and passes the literal
+    `live-preview` string (or empty) to
+    `build-aux/cargo-build.sh` as a new optional 8th
+    argument.
+  - `build-aux/cargo-build.sh` accepts 7 or 8 args; when
+    arg 8 is non-empty it adds
+    `--features "$feature"` to the cargo invocation.
+  - `build-aux/io.github.domatix.ObsbotCamControl.json`
+    adds the `gst-plugin-gtk4` module before the app
+    module and sets `-Dlive-preview=true` in the app's
+    `config-opts`.
+- **Acceptance criteria**:
+  - [x] `meson setup builddir` defaults to live-preview =
+        false; `meson setup builddir -Dlive-preview=true`
+        configures with the feature.
+  - [x] Build with the feature on succeeds (verified with
+        `meson compile cargo-build` against
+        `-Dlive-preview=true` — 1m 47s release build,
+        includes the gstreamer chain).
+  - [ ] `flatpak-builder` smoke-test of the new module —
+        deferred until the host's Flatpak install is
+        re-enabled (user-driven). Manifest is the
+        deliverable; downstream `flatpak-builder` run is
+        the validation gate.
+- **Out of scope**: cutting a v0.4.0 tag (waits for the
+  flatpak-builder validation gate).
 - **Outcome (2026-05-19)**: shipped on `feat/T-200-preview`,
   squash-merged to `main`. Final shape diverges from the
   draft acceptance criteria in three places, all user-driven

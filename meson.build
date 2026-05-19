@@ -68,6 +68,13 @@ manifest         = meson.project_source_root() / 'Cargo.toml'
 # crates/obsbot-gui/Cargo.toml's `[[bin]] name`, fixed by ADR-0012.
 bin_name = 'obsbot-cam-control'
 
+# Optional cargo feature flag (T-200 / T-203). When the `live-preview`
+# meson option is true the wrapper appends --features live-preview to
+# the cargo build invocation. Default off so a plain
+# `meson setup builddir && meson install` keeps working on hosts
+# without GStreamer dev libs.
+live_preview_feature = get_option('live-preview') ? 'live-preview' : ''
+
 cargo_build = custom_target(
   'cargo-build',
   output: bin_name,
@@ -80,6 +87,7 @@ cargo_build = custom_target(
     bin_name,
     '@OUTPUT@',
     localedir,
+    live_preview_feature,
   ],
   build_always_stale: true,
   build_by_default: true,

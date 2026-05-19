@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# Project-level Meson options.
+
+option(
+  'live-preview',
+  type: 'boolean',
+  value: false,
+  description: 'Enable the live-preview GStreamer pipeline (T-200). When true, meson tells cargo to build obsbot-gui with --features live-preview; the host must provide libgstreamer1.0-dev + libgstreamer-plugins-base1.0-dev + gstreamer1.0-gtk4 (or the Flatpak runtime variant).',
+)
