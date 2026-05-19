@@ -10,6 +10,204 @@
 
 ---
 
+## 2026-05-19 (T-200 resumed)
+
+### [2026-05-19T01:15:00Z] [T-200] DONE — visual validation green, UX iteration complete
+
+User validated the Tiny 2 Lite preview pipeline visually against
+the connected hardware. Five iterations landed during the session
+based on direct user feedback; each is documented below in the
+order it surfaced.
+
+**1. Initial scaffold visual gate (frames render).** User
+confirmed the Picture renders frames live with the v4l2src →
+videoconvert → gtk4paintablesink pipeline. No GStreamer warnings
+worth recording — Vulkan denied a renderD128 fd (permissions,
+fallback to OpenGL works) and one GDK FIXME on YUV dmabuf
+colorstate. Both benign.
+
+**2. Camera-busy → toast that never appeared.** User opened the
+Cámara app, came back to ours, toggled preview on, and saw
+nothing — no error message, no visible failure. Root cause:
+`pipeline.set_state(Playing)` returns `Ok(Async)` for v4l2src
+pipelines; the actual EBUSY message only lands on the bus
+during the READY → PAUSED transition that happens after the
+state-change call returns. Fix: block on
+`pipeline.state(Some(2 s))` after `set_state` to wait for the
+real outcome, then drain any pending ERROR off the bus via the
+new helper `drain_bus_error(...)` so the toast carries the
+actual error string instead of a generic state-change message.
+On failure path we also tear out the v4l2src and return the
+pipeline to NULL so the next `start()` rebuilds cleanly. User
+re-tested: toast now reads "Could not start preview: Device or
+resource busy …" and the header toggle snaps back to off.
+
+**3. Preview sticky always vs only-when-active.** First UX
+iteration kept the preview group inside the scrollable
+`AdwPreferencesPage`, which meant frames disappeared as soon as
+the user scrolled to reach a control row. Tried wrapping in an
+`AdwClamp` above the page (still inside the scroll). User
+flagged the regression: *"si hago scroll hacia abajo para tocar
+configuraciones y dejo de ver la preview porque se queda
+arriba"*. Restructured: `render_controls` now returns a
+`gtk::Box` with a sticky outer slot plus a scrollable
+`PreferencesPage`; the Picture lives in the sticky slot inside
+a `gtk::Revealer` (SlideDown, 200 ms). The revealer collapses
+when the toggle is off so the page reclaims that vertical
+space.
+
+**4. Toggle on the header bar.** With the preview now sticky-
+only-when-active, the in-row toggle that used to live in the
+preview group lost its anchor. Moved it to the header bar per
+the original T-200 acceptance criteria — added a `header_bar`
+Blueprint ID to `controls-view.blp` and pack the camera-video-
+symbolic ToggleButton from `build_preview_toggle` into it.
+Tooltip toggles between "Start live preview" and "Stop live
+preview" per state. Lifecycle: `build_body` now returns
+`(gtk::Widget, PreviewSlot)` where `PreviewSlot` is `Option<
+PreviewHandles>` with the feature on and `()` with it off; the
+slot threads the revealer + picture + lazy pipeline + path
+from the body builder up to `build_controls_page` where the
+toggle is created and packed.
+
+**5. Discoverability banner.** User feedback after validating
+the header-bar toggle: *"si no sabes lo que estás buscando es
+difícil de ver. Habría mucha gente que diría 'hostia esto
+estaba aquí, qué guay', señalízalo"*. Added an `adw::Banner`
+between the header bar and the revealer carrying the message
+"Live preview is available — show the camera feed inside the
+app." with a "Show preview" action button. Banner connects to
+the toggle via `toggle.set_active(true)` from its
+`connect_button_clicked` handler, and the toggle's existing
+`connect_toggled` closure flips `banner.set_revealed(!active)`
+so the hint collapses the moment the user finds the feature and
+returns when they turn the preview off again. No GSettings
+persistence yet — the banner reappears every controls-page
+open. Out-of-scope follow-up if it ever gets noisy.
+
+**Cargo gates** at the end of every iteration:
+- `cargo fmt --all --check` exit 0.
+- `cargo clippy --workspace --all-targets -- -D warnings`
+  exit 0 (default build).
+- `cargo clippy --workspace --all-targets --features
+  obsbot-gui/live-preview -- -D warnings` exit 0.
+- `cargo test --workspace` 1 doctest pass.
+- `cargo test --workspace --features obsbot-gui/live-preview`
+  2 pass (1 doctest + 1 unit).
+
+**Files in the final feature-branch state** (vs `main`):
+```
+crates/obsbot-gui/Cargo.toml                       +18 -1
+crates/obsbot-gui/src/controls_view.rs            +180 -10
+crates/obsbot-gui/src/main.rs                       +2 -0
+crates/obsbot-gui/src/preview.rs                  +295 -0
+crates/obsbot-gui/src/settings.rs                  +13 -2
+crates/obsbot-gui/resources/controls-view.blp       +4 -1
+data/io.github.domatix.ObsbotCamControl.gschema.xml +11 -0
+docs/PLAN.md                                       +90 -3
+docs/PROGRESS.md                                 (this entry + scaffold entry)
+docs/STATE.md                                    (rewritten)
+Cargo.lock                                        (gstreamer chain pulled in)
+```
+
+**Validation gate not run** — the `#[ignore]`d hardware test
+listed in the acceptance criteria never landed. `obsbot-gui`
+has no `tests/` harness today; spinning one up just for this
+test would be its own task. Visual validation against the
+connected Tiny 2 Lite covers the same gate. Recorded as a v0.4
+follow-up in PLAN T-200's outcome block.
+
+**Next session**: squash-merge `feat/T-200-preview` → `main`,
+update STATE to reflect a clean main with T-200 landed, then
+open T-101b on `main` to bundle the press-and-hold polling
+from `feat/T-101a` with keyboard arrow navigation (user-asked
+during this session).
+
+### [2026-05-19T00:30:00Z] [T-200] Resumed — feature-on build fixed, four cargo gates green
+
+User confirmed the GStreamer dev packages that blocked T-200 in
+the previous session are now installed on the host. Verified
+via `pkg-config --modversion`: gstreamer-1.0 / -base / -video /
+-app all at 1.26.2; `dpkg -l` lists gstreamer1.0-plugins-base
+1.26.2, gstreamer1.0-plugins-good 1.26.2, gstreamer1.0-gtk4
+0.13.5; the matching plugin `.so` files are present at
+`/usr/lib/x86_64-linux-gnu/gstreamer-1.0/` (libgstvideo4linux2.so,
+libgstgtk4.so, libgstvideoconvertscale.so). `gst-inspect-1.0`
+itself is absent (gstreamer1.0-tools not installed) but irrelevant
+for the build — only for human plugin introspection.
+
+`cargo check -p obsbot-gui --features live-preview` against the
+scaffold from `6153aaa` failed immediately with `E0433` /
+`E0277`: `preview.rs` derives `thiserror::Error` and uses the
+`#[error("…")]` attribute, but `obsbot-gui/Cargo.toml` never
+declared `thiserror` as a dependency. The crate transitively
+gets it through `obsbot-core` but `thiserror` macros are not
+re-exported, so the derive cannot resolve. Fix: add `thiserror
+= { workspace = true, optional = true }` to `[dependencies]`
+and include `"dep:thiserror"` in the `live-preview` feature
+array. The default-build (no feature) still does not pull
+`thiserror` into the gui dep graph.
+
+That unblocked the build but clippy with the feature on then
+surfaced 14 lints, all inside T-200 code:
+
+* `preview.rs:63` — redundant inner `#![cfg(feature = "live-
+  preview")]`: the module is already gated at `mod preview;` in
+  `main.rs`, the inner cfg is a duplicated attribute. Removed.
+* 9 × `clippy::doc_markdown` — bare `GStreamer` / `GSettings`
+  identifiers in doc comments. Wrapped in backticks
+  (`` `GStreamer` `` / `` `GSettings` ``) in `preview.rs`
+  module doc + `MissingElement` / `PipelineStart` / `GstInit`
+  docs, in `controls_view::build_preview_group`'s doc block,
+  and in `settings::KEY_PREVIEW_DEFAULT_ON`'s doc.
+* `clippy::unnecessary_wraps` —
+  `build_preview_group(path) -> Option<adw::PreferencesGroup>`
+  always returned `Some(group)`. Flattened the signature to
+  return `adw::PreferencesGroup` directly and updated the call
+  site in `controls_view::build_body` (the `if let Some(...)`
+  guard collapses to a direct `page.add(&build_preview_group
+  (path))`).
+* `clippy::map_unwrap_or` — `settings_handle().map(|s|
+  s.boolean(KEY_PREVIEW_DEFAULT_ON)).unwrap_or(false)` rewrites
+  to `settings_handle().is_some_and(|s|
+  s.boolean(KEY_PREVIEW_DEFAULT_ON))`.
+
+After fixes:
+- `cargo fmt --all --check` → exit 0.
+- `cargo clippy --workspace --all-targets --features
+  obsbot-gui/live-preview -- -D warnings` → exit 0.
+- `cargo test --workspace` → 1 doctest pass (default feature
+  set unchanged).
+- `cargo test --workspace --features obsbot-gui/live-preview`
+  → 2 pass (1 doctest + 1 unit; no new unit tests added — the
+  `#[ignore]`d hardware test that constructs the pipeline +
+  asserts PLAYING is still on the acceptance list, will land
+  with the validation pass).
+
+Files touched this turn:
+```
+crates/obsbot-gui/Cargo.toml             +6  -1
+crates/obsbot-gui/src/preview.rs         +8  -10
+crates/obsbot-gui/src/controls_view.rs   +5  -6
+crates/obsbot-gui/src/settings.rs        +2  -4
+docs/PLAN.md                             +26 -3
+docs/STATE.md                            (rewritten for T-200 IN_PROGRESS)
+docs/PROGRESS.md                         (this entry)
+```
+
+Next sub-step: commit the build fix on `feat/T-200-preview` as
+`fix(gui): make live-preview feature actually compile (T-200)`,
+then `cargo run -p obsbot-gui --features live-preview` against
+the connected Tiny 2 Lite. The user has to visually validate
+the "Live preview" group appears at the top of the controls
+page, the toggle starts the v4l2src → videoconvert →
+gtk4paintablesink pipeline, and frames render in the
+`gtk::Picture`. If green: rebase against main (pulls in
+T-105fix), squash-merge, queue v0.4 follow-ups (snapshot
+to file, filters, Flatpak GStreamer module for the manifest).
+
+---
+
 ## 2026-05-13 (cont.)
 
 ### [2026-05-13T18:30:00Z] [T-016] Started — `.deb` test artifact via `cargo-deb`
@@ -470,6 +668,81 @@ control-write features (sliders, PTZ pad, zoom, WB,
 exposure) — that's v0.2's user-visible value.
 
 ## 2026-05-14 (pivot to v0.3 AI tracking)
+
+### [2026-05-15T14:45:00Z] [T-200] IN_PROGRESS — live preview scaffolding (feature-gated)
+
+(Note: this entry is on branch `feat/T-200-preview`. The sibling
+branch `feat/T-101a` carries the PTZ press-and-hold work landed
+2026-05-15T13:45:00Z; both branches are independent v0.3.1
+follow-ups awaiting validation.)
+
+Branch `feat/T-200-preview` lands the full GStreamer-based live-
+preview scaffolding behind a `live-preview` Cargo feature flag,
+off by default. The motivation for the gate: `libgstreamer1.0-
+dev` + `gstreamer1.0-gtk4` are not installed on the dev host
+and the session has no passwordless sudo, so the workspace must
+stay buildable without those system packages.
+
+Architecture:
+
+* **`obsbot-gui/Cargo.toml`** — three optional deps
+  (`gstreamer`, `gstreamer-video`, `gstreamer-app` from the
+  workspace 0.23 pin) plus the `live-preview` feature that
+  wires `dep:gstreamer` + `dep:gstreamer-video` + `dep:
+  gstreamer-app`.
+* **`obsbot-gui/src/preview.rs`** (new, gated) — the
+  `PreviewPipeline` struct: builds `v4l2src ! videoconvert !
+  gtk4paintablesink` in `new()` (sans the `v4l2src`, which
+  gets rebuilt per `start(path)` so changing cameras
+  mid-session works without leaking the previous source).
+  `paintable()` exposes the cached `gdk::Paintable` from the
+  sink so the GUI binds a `gtk::Picture` once at construction
+  and rendering activates only while the pipeline is in
+  PLAYING. `Drop` transitions back to NULL, releasing the V4L2
+  device when the controls page is replaced (T-110 hot-plug
+  REMOVE, navigation back to camera list).
+* **`obsbot-gui/src/main.rs`** — `#[cfg(feature = "live-
+  preview")] mod preview;` so non-feature builds skip the
+  module entirely.
+* **`obsbot-gui/src/controls_view.rs`** —
+  `build_preview_group(path)` returns an `AdwPreferencesGroup`
+  with two action rows: header (subtitle + `gtk::ToggleButton`
+  icon `camera-video-symbolic`) and the `gtk::Picture`.
+  Toggling on builds + starts the pipeline lazily (deferred
+  GStreamer init until first toggle, so page open stays cheap
+  on cold launch). Failures surface via `settings::surface_
+  error` as toasts and the toggle snaps back to off — the GUI
+  never lies about pipeline state. Mounted at the top of the
+  page (above AI and effects) when feature is enabled.
+* **`data/io.github.domatix.ObsbotCamControl.gschema.xml`** —
+  new `preview-default-on` boolean key, default `false`.
+  Schema entry exists unconditionally even when feature is
+  off so we don't need two `.gschema.xml` variants.
+* **`obsbot-gui/src/settings.rs`** — feature-gated
+  `preview_default_on()` reader.
+
+Validation:
+
+* `cargo fmt --all --check`, `cargo clippy --workspace --all-
+  targets -- -D warnings`, `cargo test --workspace` — all
+  green (default features; 56 unit tests + 1 doctest).
+* `cargo check -p obsbot-gui --features live-preview` — fails
+  only at the pkg-config probe for `gstreamer-1.0.pc`. The
+  Rust side reaches the system-deps boundary cleanly,
+  confirming no obvious type errors in `preview.rs` /
+  `build_preview_group`.
+
+**Open question for the next session**: the user has to install
+the system packages before any of this can actually run.
+PLAN.md §T-200 carries the apt / pacman incantation. Once
+installed, `cargo run -p obsbot-gui --features live-preview` is
+enough to validate. The Flatpak manifest also needs the same
+plugin packages added (`flathub.yaml` modules); deferred to the
+v0.4 Flatpak update task once the dev-host runtime confirms
+the pipeline works.
+
+Commit message
+`feat(gui): live preview pipeline scaffold, feature-gated (T-200)`.
 
 ### [2026-05-15T12:45:00Z] [T-105fix] DONE — schema realigned to runtime, persistence works end-to-end
 

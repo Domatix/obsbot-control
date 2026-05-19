@@ -14,6 +14,9 @@
 //                  "controls-{vid:04x}-{pid:04x}" per push so
 //                  back-navigation gestures match what T-013c
 //                  established.
+//   * header_bar — Adw.HeaderBar. T-200 packs the live-preview
+//                  toggle into it (only when the `live-preview`
+//                  Cargo feature is enabled).
 //   * body_slot  — Adw.Bin holding the dynamic controls body.
 
 using Gtk 4.0;
@@ -28,7 +31,7 @@ Adw.NavigationPage page {
 
   child: Adw.ToolbarView {
     [top]
-    Adw.HeaderBar {}
+    Adw.HeaderBar header_bar {}
 
     content: Adw.Bin body_slot {
       vexpand: true;

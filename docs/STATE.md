@@ -6,37 +6,34 @@
 
 ---
 
-active_task: none  # v0.3.0 shipped; awaiting user-direction for the next milestone
-active_task_state: —
-active_branch: main  # post-merge; feat/T-300-xu-tracking kept for reference, do not delete without explicit ask
-last_completed_task: T-303  # v0.3.0 milestone closure
-last_milestone: v0.3.0  # tag cut 2026-05-15 on commit 6c954e5
-last_commit_on_main: feat: v0.3.0 Vendor XU & AI tracking (T-300 / T-301 / T-302 / T-303)  # 6c954e5 (squash-merge of feat/T-300-xu-tracking)
-last_step: T-303 closed. User validated every GUI gate green (AI and effects 4 rows + 10 AI modes + HDR + FOV; Power state and presets 5 rows; PTZ pad post-cache-drift hot-fix; dump dialog with clipboard). Hardware suite ran in-session (7/7 pass). Three hot-fix commits during validation: 3c04e57 (zero-pad SET_CUR), d3fce26 (descope XU Exposure mode + Face metering), f38a7ff (refresh PTZ from kernel). Quirk resolutions per PROTOCOL.md §3.2: Q4 accepted as-is (Hand setter m=3), Q5 retired by descope, Q8 documented (FOV Narrow no-op on Tiny 2 Lite firmware 5.10). Branch `feat/T-300-xu-tracking` squash-merged into main; annotated `v0.3.0` tag cut. PUSH HELD per private-repo policy.
-next_step: User picks the next direction. Three candidates queued in PLAN.md: (a) **T-105fix** — GSettings schema vs runtime alignment, v0.3.1 hot-fix train, ~10 lines; (b) **T-101a** — PTZ smooth movement via pan_speed/tilt_speed press-and-hold, milestone TBD (v0.3.1 or v0.4); (c) **T-200** — start the v0.4 Live Preview pipeline. Plus the parked v0.2 validation list (T-108 / T-110 / T-101 / T-102 / T-103 / T-104 / T-105). Plus the post-v1.0 **T-400** Add OBSBOT Meet to the model matrix.
+active_task: T-200  # final commit on the feature branch; about to squash-merge to main
+active_task_state: DONE on `feat/T-200-preview` — user-validated visually, awaiting squash-merge to main
+active_branch: feat/T-200-preview
+last_completed_task: T-105fix  # on main; T-101a still DONE on its branch awaiting hardware ergonomics
+last_milestone: v0.3.0  # tag cut 2026-05-15 on 6c954e5
+last_commit_on_main: 5066881  # docs: README v0.3 status block + PROTOCOL Q4 resolution
+last_step: T-200 visually validated against the Tiny 2 Lite on 2026-05-19. UX iteration this session moved the toggle to the header bar (Blueprint `header_bar` ID), wrapped the Picture in a `gtk::Revealer` outside the scrolled page so the sticky preview only takes vertical space while active, and added an `AdwBanner` discoverability hint under the header bar (collapses on activation). Bus-error drain in `PreviewPipeline::start` now surfaces device-busy as a toast via `settings::surface_error`. Four cargo gates green default + with `obsbot-gui/live-preview`. Final commit pending on `feat/T-200-preview` before squash-merge.
+next_step: (1) commit the UX iteration on `feat/T-200-preview` (Blueprint header_bar + revealer + banner + bus drain); (2) squash-merge `feat/T-200-preview` → `main` with a milestone-style commit message; (3) verify cargo gates on `main` default profile; (4) open T-101b on `main` for PTZ press-and-hold ergonomics + keyboard arrow navigation, building on the press-and-hold polling from `feat/T-101a`.
 blockers: none
 working_tree:
-  # Clean after the squash-merge commit + tag. The feature branch
-  # still exists locally for reference / blame archaeology.
-  status: clean
-follow_ups_queued_in_plan:
-  - T-105fix (v0.3.1): GSettings schema/runtime key mismatch — pre-existing bug, descoped from v0.3.0 per T-303 decision.
-  - T-101a (v0.3.1 or v0.4): PTZ smooth movement via pan_speed/tilt_speed press-and-hold. User chose press-and-hold approach in the T-303 AskUser prompt.
-  - T-400 (post-v1.0): Add OBSBOT Meet (original, no suffix) as a supported model. Filed per user request 2026-05-15.
+  status: uncommitted changes on feat/T-200-preview (controls-view.blp + controls_view.rs + preview.rs + docs)
+follow_ups_queued:
+  - validate-t101a: in-person PTZ press-and-hold on `feat/T-101a` — tap/hold disambiguation, diagonals, ergonomics. SUPERSEDED in spirit by T-101b which bundles the same hold logic with keyboard arrows; the branch is still retained for blame archaeology.
+  - t101b: PTZ press-and-hold + keyboard arrows on `main` — adopts hold-repeat polling at 50 ms (1° step) from feat/T-101a, adds keyboard handlers (Left/Right/Up/Down + Home reset) on the controls page, validates diagonals.
+  - verify-q9-tiny2-regular: pan_speed/tilt_speed inert on Tiny 2 Lite firmware 5.10; re-test on Tiny 2 (regular) when a unit is available to confirm Q9 scope.
+  - flatpak-gst-runtime: GNOME Platform 48 likely lacks `gtk4paintablesink`; manifest at `build-aux/io.github.domatix.ObsbotCamControl.json` will need a GStreamer module before T-200 ships in Flatpak (v0.4 cut blocker).
+  - v0.4-out-of-scope: snapshot-to-file, post-process filters (greyscale / sepia / invert), resizable preview pane — all listed as v0.4 follow-ups in PLAN T-200 outcome block.
+  - branch-hygiene: local `feat/T-300-xu-tracking` + `feat/T-101a` + `feat/T-200-preview` retained post-merge for archaeology; delete only on explicit user ask.
+  - T-400 (post-v1.0): Add OBSBOT Meet (original) to the model matrix.
 v0_2_pending_validation:
-  # Still parked from 2026-05-14. Mostly bug-flushed during v0.3 work
-  # (PTZ pad got a hot-fix, settings persistence will be reborn via
-  # T-105fix). Worth a re-pass before v0.4 cuts.
   parked:
-    - T-108: keep cable plugged in, `sudo chmod 000 /dev/videoN`, drag a slider → toast "Failed to set <name>: Permission denied". Restore `sudo chmod 660 /dev/videoN`.
-    - T-110: unplug USB while on detail page → page pops to list + toast "Camera disconnected: <name>". Re-plug → reappears in ~2 s.
-    - T-101: 8 PTZ buttons + center-reset + zoom slider + manual-focus toggle. PARTIALLY validated during T-303 (hot-fix f38a7ff resolved the cache-drift bug); the rest of the matrix is still the original T-101 list.
-    - T-102: power_line_frequency (Disabled / 50 / 60); WB Auto on/off → temp slider grey/wake (generic INACTIVE).
-    - T-103: WB controls live inside the dedicated "White balance" group.
-    - T-104: Exposure Auto → Manual → drag Exposure Time → image change; back to Auto → grey.
-    - T-105: change brightness=75, restart app, drill in → slider at 75. BLOCKED on T-105fix (schema mismatch).
-    - T-010 (still): GNOME Shell icon visible.
-    - T-017 (Arch stakeholder, whenever): build/install/remove the PKGBUILD on Arch.
+    - T-108: kernel-permission denial toast (cable plugged, `sudo chmod 000 /dev/videoN`, drag slider → toast).
+    - T-110: USB unplug on detail page pops to list + toast; re-plug reappears in ~2s.
+    - T-101: full PTZ matrix (cache-drift fixed, remaining matrix items still to revisit). Will be revisited as part of T-101b.
+    - T-102 / T-103 / T-104: power_line_frequency, WB group, Exposure Auto/Manual flow.
+    - T-105: brightness persists across restart (now unblocked by T-105fix on main; re-run).
+    - T-010: GNOME Shell icon visible.
+    - T-017: Arch PKGBUILD smoke (build/install/remove).
 known_issues:
-  - **T-105 schema / runtime mismatch (pre-existing, surfaced 2026-05-14, descoped from v0.3.0)**: queued as T-105fix for v0.3.1. Not a regression; persistence already silently broken on main before v0.3 work began.
-updated_at: 2026-05-15T12:00:00Z  # v0.3.0 milestone closure
+  - Q9 (PROTOCOL.md): pan_speed/tilt_speed accept writes but produce no motion on Tiny 2 Lite firmware 5.10. T-101a switched to pan_absolute polling as a workaround; T-101b will adopt the same workaround.
+updated_at: 2026-05-19T01:15:00Z

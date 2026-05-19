@@ -34,10 +34,38 @@ libadwaita.workspace = true
 glib.workspace = true
 gio.workspace = true
 
+# GStreamer pipeline for the live preview (T-200). Gated behind
+# the `live-preview` Cargo feature (off by default) so the workspace
+# stays buildable on hosts that have not installed
+# `libgstreamer1.0-dev` + `gstreamer1.0-gtk4` system packages. The
+# Flatpak manifest will enable the feature once T-200 lands the
+# matching plugin packages in `flathub.yaml`; on the user's dev
+# machine `cargo run -p obsbot-gui --features live-preview` opts
+# in. See PLAN.md §T-200 for the install incantation.
+gstreamer = { workspace = true, optional = true }
+gstreamer-video = { workspace = true, optional = true }
+gstreamer-app = { workspace = true, optional = true }
+# `thiserror` only needed when the live-preview module compiles
+# (PreviewError derives `thiserror::Error`). Off by default to keep
+# the no-feature build dependency-free of error-handling helpers.
+thiserror = { workspace = true, optional = true }
+
 # gettext binding (T-107). The scaffolding routes user-facing
 # strings through libintl; .po → .mo compilation is handled by
 # `po/meson.build` via `i18n.gettext()`.
 gettext-rs.workspace = true
+
+[features]
+# Default build excludes the live-preview pipeline so the standard
+# `cargo build` / `cargo test --workspace` flow works without the
+# GStreamer dev packages. Enable with `--features live-preview`.
+default = []
+live-preview = [
+    "dep:gstreamer",
+    "dep:gstreamer-video",
+    "dep:gstreamer-app",
+    "dep:thiserror",
+]
 
 # Build script (T-099) compiles Blueprint templates and bundles
 # the resulting .ui files into a GResource. `glib-build-tools`

@@ -52,6 +52,12 @@ use crate::i18n::gettext;
 
 const APP_ID: &str = "io.github.domatix.ObsbotCamControl";
 const KEY: &str = "control-values";
+/// `GSettings` key for the T-200 preview-on-open default. Only
+/// consulted when the `live-preview` Cargo feature is enabled; the
+/// schema entry exists unconditionally so a feature-off build does
+/// not need a different `.gschema.xml`.
+#[cfg(feature = "live-preview")]
+const KEY_PREVIEW_DEFAULT_ON: &str = "preview-default-on";
 /// Duration in seconds before a write-failure toast auto-dismisses.
 /// `adw::Toast` interprets `0` as "never auto-dismiss"; we want users
 /// to actually notice the message but not be hostage to it.
@@ -202,6 +208,13 @@ pub fn load_for_camera(serial: &str) -> HashMap<String, i32> {
     map.into_iter()
         .filter_map(|(k, v)| k.strip_prefix(&prefix).map(|n| (n.to_string(), v)))
         .collect()
+}
+
+/// Read the `preview-default-on` boolean (T-200). Returns `false`
+/// if the schema cannot be opened, matching the schema-default.
+#[cfg(feature = "live-preview")]
+pub fn preview_default_on() -> bool {
+    settings_handle().is_some_and(|s| s.boolean(KEY_PREVIEW_DEFAULT_ON))
 }
 
 /// Persist one control's value under `(serial, control_name)`.
