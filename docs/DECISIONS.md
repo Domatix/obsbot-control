@@ -992,6 +992,67 @@ This ADR supersedes the milestone framing in [[ROADMAP.md v0.4]]
 and [[ROADMAP.md v0.5]] as they existed at commit `9651ce1`. It
 does not supersede any prior ADR.
 
+## ADR-0021 — Strip PTZ to pure single-step; remove press-and-hold (revert T-101a/b/c continuous mode)
+
+**Status**: Accepted, 2026-06-02.
+
+**Context**:
+
+T-101a/b/c built a "continuous motion" model on top of the PTZ
+pad: a `gtk::GestureClick` with a 200 ms long-press threshold
+promoted a held button into a recurring `glib` timer that wrote
+pan/tilt every 50 ms; the keyboard arrows ran an equivalent
+per-key hold timer keyed by `gdk::Key`, with auto-repeat
+suppression and a per-axis local accumulator
+(`PtzAccumulators`); a `ptz-speed-fast` `GSettings` key scaled
+the per-tick step and Shift+Arrow tripled it.
+
+Testing the v0.3.2 Flatpak against the connected Tiny 2 Lite on
+2026-06-02, the user reported the arrow behaviour "va fatal, se
+buguea muchísimo" and asked to reset it to the simplest possible
+form: **one click / one key-press = exactly one move, no
+press-and-hold, nothing that can error.**
+
+**Decision**:
+
+Remove the entire continuous-motion machinery and reduce the PTZ
+pad to discrete single steps:
+
+- On-screen directional buttons become plain `gtk::Button`s with
+  a single `connect_clicked` → one `PAN_TILT_STEP` (5°) step per
+  click. No `GestureClick`, no long-press, no repeat timer, no
+  trailing-click suppression.
+- Keyboard arrows fire one step per key-press event via a single
+  `EventControllerKey` (Bubble phase preserved so focused sliders
+  still consume their own arrows); `Home` recenters. No timers,
+  no accumulator, no active-hold map. OS key auto-repeat simply
+  issues more discrete steps — nothing runs on its own, so
+  nothing can stick.
+- Delete `PtzAccumulators`, `hold_tick`, `resolved_hold_step`,
+  the `HOLD_*` / `LONG_PRESS_MS` / accelerator constants, and the
+  now-orphaned `ptz-speed-fast` GSettings key +
+  `settings::ptz_speed_fast()`.
+- Extract the step arithmetic into a pure
+  `next_position(current, sign, step, min, max)` and cover it
+  with unit tests (it is the only logic worth testing; GTK
+  signal wiring is not unit-testable).
+
+**Consequences**:
+
+- The whole class of bugs the user hit (sticky timers, drift,
+  simultaneous-key races) is gone by construction — there is no
+  state that outlives a single event.
+- Lost features: smooth press-and-hold panning, the speed slider,
+  and the Shift accelerator. These were never surfaced in a
+  Preferences dialog anyway. If smooth panning is wanted again it
+  should be re-introduced deliberately and tested on hardware,
+  not as the default.
+- This reverses the behaviour shipped in v0.3.1/v0.3.2 (T-101a/b/c).
+  Tracked as task T-101d; the discrete tap path itself is
+  unchanged from the original T-101 design.
+- `cargo test` gains 4 `next_position` unit tests; all gates green
+  default + with `obsbot-gui/live-preview`.
+
 ---
 
 <!-- Append new ADRs above this line, never below. Newest ADRs go at the bottom

@@ -12,6 +12,39 @@
 
 ## 2026-06-02 (v0.4 first-slice validation closure)
 
+### [2026-06-02T08:40:00Z] [T-101d] Stripped PTZ to pure single-step
+
+Testing the v0.3.2 Flatpak against the Tiny 2 Lite, the user
+reported the arrow/PTZ behaviour "va fatal, se buguea muchísimo"
+(press-and-hold + keyboard repeat) and asked for the simplest
+possible model: one click / keypress = exactly one move, nothing
+that errors.
+
+Rewrote `ptz_pad.rs` removing ALL continuous-motion machinery:
+the `GestureClick` long-press, the recurring 50 ms `glib` hold
+timers (mouse + keyboard), `PtzAccumulators`, `hold_tick`,
+`resolved_hold_step`, and the `HOLD_*`/`LONG_PRESS_MS`/Shift-
+accelerator constants. Now:
+* Directional buttons = plain `connect_clicked` → one
+  `PAN_TILT_STEP` (5°) step.
+* Keyboard arrows = one step per key-press via a single
+  `EventControllerKey` (Bubble phase kept so focused sliders
+  still consume their arrows); Home recenters. No timers, no
+  state that outlives an event → nothing can stick.
+Extracted the step math to a pure `next_position(current, sign,
+step, min, max)` and added 4 unit tests (step, clamp-to-max,
+clamp-to-min, zero-sign no-op).
+
+Removed the now-orphaned `ptz-speed-fast` GSettings key (gschema)
++ `settings::ptz_speed_fast()` (would otherwise be dead code).
+
+Gates: `cargo fmt --check`, `clippy -D warnings` (default + with
+`obsbot-gui/live-preview`), and `cargo test` all green; the
+4 new tests pass. Reversal recorded as ADR-0021; PLAN T-101d DONE,
+T-101c marked SUPERSEDED. Commit `fix(gui): strip PTZ to pure
+single-step, remove press-and-hold (T-101d)`. Rebuilt the Flatpak
+so the user can re-test on hardware.
+
 ### [2026-06-02T08:10:00Z] [T-203] Flatpak smoke-test passed; build gate closed
 
 Ran the deferred T-203 `flatpak-builder` smoke-test end-to-end

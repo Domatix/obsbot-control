@@ -255,9 +255,8 @@ fn render_controls(
     if let Some(extras_group) = build_extras_group(cam) {
         page.add(&extras_group);
     }
-    let ptz_state = build_ptz_pad(controls, path, serial);
-    if let Some((ptz_group, _)) = &ptz_state {
-        page.add(ptz_group);
+    if let Some(ptz_group) = build_ptz_pad(controls, path, serial) {
+        page.add(&ptz_group);
     }
     if let Some(exposure_group) = build_exposure_group(controls, path, serial) {
         page.add(&exposure_group);
@@ -303,15 +302,12 @@ fn render_controls(
 
     outer.append(&page);
 
-    // T-101b — arrow-key + Home navigation of the PTZ. Attached to
-    // the outer `Box` so any descendant with focus bubbles unhandled
-    // keys up to the controller (focused sliders still consume their
-    // own arrows). Skips quietly when the camera does not advertise
-    // pan / tilt — `build_ptz_pad` only returns `Some` when both axes
-    // are present, so this also short-circuits the keyboard handler.
-    if let Some((_, ptz_accum)) = &ptz_state {
-        wire_keyboard_arrows(&outer, ptz_accum, path, serial);
-    }
+    // Arrow-key + Home navigation of the PTZ (T-101b; one keypress =
+    // one step since T-101d). Attached to the outer `Box` so any
+    // descendant with focus bubbles unhandled keys up to the
+    // controller (focused sliders still consume their own arrows).
+    // Skips quietly when the camera does not advertise pan / tilt.
+    wire_keyboard_arrows(&outer, controls, path, serial);
 
     (outer.upcast(), preview_slot)
 }

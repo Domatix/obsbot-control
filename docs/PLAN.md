@@ -1383,9 +1383,53 @@
   testable end-to-end; live-validation re-queued under
   parked.
 
+### T-101d — Strip PTZ to pure single-step (revert hold/continuous mode)
+
+- **State**: DONE (code + gates + unit tests green 2026-06-02;
+  on-screen confirmation is the user's next-launch glance).
+- **Completed**: 2026-06-02T08:40:00Z
+- **Depends on**: T-101a/b/c (whose continuous-motion machinery
+  this removes). See [[DECISIONS.md ADR-0021]].
+- **Origin**: 2026-06-02 user feedback testing the v0.3.2
+  Flatpak — the press-and-hold / keyboard-repeat PTZ "va fatal,
+  se buguea muchísimo". Asked for the simplest possible model:
+  one click / keypress = exactly one move, nothing that errors.
+- **Description**: remove all continuous-motion code from
+  `ptz_pad.rs` — `GestureClick` long-press, the recurring `glib`
+  hold timers, `PtzAccumulators`, `hold_tick`,
+  `resolved_hold_step`, the `HOLD_*` / `LONG_PRESS_MS` /
+  accelerator constants — and the orphaned `ptz-speed-fast`
+  GSettings key + `settings::ptz_speed_fast()`. Directional
+  buttons become plain `connect_clicked` → one `PAN_TILT_STEP`
+  (5°) step; keyboard arrows fire one step per key-press via a
+  single `EventControllerKey` (Bubble phase kept so focused
+  sliders still consume their arrows); `Home` recenters. Step
+  arithmetic extracted to a pure `next_position(current, sign,
+  step, min, max)` for unit testing.
+- **Acceptance criteria**:
+  - [x] All hold/timer/accumulator code removed from `ptz_pad.rs`;
+        `controls_view.rs` call sites reverted to the simple
+        signatures.
+  - [x] `ptz-speed-fast` removed from gschema + settings.rs (no
+        dead code; `cargo clippy -D warnings` green).
+  - [x] `next_position` unit tests cover step + clamp-to-min/max
+        + zero-sign no-op (4 tests, pass).
+  - [x] Cargo gates green default + with
+        `obsbot-gui/live-preview`.
+  - [~] On-screen: one button click = one 5° move, no runaway /
+        sticky motion; arrow keys move once per press. User's
+        next-launch glance (rebuilt Flatpak provided).
+- **Out of scope**: re-introducing smooth panning behind a
+  Preferences toggle (a deliberate, hardware-tested v0.6 item if
+  ever wanted — not the default).
+
 ### T-101c — PTZ tuning follow-ups (speed slider + Shift accelerator + hot-plug timer cleanup)
 
-- **State**: DONE (validated against the Tiny 2 Lite
+- **State**: DONE, then SUPERSEDED by T-101d (2026-06-02) — its
+  continuous-motion/speed/accelerator machinery was removed after
+  the user found it buggy on hardware. The hot-plug timer cleanup
+  is moot now that there are no hold timers. See ADR-0021.
+- **State (historical)**: DONE (validated against the Tiny 2 Lite
   2026-06-02; squashed into the v0.4 first-slice bundle on
   `main`. One fix landed during validation — see Outcome.)
 - **Started**: 2026-05-19T02:45:00Z
