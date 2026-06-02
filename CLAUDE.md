@@ -9,13 +9,16 @@ in `docs/`.
 ## 0. Read this first, every session
 
 When a new session starts, before doing anything else, read these files in
-order. Stop and report back to the user after step 5:
+order. Stop and report back to the user after step 6:
 
 1. `docs/STATE.md` — current state (tiny file, ~200 tokens). Where we are *right now*.
 2. `docs/SPEC.md` — what we are building and what is out of scope.
 3. `docs/ROADMAP.md` — milestone overview.
 4. `docs/PLAN.md` — atomic tasks; locate the `IN_PROGRESS` task and the next `TODO`.
 5. Last 3 entries of `docs/PROGRESS.md` — what happened recently.
+6. `git status --short` — reconcile against `STATE.md`'s `working_tree`
+   field (see §4.4). If they disagree, surface it in your summary instead
+   of glossing over it.
 
 Then summarize to the user in **3 short lines**:
 - Active task (ID + one-line description).
@@ -38,6 +41,12 @@ only in the chat context. The rules:
 - Maximum 30 lines.
 - Updated at: task start, every significant sub-step, task end, on interruption.
 - Format is fixed (see file). Machine-readable.
+- The `working_tree` field is **authoritative and verifiable**: it must
+  enumerate every path that `git status --short` reports as modified,
+  added, or deleted — not a vague summary. If `git status` shows source
+  files, `working_tree` lists them; never write "uncommitted STATE update
+  only" while code changes sit untracked. A mismatch between
+  `working_tree` and `git status` is a contract violation (see §4.4).
 
 ### 1.2 `PROGRESS.md` — append-only journal
 - One entry per sub-step, not per session.
@@ -195,6 +204,28 @@ This is enforced by the discipline of updating per sub-step, not per session.
 Read `STATE.md`. If it says `IN_PROGRESS`, do not start from scratch. Read the
 relevant `PROGRESS.md` entries to understand last position, then propose:
 "I see T-XYZ is in progress, last step was <X>. Resume?"
+
+### 4.4 Working-tree reconciliation — mandatory, never skip
+The recurring failure this rule prevents: a session leaves real source
+changes uncommitted, `STATE.md` claims the tree is clean (or "STATE update
+only"), and `PROGRESS.md`/`PLAN.md` never record the work — so a later
+session can neither trust `STATE.md` nor explain the orphaned diff.
+
+- **At session start (Section 0, after reading the docs):** run
+  `git status --short` and compare it against `STATE.md`'s `working_tree`
+  field. If they disagree, STOP and report the discrepancy to the user
+  before proposing any work — do not assume the diff is disposable and do
+  not silently commit it. Inspect it (`git diff`) and explain what it is.
+- **Before any handoff** (user says stop/para/wait, you sense the session
+  ending, or you finish a turn with a dirty tree): make `working_tree`
+  in `STATE.md` enumerate exactly what `git status --short` shows, and
+  ensure the most recent `PROGRESS.md` entry names the files touched and
+  the next step. Uncommitted work is allowed (§2.1 forbids WIP commits);
+  *unrecorded* uncommitted work is not.
+- **Functional changes that pass the §2.3 gates should not linger
+  untracked across sessions.** Either commit them (per §2.1) or, if they
+  are not yet ready, record in `STATE.md` + `PROGRESS.md` precisely why
+  they are parked and what closes them.
 
 ---
 
