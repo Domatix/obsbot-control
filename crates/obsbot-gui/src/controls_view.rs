@@ -365,7 +365,10 @@ fn build_preview_widgets(path: &Path) -> (adw::Banner, gtk::Revealer, PreviewHan
 
     let picture = gtk::Picture::builder()
         .content_fit(gtk::ContentFit::Contain)
-        .height_request(240)
+        // T-204: 192 px = 240 × 0.8, a 20% cut so the feed reads as a
+        // banner above the controls rather than the page's centre of
+        // gravity. `Contain` letterboxes the frame without distortion.
+        .height_request(192)
         .build();
 
     // Clamp matches `AdwPreferencesPage`'s built-in 600 px clamp

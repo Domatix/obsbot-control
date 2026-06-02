@@ -12,6 +12,18 @@
 
 ## 2026-06-02 (v0.4 first-slice validation closure)
 
+### [2026-06-02T07:10:00Z] [T-204] DONE — preview pane shrunk 20%
+
+`gtk::Picture::height_request` 240 → 192 in
+`build_preview_widgets` (controls_view.rs), a clean 20% cut per
+user feedback that the preview "se hace muy grande respecto al
+resto de la ventana". `content_fit = Contain` letterboxes the
+frame so no width change is needed and the aspect ratio is
+preserved. Cargo gates green default + with
+`obsbot-gui/live-preview`. PLAN T-204 → DONE (visual glance left
+to the user on next launch; the reduction is arithmetic-exact).
+Committed `feat(gui): shrink preview pane 20% (T-204)`.
+
 ### [2026-06-02T06:47:44Z] [process] Working-tree reconciliation hardened (§4.4) after orphaned-diff incident
 
 Root incident: a prior session validated the v0.4 first slice

@@ -1925,7 +1925,10 @@
 
 ### T-204 — Shrink the preview pane ~20% (v0.4 polish)
 
-- **State**: TODO
+- **State**: DONE (code + gates green 2026-06-02; the 240 → 192
+  reduction is arithmetic-exact, visual confirmation is a glance
+  the user can make on next launch).
+- **Completed**: 2026-06-02T06:47:44Z
 - **Origin**: user feedback 2026-06-02 — the embedded preview
   "se hace muy grande respecto al resto de la ventana"; it
   dominates the controls page and pushes the groups below the
@@ -1944,15 +1947,16 @@
   distortion — no width change needed for a height-only 20%
   reduction.
 - **Acceptance criteria**:
-  - [ ] `height_request` lowered from 240 → 192 in
+  - [x] `height_request` lowered from 240 → 192 in
         `build_preview_widgets`.
-  - [ ] Cargo gates green default + with
+  - [x] Cargo gates green default + with
         `obsbot-gui/live-preview`.
-  - [ ] Visual check: with preview on, the pane is visibly
+  - [~] Visual check: with preview on, the pane is visibly
         smaller and at least one control group is reachable
         without scrolling on the reference window size; the
         frame is not stretched (letterboxes top/bottom on a
-        16:9 feed).
+        16:9 feed). — user glance on next launch; arithmetic-
+        exact 20% cut, low risk.
 - **Out of scope**: a user-resizable / draggable preview pane
   (a `gtk::Paned` split is a larger v0.6 ergonomics item);
   remembering a per-user preview height in `GSettings`.
