@@ -59,7 +59,7 @@
     at runtime (no `expect()` panic surfaced).
   - `cargo run -p obsbot-gui` behaviour unchanged from T-013c.
     **DONE** — user-confirmed 2026-05-13T21:20Z via
-    AskUserQuestion ("Idéntico"). `xwininfo -tree -root`
+    AskUserQuestion ("Identical"). `xwininfo -tree -root`
     reports `0x2c00004 "Obsbot Cam Control" 842x662` —
     exactly the same window dimensions T-013a observed.
   - All four cargo gates green. **DONE** — `cargo fmt --all
@@ -182,7 +182,7 @@
     live image visible in a second app (Cheese / Camera) on the
     user's hardware. **DONE** — user confirmed 2026-05-13T22:50Z
     via AskUserQuestion (final iteration with slider + manual
-    spin entry + reset button: "Funciona todo").
+    spin entry + reset button: "Everything works").
   - `cargo fmt --all --check`, `cargo clippy --workspace --all-
     targets -- -D warnings`, `cargo test --workspace` all green.
     **DONE**.
@@ -239,20 +239,21 @@
 - **UX iteration log** (worth recording — the user redirected
   twice):
   1. First pass shipped `AdwSpinRow` (+/− buttons + numeric
-     entry). User: "cambia pero con los botones de + y −, no hay
-     barra". Acceptance text said "slider"; SpinRow was wrong.
+     entry). User: "it changes, but with the + and − buttons,
+     there's no slider". Acceptance text said "slider"; SpinRow
+     was wrong.
   2. Second pass shipped `AdwActionRow` + `gtk::Scale` (drag-
-     bar) + value `gtk::Label`. User: "barra OK, pero quiero
-     introducir manualmente también el número y un botón para
-     resetear al valor por defecto".
+     bar) + value `gtk::Label`. User: "slider OK, but I also want
+     to enter the number manually and a button to reset to the
+     default value".
   3. Third pass — final — added `gtk::SpinButton` next to the
      scale (sharing the adjustment so they stay in lock-step)
      and a flat reset button with an `edit-undo-symbolic` icon
      and a "Reset to default (N)" tooltip; the scale also got a
-     tick mark at the default position. User: "Funciona todo".
+     tick mark at the default position. User: "Everything works".
 - **Hardware-quirk note surfaced during the second iteration**:
   the user observed that the first ~5 sliders reacted live but
-  the rest "no parecían hacer nada". That is the documented
+  the rest "didn't seem to do anything". That is the documented
   V4L2 interlock from `PROTOCOL §2.3` Q1/Q2: when *White
   Balance, Automatic* is `On`, the driver marks *White Balance
   Temperature* as `V4L2_CTRL_FLAG_INACTIVE` and silently
@@ -1391,8 +1392,8 @@
 - **Depends on**: T-101a/b/c (whose continuous-motion machinery
   this removes). See [[DECISIONS.md ADR-0021]].
 - **Origin**: 2026-06-02 user feedback testing the v0.3.2
-  Flatpak — the press-and-hold / keyboard-repeat PTZ "va fatal,
-  se buguea muchísimo". Asked for the simplest possible model:
+  Flatpak — the press-and-hold / keyboard-repeat PTZ "works
+  terribly, extremely buggy". Asked for the simplest possible model:
   one click / keypress = exactly one move, nothing that errors.
 - **Description**: remove all continuous-motion code from
   `ptz_pad.rs` — `GestureClick` long-press, the recurring `glib`
@@ -1521,9 +1522,9 @@
   superseded — its branch stays for archaeology but is not
   merged.
 - **Origin**: 2026-05-19 user feedback after validating T-200.
-  Discrete 5°-per-click PTZ feels "rayado" (jumpy) especially on
-  diagonals; user wants press-and-hold (mantener clic = mueve
-  continuo) and keyboard arrows for accessibility.
+  Discrete 5°-per-click PTZ feels "jumpy" especially on
+  diagonals; user wants press-and-hold (hold the click = continuous
+  motion) and keyboard arrows for accessibility.
 - **Description**: Two parallel input paths into the same
   `hold_tick` core that writes pan/tilt absolute positions JIT-
   read from the kernel:
@@ -1962,8 +1963,8 @@
     the camera feed inside the app."* plus a "Show preview"
     action button. Banner collapses the moment the toggle
     goes active and reappears when it goes off. User feedback
-    explicitly requested a "leyenda o descripción justo abajo
-    del botón" because the bare header-bar icon was not
+    explicitly requested a "caption or description right below
+    the button" because the bare header-bar icon was not
     self-evident on first sight.
   * **Bus-error drain on `PreviewPipeline::start`**: the
     initial scaffold relied on the synchronous return value
@@ -2034,6 +2035,38 @@
 - **Out of scope**: a user-resizable / draggable preview pane
   (a `gtk::Paned` split is a larger v0.6 ergonomics item);
   remembering a per-user preview height in `GSettings`.
+
+---
+
+## v0.6 — Polish / Flathub prep (planned)
+
+### T-205 — Bump Flatpak runtime off EOL GNOME 48 → GNOME 50
+
+- **State**: IN_PROGRESS
+- **Started**: 2026-06-02T09:20:00Z
+- **Depends on**: T-203 (the working Flatpak manifest).
+- **Origin**: the T-203 flatpak-builder run warned that
+  `org.gnome.Platform//48` is end-of-life as of 2026-03-24. A
+  Flathub submission must target a supported runtime.
+- **Description**: move the manifest from GNOME 48 (freedesktop
+  base 24.08) to GNOME 50 (base 25.08), the newest stable on
+  Flathub. The SDK extensions are branch-coupled to the base, so
+  `llvm19` (24.08-only) becomes `llvm20` (25.08) and the
+  `/usr/lib/sdk/llvm19/...` PATH / LD / `LIBCLANG_PATH` references
+  follow; `rust-stable` resolves to its 25.08 branch
+  automatically. No app-code change — only
+  `build-aux/io.github.domatix.ObsbotCamControl.json`.
+- **Acceptance criteria**:
+  - [ ] `runtime-version` 48 → 50; `llvm19` → `llvm20`; the three
+        `/usr/lib/sdk/llvm19` paths → `llvm20`.
+  - [ ] `flatpak-builder` builds + installs against GNOME 50 and
+        `gst-inspect-1.0 gtk4paintablesink` still loads in the
+        sandbox (re-run the T-203 headless verification).
+  - [ ] No EOL warning in the build output.
+- **Out of scope**: actually submitting to Flathub (separate
+  process — repo fork, flathub.json, reviewer round-trips);
+  pinning the `gst-plugins-rs` tag to a newer release (0.13.5
+  builds fine against 25.08).
 
 ---
 
@@ -2688,7 +2721,7 @@
     appears to have counted the two class headers, which the
     V4L2 enumeration does not include in the control list).
     **DONE** — user-confirmed 2026-05-13T16:58Z via
-    AskUserQuestion ("Sub-página correcta") after physically
+    AskUserQuestion ("Correct sub-page") after physically
     tapping the camera row.
   - Each row displays the live `v4l2-ctl --all`-equivalent value
     and its `min/max/step` range. **DONE** — same confirmation;
@@ -2794,8 +2827,8 @@
     ~5 minutes).
   - `flatpak run io.github.domatix.ObsbotCamControl` opens the diagnostics
     window from T-013. **DONE** — user-confirmed
-    2026-05-13T17:55Z via AskUserQuestion ("Funciona igual que el
-    build local"): the camera row, drill-down detail page with the
+    2026-05-13T17:55Z via AskUserQuestion ("Works the same as the
+    local build"): the camera row, drill-down detail page with the
     22 V4L2 controls, and hot-plug all work identically to the
     native binary. `--device=all` correctly grants `/dev/video0`
     access from the sandbox.
@@ -2905,8 +2938,8 @@
     successfully, which is downstream of GTK4 import — broken
     library / SONAME resolution would crash before `--help`
     renders. We use `--help` as the proxy rather than full GUI
-    launch because the user's previous turn established "no sé
-    cómo probarla"; binary-launch correctness is the
+    launch because the user's previous turn established "I don't
+    know how to test it"; binary-launch correctness is the
     representative signal, and the actual GUI behaviour was
     confirmed identical to the native build via the Flatpak path
     in [[PLAN T-014]] which links the same ELF.

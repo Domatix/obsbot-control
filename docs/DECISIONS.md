@@ -851,8 +851,8 @@ Up to this session, the ROADMAP staged the milestones as:
   unbounded)
 
 After the user shipped the v0.2.0 controls and explicitly asked
-to pivot to *"el tracking de la cámara, lo mejor posible, sin
-necesidad de salir a VM de Windows"*, a re-investigation of the
+to pivot to *"the camera tracking, the best possible, without
+needing to resort to a Windows VM"*, a re-investigation of the
 FOSS ecosystem surfaced two repositories that PROTOCOL.md §6 did
 not previously cite:
 
@@ -1008,8 +1008,8 @@ suppression and a per-axis local accumulator
 the per-tick step and Shift+Arrow tripled it.
 
 Testing the v0.3.2 Flatpak against the connected Tiny 2 Lite on
-2026-06-02, the user reported the arrow behaviour "va fatal, se
-buguea muchísimo" and asked to reset it to the simplest possible
+2026-06-02, the user reported the arrow behaviour "works terribly,
+extremely buggy" and asked to reset it to the simplest possible
 form: **one click / one key-press = exactly one move, no
 press-and-hold, nothing that can error.**
 

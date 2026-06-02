@@ -6,17 +6,17 @@
 
 ---
 
-active_task: none  # v0.4.0 milestone (Live Preview) cut 2026-06-02; next is v0.6 polish or Flathub prep
-active_task_state: —
+active_task: T-205  # Flathub prep: bump Flatpak runtime off EOL GNOME 48 → GNOME 50
+active_task_state: IN_PROGRESS
 active_branch: main
 last_completed_task: T-101d  # PTZ single-step; closed alongside the v0.4 task set in the v0.4.0 cut
 last_milestone: v0.4.0  # Live Preview milestone cut 2026-06-02 (Flatpak-validated); v0.3.2 same day (native rollup)
-last_commit_on_main: c542e0f  # chore: bump 0.3.2 → 0.4.0 (tag v0.4.0); this SHA fixup follows
-last_step: 2026-06-02 — user confirmed on the rebuilt Flatpak that PTZ is reliable single-step AND the preview renders frames. Both v0.4.0 gates closed → cut the Live Preview milestone v0.4.0: version bump 0.3.2→0.4.0 (Cargo+meson), AppStream v0.4.0 <release> (validate green), README + .deb + ROADMAP map updated, annotated tag v0.4.0, pushed main + tags. CLAUDE.md §7 DoD fully met (Flatpak builds + renders).
-next_step: No active task. Candidates: (a) v0.6 polish (Spanish translation, keyboard shortcuts, onboarding, perf/a11y audits — see ROADMAP v0.6); (b) Flathub prep — bump the manifest off the EOL GNOME 48 runtime to 49+ and re-test (prerequisite for any Flathub submission); (c) small queued follow-ups (T-202 grayscale-while-off, sepia/invert, file-chooser snapshot, T-017 Arch PKGBUILD). Propose one to the user.
+last_commit_on_main: 8daec14  # docs: record v0.4.0 release SHA (tag v0.4.0 on c542e0f)
+last_step: 2026-06-02 — started T-205 (Flathub runtime bump). Edited the Flatpak manifest GNOME 48→50 (freedesktop base 24.08→25.08): runtime-version 50, llvm19→llvm20, the three /usr/lib/sdk/llvm19 paths→llvm20. Installing GNOME 50 Platform/Sdk + rust-stable//25.08 + llvm20//25.08, then re-running flatpak-builder to confirm it builds + gst-inspect still finds gtk4paintablesink with no EOL warning.
+next_step: finish T-205 — once GNOME 50 SDK is installed, run flatpak-builder against the updated manifest, verify build + sandbox gst-inspect + no EOL warning, then commit the manifest change.
 blockers: none
 working_tree:
-  status: clean  # release v0.3.2 + the T-203 manifest fix committed (push pending for the manifest fix + docs)
+  status: build-aux/io.github.domatix.ObsbotCamControl.json (runtime 48→50, llvm19→llvm20) held uncommitted pending the GNOME-50 flatpak-builder verification; everything else (docs cleanup + T-205 scaffolding) committed.
 v0_4_0_gate:
   - T-203 build gate: DONE + verified headless 2026-06-02 (flatpak-builder builds all 3 modules, installs io.github.domatix.ObsbotCamControl 0.3.2, sandbox gst-inspect-1.0 finds gtk4paintablesink in /app/lib/gstreamer-1.0/libgstgtk4.so).
   - T-203 render check: PENDING USER — launch the installed Flatpak, toggle preview, confirm camera frames render on screen. Not machine-verifiable. Last thing before v0.4.0.

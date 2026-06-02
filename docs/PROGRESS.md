@@ -12,6 +12,22 @@
 
 ## 2026-06-02 (v0.4 first-slice validation closure)
 
+### [2026-06-02T09:20:00Z] [T-205] Started — bump Flatpak runtime GNOME 48 → 50
+
+The T-203 build warned `org.gnome.Platform//48` is EOL
+(2026-03-24); a Flathub submission needs a supported runtime.
+flathub offers GNOME 49 and 50 — targeting 50 (newest, longest
+support). GNOME 50 sits on freedesktop base 25.08, and the SDK
+extensions are branch-coupled, so `llvm19` (24.08-only) must
+become `llvm20` (25.08). Edited
+`build-aux/io.github.domatix.ObsbotCamControl.json`:
+runtime-version 48→50, sdk-extension llvm19→llvm20, and the three
+`/usr/lib/sdk/llvm19/...` references (append-path,
+prepend-ld-library-path, LIBCLANG_PATH) → `llvm20`. rust-stable
+resolves to its 25.08 branch automatically. No app-code change.
+Installing GNOME 50 Platform/Sdk + rust-stable//25.08 +
+llvm20//25.08, then re-running flatpak-builder to verify.
+
 ### [2026-06-02T09:00:00Z] Milestone v0.4.0 — Live Preview — reached
 
 User confirmed on the rebuilt Flatpak that (1) PTZ is now reliable
@@ -60,7 +76,7 @@ runtime; a Flathub submission needs a bump to a current runtime
 ### [2026-06-02T08:40:00Z] [T-101d] Stripped PTZ to pure single-step
 
 Testing the v0.3.2 Flatpak against the Tiny 2 Lite, the user
-reported the arrow/PTZ behaviour "va fatal, se buguea muchísimo"
+reported the arrow/PTZ behaviour "works terribly, extremely buggy"
 (press-and-hold + keyboard repeat) and asked for the simplest
 possible model: one click / keypress = exactly one move, nothing
 that errors.
@@ -310,7 +326,7 @@ Push held per private-repo policy. User explicitly authorises
 
 T-200 squashed to `main` as `cccab8c`. Pivot to PTZ ergonomics:
 user reported on 2026-05-19 that the discrete 5°-per-click pad
-feels "rayado" especially on diagonals, and asked for mouse
+feels "jumpy" especially on diagonals, and asked for mouse
 press-and-hold + keyboard arrow navigation. `feat/T-101a`
 already carries a complete press-and-hold implementation (200 ms
 long-press disambiguation, 50 ms repeat, 1°/tick) but never
@@ -407,7 +423,7 @@ fallback to OpenGL works) and one GDK FIXME on YUV dmabuf
 colorstate. Both benign.
 
 **2. Camera-busy → toast that never appeared.** User opened the
-Cámara app, came back to ours, toggled preview on, and saw
+Camera app, came back to ours, toggled preview on, and saw
 nothing — no error message, no visible failure. Root cause:
 `pipeline.set_state(Playing)` returns `Ok(Async)` for v4l2src
 pipelines; the actual EBUSY message only lands on the bus
@@ -451,9 +467,9 @@ from the body builder up to `build_controls_page` where the
 toggle is created and packed.
 
 **5. Discoverability banner.** User feedback after validating
-the header-bar toggle: *"si no sabes lo que estás buscando es
-difícil de ver. Habría mucha gente que diría 'hostia esto
-estaba aquí, qué guay', señalízalo"*. Added an `adw::Banner`
+the header-bar toggle: *"if you don't know what you're looking
+for it's hard to see. Lots of people would say 'whoa, this was
+here, how cool', flag it"*. Added an `adw::Banner`
 between the header bar and the revealer carrying the message
 "Live preview is available — show the camera feed inside the
 app." with a "Show preview" action button. Banner connects to
@@ -741,9 +757,10 @@ couldn't drive:
   522632 …` — exactly the binary size + mode the static check
   predicted, owned by root as expected.
 * `/usr/bin/obsbot-cam-control --help` renders GLib's standard
-  option-group output (`Uso: obsbot-cam-control [OPCIÓN…] /
-  Opciones de ayuda: -h, --help`). Used as a proxy for full GUI
-  launch (user said "no sé cómo probarla" earlier in this turn):
+  option-group output (`Usage: obsbot-cam-control [OPTION…] /
+  Help Options: -h, --help`; emitted in Spanish on the dev host's
+  locale). Used as a proxy for full GUI
+  launch (user said "I don't know how to test it" earlier in this turn):
   GLib option-parsing only emits that message after gtk_init
   prereqs succeed, which transitively confirms libgtk-4 +
   libadwaita-1 + libgio-2 + libglib-2 SONAMEs all resolve on the
@@ -762,7 +779,7 @@ A bit of session noise worth recording for any future archaeology:
 * The user re-typed the install/remove one-liner a second time
   because they read the (correct, expected) fish "No matches for
   wildcard" diagnostic as an error. The replay's `apt remove`
-  reported "No se ha podido localizar el paquete" (already
+  reported "Unable to locate package" (Spanish-locale apt output; already
   uninstalled by the first pass) which fed back into the
   confusion. Once they typed the verifying one-liner this turn
   asks for, dpkg + ls + --help made the actual state
@@ -1227,8 +1244,8 @@ suite ran in-session, 7/7 pass), T-303 closes.
 ### Quirk resolutions
 
 * **Q4** (AiMode::Hand setter writes `m=3`, decoder accepts
-  `m=3` and `m=6`) — accepted as-is. User's "lo demás
-  validado" implicitly confirms that Hand engages the
+  `m=3` and `m=6`) — accepted as-is. User's "everything else
+  validated" implicitly confirms that Hand engages the
   expected on-camera mode without contradiction; if a
   future user reports Hand engaging something else,
   `obsbot-core::xu::enums::AiMode::to_wire` is the one
@@ -1476,9 +1493,9 @@ Failed to set [AI Tracking, Tracking speed, Field of View, etc]:
   expected 4 b...
 
 Gtk-WARNING: Failed to set text 'AI & Effects' from markup due to
-  error parsing markup: ... probablemente utilizó el carácter "&"
-  sin la intención de indicar una entidad, escape el signo "&"
-  como &amp;
+  error parsing markup: ... probably used the "&" character
+  without meaning it as an entity, escape the "&" sign as
+  &amp; (warning emitted in Spanish on the dev host's locale)
 ```
 
 **Bug 1 (critical).** The Linux uvcvideo driver requires
@@ -1541,7 +1558,7 @@ Validated:
 sed -e 's/@APP_ID@/.../' -e 's/@VERSION@/0.3.0/' \
     metainfo.xml.in > /tmp/m.xml
 appstreamcli validate --no-net /tmp/m.xml
-  → ✔ Se realizó la validación correctamente: redundante: 1
+  → ✔ Validation was successful: pedantic: 1 (appstreamcli output, Spanish locale)
 ```
 
 The "redundante: 1" is the same intentional pedantic note as
@@ -1930,8 +1947,8 @@ User accepted the recommendation **B + C combined**: clean the
 docs commit on `main` first, then a focused investigation pass
 on the FOSS Tiny 2 ecosystem, then bake the findings into PLAN
 + ADR + protocol updates, then start coding. User said
-*"procede y no pares antes de empezar, continua también con 4"*
-— autonomous run-through, Mode A.
+*"go ahead and don't stop before starting, continue with 4 as
+well"* — autonomous run-through, Mode A.
 
 Phase 1 (docs cleanup on `main`):
 
@@ -2062,17 +2079,17 @@ starting per user instruction.
 ### [2026-05-14T11:33:43Z] [session-end] Mid-session pivot to AI tracking; validation parked; T-300 decision deferred
 
 After T-111 and T-106 validated green, the user pivoted hard:
-*"aparca ahora mismo lo que haya para validar y ponte con el
-tracking de la cámara"*. The remaining v0.2.0 validation items
+*"park whatever is pending validation right now and get going on
+the camera tracking"*. The remaining v0.2.0 validation items
 (T-108 / T-110 / T-101 / T-102 / T-103 / T-104 / T-105 / T-010
 / T-017) are now **parked at 100%** in `STATE.pending_user_
 actions` with a `⏸ PARKED` marker.
 
 Clarification round:
 * User picked option (1) Auto-framing firmware (face / upper
-  body / hand) as the scope of "tracking". Asked: *"la
-  aplicación que te pasé como referencia ya lo tiene
-  implementado. No?"* Answered: yes (`aaronsb/obsbot-camera-
+  body / hand) as the scope of "tracking". Asked: *"the
+  application I gave you as a reference already has it
+  implemented. No?"* Answered: yes (`aaronsb/obsbot-camera-
   control`), but **via `libdev.so` (proprietary OBSBOT SDK)**,
   which SPEC §6.1 / §7 forbid. That is **the** reason this
   project exists.
@@ -2274,7 +2291,7 @@ render).
 ### [2026-05-13T21:00:00Z] [T-099] Started — Blueprint pipeline
 
 User came back from break, observed the v0.1.0 read-only
-diagnostics view, and asked "por dónde seguimos?". Confirmed
+diagnostics view, and asked "where do we go from here?". Confirmed
 that read-only is intentional for v0.1 (ROADMAP "Does NOT
 include: any camera control") and that v0.2 (T-100 series) is
 where the GUI starts writing controls. Asked the user via
@@ -2370,7 +2387,7 @@ Pipeline end-to-end:
 * `cargo run -p obsbot-gui` opens the window;
   `xwininfo -tree -root` shows `0x2c00004 "Obsbot Cam Control"
   842x662` — same dimensions T-013a measured. User confirmed
-  "Idéntico" via AskUserQuestion (T-013c behaviour preserved:
+  "Identical" via AskUserQuestion (T-013c behaviour preserved:
   camera row, drill-down, V4L2 controls page, back navigation,
   Ctrl+Q all work).
 * All four cargo gates green. Two minor fixups during the
@@ -3696,9 +3713,9 @@ connect_value_notify` to `Adjustment::connect_value_changed`
 (more direct, fires once per change regardless of which
 widget mutated the value). Gates re-green, GUI re-launched.
 
-**Pass 3** — user feedback: "Funciona pero seria
-interesante introducir manualmente también el número y un
-botón que lo ponga en su valor por defecto". Two
+**Pass 3** — user feedback: "It works, but it would be
+interesting to also enter the number manually and a button
+that resets it to its default value". Two
 ergonomic additions:
 
 1. **Manual number entry** — a `gtk::SpinButton` added as a
@@ -3723,15 +3740,15 @@ ergonomic additions:
    Off") rather than via a button (toggling the switch is
    already the reset gesture for a binary control).
 
-User confirmed pass 3 via AskUserQuestion: "Funciona todo"
+User confirmed pass 3 via AskUserQuestion: "Everything works"
 (brightness/contrast/saturation/hue + WB Temperature
 reacting live in a preview after toggling *White Balance,
 Automatic* off — the documented V4L2 interlock from
 `PROTOCOL §2.3` Q1/Q2, not a bug in our code).
 
 **Hardware-quirk note worth pinning here for archaeology**:
-during pass 2 the user reported "los primeros 5 controls
-hasta WB sí cambian, los demás no parecen hacer nada". That
+during pass 2 the user reported "the first 5 controls up to
+WB do change, the rest don't seem to do anything". That
 is the kernel UVC driver's standard interlock behaviour:
 when *White Balance, Automatic* is `On`, the driver marks
 *White Balance Temperature* as `V4L2_CTRL_FLAG_INACTIVE`
@@ -3841,7 +3858,7 @@ User asked to wrap. Working tree clean (this checkpoint
 commit aside). `origin/main` and local `main` both at
 `8248d07` (T-099 close). v0.1.0 tag still up at `5e005fd`.
 The cargo run -p obsbot-gui instance started during T-099
-validation got `kill -TERM`'d after the user's "Idéntico"
+validation got `kill -TERM`'d after the user's "Identical"
 confirmation; no lingering processes.
 
 Session ledger:
@@ -4024,7 +4041,7 @@ Resume protocol now lives in `STATE.md` under `resume_protocol:`.
 
 ### [2026-05-13T09:57:27Z] [T-004] Session resumed — toolchain still absent
 
-User said "continúa desde STATE.md". Re-read STATE.md, SPEC.md,
+User said "continue from STATE.md". Re-read STATE.md, SPEC.md,
 ROADMAP.md, PLAN.md, and the last entries of PROGRESS.md per CLAUDE.md
 §0. Working tree matches the 2026-05-12T11:32:33Z pause snapshot
 (unchanged on disk across the power-cycle): `.gitignore`, `docs/PLAN.md`,
@@ -4266,9 +4283,9 @@ present at repo root.
 
 ### [2026-05-13T11:00:09Z] [scope] Stakeholder request → ADR-0015 (.deb + Arch test packages)
 
-User relayed a stakeholder ask: "cuando llegues a la app de control
-de la cámara, que te haga un paquete .deb para que la pruebes tú y
-otro para arch" — i.e., once a runnable build exists, the toolchain
+User relayed a stakeholder ask: "when you reach the camera-control
+app, have it build you a .deb package so you can test it yourself,
+and another for Arch" — i.e., once a runnable build exists, the toolchain
 should also emit a `.deb` (for the user's Debian trixie machine) and
 an Arch `pkg.tar.zst` (for an Arch-using stakeholder) so both can
 sideload-test the same revision. This contradicts the original
@@ -4735,8 +4752,8 @@ cargo build -p obsbot-gui                              → exit 0
                                                          wired in.
 ```
 
-User-confirmed drill-down via AskUserQuestion: "Sub-página
-correcta" — the user tapped the Tiny 2 Lite row, saw the 22
+User-confirmed drill-down via AskUserQuestion: "Correct
+sub-page" — the user tapped the Tiny 2 Lite row, saw the 22
 controls grouped under "User Controls" / "Camera Controls" with
 their live values + ranges in the subtitles, and confirmed the
 back button works.
