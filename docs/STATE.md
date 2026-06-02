@@ -11,7 +11,7 @@ active_task_state: —
 active_branch: main
 last_completed_task: T-101d  # stripped PTZ to pure single-step (reverted hold) after user found it buggy
 last_milestone: v0.3.2  # point release cut 2026-06-02 (native channel); v0.3.1 was 2026-05-19 on e3ad521
-last_commit_on_main: <ptz-fix-commit>  # fix(gui): strip PTZ to single-step (T-101d) + docs; SHA in follow-up
+last_commit_on_main: b0018c9  # fix(gui): strip PTZ to single-step (T-101d) + docs; this SHA fixup follows
 last_step: 2026-06-02 — testing the v0.3.2 Flatpak the user reported the PTZ press-and-hold / keyboard-repeat "va fatal, se buguea muchísimo". Rewrote ptz_pad.rs to pure single-step (one click/keypress = one 5° move), removing ALL hold timers + PtzAccumulators + ptz-speed-fast (gschema + settings). Added next_position unit tests (4, pass). ADR-0021 records the reversal; T-101d DONE, T-101c SUPERSEDED. Gates green default + live-preview. Rebuilt + reinstalled the Flatpak so the user can re-test.
 next_step: TWO user-glance confirmations now pending on the freshly-rebuilt Flatpak (flatpak run io.github.domatix.ObsbotCamControl): (1) PTZ — one button click / one arrow press = exactly one move, no runaway; (2) preview renders camera frames. On both green → cut v0.4.0 (bump 0.3.2→0.4.0, AppStream <release>, README, tag, push).
 blockers: none  # awaiting two user visual confirmations (PTZ single-step + preview render) for v0.4.0
