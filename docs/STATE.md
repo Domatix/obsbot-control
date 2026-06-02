@@ -11,7 +11,7 @@ active_task_state: —
 active_branch: main
 last_completed_task: T-202  # grayscale (dual-videoconvert fix) — with T-101c + T-201, validated 2026-06-02
 last_milestone: v0.3.1  # tag cut 2026-05-19 on e3ad521
-last_commit_on_main: <docs-commit>  # this STATE update; preceded by the two validation-fix commits below
+last_commit_on_main: c4f5290  # docs: close T-101c/T-201/T-202, queue T-204; preceded by the two validation-fix commits (07bc379, 2d827aa) + CLAUDE.md §4.4 (55f0cd2)
 last_step: 2026-06-02 — user validated the parked list against the connected Tiny 2 Lite ("he validado todo"). Code review + cargo gates (default + obsbot-gui/live-preview) re-run green by Claude. Two fixes that were sitting UNCOMMITTED in the working tree (discovered during the prior validation session, never recorded — see DECISIONS/§4.4 discipline note) are now committed: `fix(gui): grayscale filter no-op via dual videoconvert (T-202)` and `fix(gui): smooth PTZ hold via local accumulator (T-101c)`. T-101c / T-201 / T-202 marked DONE in PLAN with their validation-discovered fixes recorded. T-204 (shrink preview pane ~20%) queued TODO per user request.
 next_step: Decide the next release tag (see open_decision). Either path needs an AppStream <releases> block update. T-204 is a one-line height_request change ready whenever.
 blockers: none
