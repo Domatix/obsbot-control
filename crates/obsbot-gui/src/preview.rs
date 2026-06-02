@@ -124,7 +124,24 @@ impl PreviewPipeline {
         // pipeline can be reused across cameras without rebuilding.
         // For the paintable handoff we still need the gtk4
         // sink up-front.
-        let videoconvert = gst::ElementFactory::make("videoconvert")
+        //
+        // Why two `videoconvert` elements:
+        // - `vc_pre` normalises whatever raw format `v4l2src` is
+        //   negotiating (YUYV / NV12 / I420 — varies per UVC build)
+        //   into a layout `videobalance` can mutate in place.
+        //   Without this the sink sometimes dmabuf-imports the
+        //   upstream buffer directly and `videobalance` falls back
+        //   to passthrough, so the `saturation` property has no
+        //   observable effect (T-202 grayscale silently no-ops).
+        //   It also clears the spammy `gst_video_frame_map_id:
+        //   assertion 'info->finfo->format == meta->format' failed`
+        //   warnings caused by the upstream `GstVideoMeta` not
+        //   matching the renegotiated downstream caps.
+        // - `vc_post` lets the sink pick whatever format it
+        //   prefers (commonly RGBA) without constraining what
+        //   `videobalance` runs on.
+        let videoconvert_pre = gst::ElementFactory::make("videoconvert")
+            .name("vc_pre")
             .build()
             .map_err(|_| PreviewError::MissingElement("videoconvert".to_string()))?;
         // T-202: `videobalance` sits in the pipeline unconditionally
@@ -136,6 +153,10 @@ impl PreviewPipeline {
             .property("saturation", 1.0f64)
             .build()
             .map_err(|_| PreviewError::MissingElement("videobalance".to_string()))?;
+        let videoconvert_post = gst::ElementFactory::make("videoconvert")
+            .name("vc_post")
+            .build()
+            .map_err(|_| PreviewError::MissingElement("videoconvert".to_string()))?;
         let sink = gst::ElementFactory::make("gtk4paintablesink")
             .build()
             .map_err(|_| PreviewError::MissingElement("gtk4paintablesink".to_string()))?;
@@ -143,10 +164,10 @@ impl PreviewPipeline {
         let paintable: gtk::gdk::Paintable = sink.property::<gtk::gdk::Paintable>("paintable");
 
         pipeline
-            .add_many([&videoconvert, &videobalance, &sink])
+            .add_many([&videoconvert_pre, &videobalance, &videoconvert_post, &sink])
             .expect("pipeline.add_many on fresh elements cannot fail");
-        gst::Element::link_many([&videoconvert, &videobalance, &sink])
-            .expect("videoconvert → videobalance → gtk4paintablesink link cannot fail");
+        gst::Element::link_many([&videoconvert_pre, &videobalance, &videoconvert_post, &sink])
+            .expect("vc_pre → videobalance → vc_post → gtk4paintablesink link cannot fail");
 
         Ok(Self {
             pipeline,
@@ -195,31 +216,18 @@ impl PreviewPipeline {
             .build()
             .map_err(|_| PreviewError::MissingElement("v4l2src".to_string()))?;
 
-        // Find the existing videoconvert and link the new source
-        // into it. We deliberately do not cache videoconvert as a
-        // field because `pipeline.iterate_elements()` is cheap and
-        // keeps the surface minimal.
-        let videoconvert = self
+        // Link the new source into the always-present `vc_pre`
+        // videoconvert (named in `new()` so we can find it back here
+        // without iterating).
+        let videoconvert_pre = self
             .pipeline
-            .by_name("videoconvert0")
-            .or_else(|| {
-                // gst-launch sometimes names anonymous elements
-                // differently; fall back to the first videoconvert
-                // in the iterator.
-                let mut iter = self.pipeline.iterate_elements();
-                while let Ok(Some(el)) = iter.next() {
-                    if el.factory().is_some_and(|f| f.name() == "videoconvert") {
-                        return Some(el);
-                    }
-                }
-                None
-            })
-            .expect("videoconvert added in new() must still be in the pipeline");
+            .by_name("vc_pre")
+            .expect("vc_pre added in new() must still be in the pipeline");
 
         self.pipeline
             .add(&src)
             .expect("pipeline.add(v4l2src) on a fresh source cannot fail");
-        if let Err(e) = src.link(&videoconvert) {
+        if let Err(e) = src.link(&videoconvert_pre) {
             let _ = self.pipeline.remove(&src);
             return Err(PreviewError::PipelineStart(e.to_string()));
         }
