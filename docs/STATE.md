@@ -11,7 +11,7 @@ active_task_state: —
 active_branch: main
 last_completed_task: T-101d  # PTZ single-step; closed alongside the v0.4 task set in the v0.4.0 cut
 last_milestone: v0.4.0  # Live Preview milestone cut 2026-06-02 (Flatpak-validated); v0.3.2 same day (native rollup)
-last_commit_on_main: <v040-release-commit>  # chore: bump 0.3.2 → 0.4.0 (tag v0.4.0); SHA fixup follows
+last_commit_on_main: c542e0f  # chore: bump 0.3.2 → 0.4.0 (tag v0.4.0); this SHA fixup follows
 last_step: 2026-06-02 — user confirmed on the rebuilt Flatpak that PTZ is reliable single-step AND the preview renders frames. Both v0.4.0 gates closed → cut the Live Preview milestone v0.4.0: version bump 0.3.2→0.4.0 (Cargo+meson), AppStream v0.4.0 <release> (validate green), README + .deb + ROADMAP map updated, annotated tag v0.4.0, pushed main + tags. CLAUDE.md §7 DoD fully met (Flatpak builds + renders).
 next_step: No active task. Candidates: (a) v0.6 polish (Spanish translation, keyboard shortcuts, onboarding, perf/a11y audits — see ROADMAP v0.6); (b) Flathub prep — bump the manifest off the EOL GNOME 48 runtime to 49+ and re-test (prerequisite for any Flathub submission); (c) small queued follow-ups (T-202 grayscale-while-off, sepia/invert, file-chooser snapshot, T-017 Arch PKGBUILD). Propose one to the user.
 blockers: none
