@@ -6,15 +6,15 @@
 
 ---
 
-active_task: none  # v0.3.2 cut + pushed; T-101d PTZ simplification + flatpak ready for user re-test
+active_task: none  # v0.4.0 milestone (Live Preview) cut 2026-06-02; next is v0.6 polish or Flathub prep
 active_task_state: —
 active_branch: main
-last_completed_task: T-101d  # stripped PTZ to pure single-step (reverted hold) after user found it buggy
-last_milestone: v0.3.2  # point release cut 2026-06-02 (native channel); v0.3.1 was 2026-05-19 on e3ad521
-last_commit_on_main: b0018c9  # fix(gui): strip PTZ to single-step (T-101d) + docs; this SHA fixup follows
-last_step: 2026-06-02 — testing the v0.3.2 Flatpak the user reported the PTZ press-and-hold / keyboard-repeat "va fatal, se buguea muchísimo". Rewrote ptz_pad.rs to pure single-step (one click/keypress = one 5° move), removing ALL hold timers + PtzAccumulators + ptz-speed-fast (gschema + settings). Added next_position unit tests (4, pass). ADR-0021 records the reversal; T-101d DONE, T-101c SUPERSEDED. Gates green default + live-preview. Rebuilt + reinstalled the Flatpak so the user can re-test.
-next_step: TWO user-glance confirmations now pending on the freshly-rebuilt Flatpak (flatpak run io.github.domatix.ObsbotCamControl): (1) PTZ — one button click / one arrow press = exactly one move, no runaway; (2) preview renders camera frames. On both green → cut v0.4.0 (bump 0.3.2→0.4.0, AppStream <release>, README, tag, push).
-blockers: none  # awaiting two user visual confirmations (PTZ single-step + preview render) for v0.4.0
+last_completed_task: T-101d  # PTZ single-step; closed alongside the v0.4 task set in the v0.4.0 cut
+last_milestone: v0.4.0  # Live Preview milestone cut 2026-06-02 (Flatpak-validated); v0.3.2 same day (native rollup)
+last_commit_on_main: <v040-release-commit>  # chore: bump 0.3.2 → 0.4.0 (tag v0.4.0); SHA fixup follows
+last_step: 2026-06-02 — user confirmed on the rebuilt Flatpak that PTZ is reliable single-step AND the preview renders frames. Both v0.4.0 gates closed → cut the Live Preview milestone v0.4.0: version bump 0.3.2→0.4.0 (Cargo+meson), AppStream v0.4.0 <release> (validate green), README + .deb + ROADMAP map updated, annotated tag v0.4.0, pushed main + tags. CLAUDE.md §7 DoD fully met (Flatpak builds + renders).
+next_step: No active task. Candidates: (a) v0.6 polish (Spanish translation, keyboard shortcuts, onboarding, perf/a11y audits — see ROADMAP v0.6); (b) Flathub prep — bump the manifest off the EOL GNOME 48 runtime to 49+ and re-test (prerequisite for any Flathub submission); (c) small queued follow-ups (T-202 grayscale-while-off, sepia/invert, file-chooser snapshot, T-017 Arch PKGBUILD). Propose one to the user.
+blockers: none
 working_tree:
   status: clean  # release v0.3.2 + the T-203 manifest fix committed (push pending for the manifest fix + docs)
 v0_4_0_gate:
@@ -30,4 +30,4 @@ follow_ups_queued:
   - T-400 (post-v1.0): add OBSBOT Meet (original) to the model matrix.
 known_issues:
   - Q9 (PROTOCOL.md): pan_speed/tilt_speed accept writes but no motion on Tiny 2 Lite firmware 5.10. PTZ moves via discrete pan_absolute/tilt_absolute single steps (T-101d).
-updated_at: 2026-06-02T08:40:00Z
+updated_at: 2026-06-02T09:00:00Z

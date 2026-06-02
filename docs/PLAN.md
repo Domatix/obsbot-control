@@ -1416,9 +1416,9 @@
         + zero-sign no-op (4 tests, pass).
   - [x] Cargo gates green default + with
         `obsbot-gui/live-preview`.
-  - [~] On-screen: one button click = one 5° move, no runaway /
-        sticky motion; arrow keys move once per press. User's
-        next-launch glance (rebuilt Flatpak provided).
+  - [x] On-screen (user-confirmed 2026-06-02, rebuilt Flatpak):
+        one button click = one 5° move, no runaway / sticky
+        motion; arrow keys move once per press.
 - **Out of scope**: re-introducing smooth panning behind a
   Preferences toggle (a deliberate, hardware-tested v0.6 item if
   ever wanted — not the default).
@@ -1862,12 +1862,12 @@
 
 ### T-203 — Flatpak GStreamer plugin module (v0.4)
 
-- **State**: DONE for the build gate (flatpak-builder builds +
-  installs the app and the bundled gtk4paintablesink loads in the
-  sandbox, verified headless 2026-06-02). The only remaining
-  check is the user's on-screen confirmation that the installed
-  Flatpak's preview renders camera frames — the v0.4.0 go/no-go
-  glance. See the 2026-06-02 Outcome below.
+- **State**: DONE — flatpak-builder builds + installs the app,
+  the bundled gtk4paintablesink loads in the sandbox (verified
+  headless), AND the user confirmed on 2026-06-02 that the
+  installed Flatpak's preview renders camera frames. Full gate
+  closed; v0.4.0 cut on this confirmation. See the 2026-06-02
+  Outcome below.
 - **State (historical)**: IN_PROGRESS (manifest edited on
   `feat/T-201-202-203-v04`; not yet run through
   `flatpak-builder` — the host's Flatpak install is paused
@@ -1917,11 +1917,9 @@
         gtk4paintablesink` inside the app sandbox finds the
         plugin from `/app/lib/gstreamer-1.0/libgstgtk4.so`
         (GTK 4 Paintable Sink, 0.13.5, MPL).
-  - [~] On-screen render: the installed Flatpak's preview
-        actually shows camera frames. User's v0.4.0 go/no-go
-        glance — launch the Flatpak, toggle preview with the
-        Tiny 2 connected, confirm frames render. Not machine-
-        verifiable (needs camera + display).
+  - [x] On-screen render: user confirmed 2026-06-02 that the
+        installed Flatpak's preview shows live camera frames from
+        the Tiny 2 Lite.
 - **Outcome (2026-06-02) — smoke-test run + manifest fix**:
   ran `flatpak-builder --user --install` against the manifest.
   Two real issues surfaced and were fixed:

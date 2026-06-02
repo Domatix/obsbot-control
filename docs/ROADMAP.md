@@ -152,6 +152,6 @@ AI tracking.
 | `v0.1.0`   | Scaffolding & Detection    | shipped (2026-05-13) |
 | `v0.2.0`   | V4L2 Standard Controls     | active   |
 | `v0.3.0`   | Vendor XU & AI tracking    | shipped (2026-05-15) |
-| `v0.4.0`   | Live Preview               | planned  |
+| `v0.4.0`   | Live Preview               | shipped (2026-06-02) |
 | `v0.6.0`   | Polish                     | planned  |
 | `v1.0.0`   | GNOME Circle               | goal     |

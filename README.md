@@ -24,6 +24,19 @@ GTK 4, libadwaita, and Rust. Targets GNOME Circle inclusion.
 
 ## Status
 
+**v0.4.0 — Live Preview milestone (Flatpak-ready)** (released
+2026-06-02). Completes the Live Preview milestone and is the
+first build that runs the in-app preview from a **Flatpak**: the
+manifest builds and bundles the `gtk4paintablesink` GStreamer
+plugin (plus `blueprint-compiler`) that the GNOME runtime does
+not ship. The PTZ pad was simplified to reliable single-step
+control — one button click or arrow-key press = one 5° move
+(the press-and-hold / continuous mode was removed after it
+proved unreliable on hardware). Includes the full v0.4 first
+slice: live preview, snapshot to PNG, and a grayscale filter.
+Validated against the Tiny 2 Lite. Targets the GNOME 48 runtime;
+a Flathub submission will move to a current runtime.
+
 **v0.3.2 — Snapshot, grayscale, PTZ speed** (released 2026-06-02).
 Completes the first slice of v0.4 work on the native build,
 validated against the Tiny 2 Lite: a header-bar **snapshot**

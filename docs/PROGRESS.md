@@ -12,6 +12,51 @@
 
 ## 2026-06-02 (v0.4 first-slice validation closure)
 
+### [2026-06-02T09:00:00Z] Milestone v0.4.0 — Live Preview — reached
+
+User confirmed on the rebuilt Flatpak that (1) PTZ is now reliable
+single-step (one click / arrow-press = one move, no runaway) and
+(2) the in-app preview renders live camera frames. That closes the
+last two gates, so the Live Preview milestone is complete and cut
+as v0.4.0.
+
+Why v0.4.0 now (vs the earlier v0.3.2): v0.3.2 was the native-only
+rollup that deliberately deferred the Flatpak gate. Since then the
+T-203 flatpak-builder smoke-test passed (manifest fixed with the
+blueprint-compiler module) and T-101d made PTZ reliable — so the
+CLAUDE.md §7 milestone DoD, which requires the Flatpak to build, is
+now genuinely met.
+
+Release prep:
+* Workspace + meson version 0.3.2 -> 0.4.0.
+* AppStream metainfo gains the v0.4.0 <release> block (Flatpak
+  packaging + single-step PTZ + the v0.4 first slice);
+  `appstreamcli validate --no-net` passes (one info-level
+  redundancy note, no errors).
+* README Status block + .deb extended-description rewritten for
+  v0.4.0 (single-step PTZ; Flatpak-ready).
+* ROADMAP version map: v0.4.0 -> shipped (2026-06-02).
+
+CLAUDE.md §7 milestone gate:
+1. All v0.4 tasks DONE on main: T-200 (preview), T-201 (snapshot),
+   T-202 (grayscale), T-203 (Flatpak module + smoke-test), T-204
+   (preview shrink), plus T-101d (PTZ single-step).
+2. `cargo test --workspace` passes (unit + doctest; hardware tests
+   `#[ignore]`d).
+3. `cargo clippy --workspace --all-targets -- -D warnings` and the
+   `--features obsbot-gui/live-preview` variant both exit 0.
+4. **Flatpak builds successfully** — flatpak-builder builds +
+   installs all three modules and the preview renders in the
+   installed app (user-confirmed). This is the gate that v0.3.2
+   deferred and v0.4.0 now clears.
+5. AppStream metainfo carries the v0.4.0 entry.
+6. Annotated `v0.4.0` tag cut against this commit.
+7. This entry.
+
+Follow-up still open: the manifest targets the EOL GNOME 48
+runtime; a Flathub submission needs a bump to a current runtime
+(GNOME 49+) and a re-test.
+
 ### [2026-06-02T08:40:00Z] [T-101d] Stripped PTZ to pure single-step
 
 Testing the v0.3.2 Flatpak against the Tiny 2 Lite, the user

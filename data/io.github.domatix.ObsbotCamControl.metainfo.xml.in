@@ -77,6 +77,32 @@
   </supports>
 
   <releases>
+    <release version="0.4.0" date="2026-06-02" type="development">
+      <description>
+        <p>
+          The Live Preview milestone — and the first build
+          distributable as a Flatpak. Validated against the
+          Tiny 2 Lite:
+        </p>
+        <ul>
+          <li>Flatpak packaging: the manifest now builds and
+            bundles the gtk4paintablesink GStreamer plugin (and
+            blueprint-compiler) the GNOME runtime does not ship,
+            so the in-app live preview works from a Flatpak
+            install, not just the native build.</li>
+          <li>Simpler, reliable PTZ: each directional button
+            click and each arrow-key press performs exactly one
+            5° move. The previous press-and-hold / continuous
+            mode was removed after it proved unreliable.</li>
+          <li>Carries the full v0.4 first slice: in-app live
+            preview, snapshot to PNG, and a grayscale filter.</li>
+        </ul>
+        <p>
+          This development build targets the GNOME 48 runtime; a
+          Flathub submission will move to a current runtime.
+        </p>
+      </description>
+    </release>
     <release version="0.3.2" date="2026-06-02" type="development">
       <description>
         <p>
