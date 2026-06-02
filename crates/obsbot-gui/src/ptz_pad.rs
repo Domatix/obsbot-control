@@ -50,18 +50,19 @@
 //!   and writes that absolute target.
 //! * **Hold** (≥ 200 ms) — engages "continuous" mode via T-101a: a
 //!   recurring `glib` timeout fires every [`HOLD_REPEAT_MS`]
-//!   milliseconds and runs the same JIT-read + `pan_absolute` /
-//!   `tilt_absolute` write as the tap path, but with a small
-//!   [`HOLD_STEP_DEGREES_AT_DEFAULT`] step (scaled by the
-//!   `ptz-speed-fast` `GSettings` slider per T-101c — see
-//!   [`resolved_hold_step`]). At 1°/50 ms (speed = 50, the
-//!   schema default) the result feels close
-//!   to OBSBOT Center's joystick mode without engaging the
-//!   V4L2 `pan_speed` / `tilt_speed` continuous-motion controls,
-//!   which **the Tiny 2 Lite firmware 5.10 accepts but does not act
-//!   on** (PROTOCOL.md §2.3 Q9 — surfaced when the first T-101a
-//!   draft validated against `v4l2-ctl --set-ctrl=pan_speed=80` and
-//!   the camera failed to move).
+//!   milliseconds and adds [`HOLD_STEP_DEGREES_AT_DEFAULT`] (scaled by
+//!   the `ptz-speed-fast` `GSettings` slider per T-101c — see
+//!   [`resolved_hold_step`]) to a **local accumulator** seeded from
+//!   the kernel-current position once at press time. Unlike the tap
+//!   path, the hold path does NOT re-read the kernel per tick: at
+//!   20 Hz the V4L2 device has not yet reflected the previous write
+//!   when the next read fires, so the JIT-read variant we shipped in
+//!   v0.3.1 returned stale state, stacked the same step on top, and
+//!   produced visible stalling (T-101c-fix). At 1°/50 ms (speed = 50,
+//!   the schema default) the result feels close to OBSBOT Center's
+//!   joystick mode without engaging the V4L2 `pan_speed` /
+//!   `tilt_speed` continuous-motion controls, which **the Tiny 2 Lite
+//!   firmware 5.10 accepts but does not act on** (PROTOCOL.md §2.3 Q9).
 //!
 //! Keyboard activation (Space / Enter on a focused button) emits
 //! "clicked" directly without a press/release pair, so it always
@@ -157,14 +158,40 @@ struct IntRange {
     is_active: bool,
 }
 
+/// Per-axis position cache + range shared between the on-screen pad
+/// and the keyboard handler. The kernel is read **once at the start
+/// of each press** (gesture engage or key down) to refresh the cell;
+/// every subsequent tick of the hold timer adds `step_units` to the
+/// cached value and writes it back — no kernel read per tick.
+///
+/// This replaces the "JIT read every tick" loop that v0.3.1 used.
+/// At 20 Hz (the hold cadence) the V4L2 device has not yet reflected
+/// the previous write when the next tick reads it, so the old code
+/// applied the same step on top of stale state and the camera
+/// effectively stalled. With a local accumulator the writes form a
+/// strictly monotone sequence and the camera tracks them smoothly.
+/// The tap path still re-reads the kernel per click because two
+/// taps can be seconds apart (AI tracking, preset recall, on-device
+/// gesture); only the 50 ms hold loop skips the read.
+#[derive(Clone)]
+pub struct PtzAccumulators {
+    pan: Rc<Cell<i64>>,
+    tilt: Rc<Cell<i64>>,
+    pan_range: IntRange,
+    tilt_range: IntRange,
+}
+
 /// Build the PTZ pad widget for the given camera. Returns `None` when
 /// the camera does not advertise the minimum trio (pan/tilt/zoom) —
-/// non-PTZ cameras get no pad.
+/// non-PTZ cameras get no pad. The returned tuple also carries the
+/// shared per-axis accumulators so the controls page can pass them
+/// to [`wire_keyboard_arrows`] without re-introspecting the control
+/// list.
 pub fn build_ptz_pad(
     controls: &[ControlDescriptor],
     path: &Path,
     serial: Option<&str>,
-) -> Option<adw::PreferencesGroup> {
+) -> Option<(adw::PreferencesGroup, PtzAccumulators)> {
     let pan = find_int(controls, CID_PAN_ABSOLUTE)?;
     let tilt = find_int(controls, CID_TILT_ABSOLUTE)?;
     let zoom = find_int(controls, CID_ZOOM_ABSOLUTE)?;
@@ -177,9 +204,15 @@ pub fn build_ptz_pad(
     let owned_path: Rc<PathBuf> = Rc::new(path.to_path_buf());
     let owned_serial: Rc<Option<String>> = Rc::new(serial.map(str::to_owned));
 
+    let accumulators = PtzAccumulators {
+        pan: Rc::new(Cell::new(pan.current)),
+        tilt: Rc::new(Cell::new(tilt.current)),
+        pan_range: pan,
+        tilt_range: tilt,
+    };
+
     let ctx = DirectionCtx {
-        pan,
-        tilt,
+        accum: accumulators.clone(),
         path: owned_path.clone(),
         serial: owned_serial.clone(),
     };
@@ -201,9 +234,15 @@ pub fn build_ptz_pad(
         .object("btn_reset")
         .expect("ptz-pad.ui missing object 'btn_reset'");
     {
+        let accum = accumulators.clone();
         let owned_path = owned_path.clone();
         let owned_serial = owned_serial.clone();
         btn_reset.connect_clicked(move |_| {
+            // Sync accumulators to the recentered position so any
+            // subsequent hold starts from 0/0 rather than the
+            // pre-reset cached value.
+            accum.pan.set(0);
+            accum.tilt.set(0);
             write(
                 &owned_path,
                 CID_PAN_ABSOLUTE,
@@ -258,7 +297,7 @@ pub fn build_ptz_pad(
         group.add(&focus_row);
     }
 
-    Some(group)
+    Some((group, accumulators))
 }
 
 /// Look up an Integer control by V4L2 ID and snapshot its range.
@@ -305,8 +344,7 @@ fn find_bool(controls: &[ControlDescriptor], id: u32) -> Option<BoolValue> {
 
 /// Shared state every directional button needs to mutate.
 struct DirectionCtx {
-    pan: IntRange,
-    tilt: IntRange,
+    accum: PtzAccumulators,
     path: Rc<PathBuf>,
     serial: Rc<Option<String>>,
 }
@@ -331,10 +369,9 @@ fn wire_direction(builder: &gtk::Builder, button_id: &str, dx: i64, dy: i64, ctx
     let button: gtk::Button = builder
         .object(button_id)
         .unwrap_or_else(|| panic!("ptz-pad.ui missing object '{button_id}'"));
-    button.set_sensitive(ctx.pan.is_active && ctx.tilt.is_active);
+    button.set_sensitive(ctx.accum.pan_range.is_active && ctx.accum.tilt_range.is_active);
 
-    let pan = ctx.pan;
-    let tilt = ctx.tilt;
+    let accum = ctx.accum.clone();
     let path = ctx.path.clone();
     let serial = ctx.serial.clone();
 
@@ -356,11 +393,34 @@ fn wire_direction(builder: &gtk::Builder, button_id: &str, dx: i64, dy: i64, ctx
     let gesture = gtk::GestureClick::new();
     gesture.set_button(gtk::gdk::BUTTON_PRIMARY);
     {
+        let accum = accum.clone();
         let path = path.clone();
         let serial = serial.clone();
         let hold_active = hold_active.clone();
         let timeout_handle = timeout_handle.clone();
         gesture.connect_pressed(move |_, _, _, _| {
+            // Refresh per-axis accumulators from the kernel once at
+            // press time so the hold path starts from the camera's
+            // actual position (it may have moved since the page
+            // opened: AI tracking, preset recall, on-device gesture).
+            // The hold timer below then drives the accumulator
+            // locally without re-reading — see [`PtzAccumulators`].
+            if dx != 0 {
+                accum.pan.set(current_axis(
+                    &path,
+                    CID_PAN_ABSOLUTE,
+                    accum.pan_range.current,
+                ));
+            }
+            if dy != 0 {
+                accum.tilt.set(current_axis(
+                    &path,
+                    CID_TILT_ABSOLUTE,
+                    accum.tilt_range.current,
+                ));
+            }
+
+            let accum_engage = accum.clone();
             let path_engage = path.clone();
             let serial_engage = serial.clone();
             let hold_active_engage = hold_active.clone();
@@ -375,7 +435,14 @@ fn wire_direction(builder: &gtk::Builder, button_id: &str, dx: i64, dy: i64, ctx
                     // First tick on engage so motion feels responsive
                     // right at the 200 ms threshold rather than
                     // 250 ms in.
-                    hold_tick(dx, dy, step_units, pan, tilt, &path_engage, &serial_engage);
+                    hold_tick(
+                        dx,
+                        dy,
+                        step_units,
+                        &accum_engage,
+                        &path_engage,
+                        &serial_engage,
+                    );
                     // Recurring tick every HOLD_REPEAT_MS until the
                     // user releases. The closure returns
                     // ControlFlow::Continue while the source is live;
@@ -384,6 +451,7 @@ fn wire_direction(builder: &gtk::Builder, button_id: &str, dx: i64, dy: i64, ctx
                     // existence check — the timer self-cancels once
                     // /dev/videoN disappears so we do not keep
                     // writing to a vanished device.
+                    let accum_tick = accum_engage.clone();
                     let path_tick = path_engage.clone();
                     let serial_tick = serial_engage.clone();
                     let repeat_id =
@@ -391,7 +459,7 @@ fn wire_direction(builder: &gtk::Builder, button_id: &str, dx: i64, dy: i64, ctx
                             if !path_tick.exists() {
                                 return glib::ControlFlow::Break;
                             }
-                            hold_tick(dx, dy, step_units, pan, tilt, &path_tick, &serial_tick);
+                            hold_tick(dx, dy, step_units, &accum_tick, &path_tick, &serial_tick);
                             glib::ControlFlow::Continue
                         });
                     timeout_handle_engage.replace(Some(repeat_id));
@@ -426,13 +494,17 @@ fn wire_direction(builder: &gtk::Builder, button_id: &str, dx: i64, dy: i64, ctx
             return;
         }
         if dx != 0 {
-            let current = current_axis(&path, CID_PAN_ABSOLUTE, pan.current);
-            let new_pan = (current + dx * PAN_TILT_STEP).clamp(pan.min, pan.max);
+            let current = current_axis(&path, CID_PAN_ABSOLUTE, accum.pan_range.current);
+            let new_pan =
+                (current + dx * PAN_TILT_STEP).clamp(accum.pan_range.min, accum.pan_range.max);
+            accum.pan.set(new_pan);
             write(&path, CID_PAN_ABSOLUTE, "pan_absolute", new_pan, &serial);
         }
         if dy != 0 {
-            let current = current_axis(&path, CID_TILT_ABSOLUTE, tilt.current);
-            let new_tilt = (current + dy * PAN_TILT_STEP).clamp(tilt.min, tilt.max);
+            let current = current_axis(&path, CID_TILT_ABSOLUTE, accum.tilt_range.current);
+            let new_tilt =
+                (current + dy * PAN_TILT_STEP).clamp(accum.tilt_range.min, accum.tilt_range.max);
+            accum.tilt.set(new_tilt);
             write(&path, CID_TILT_ABSOLUTE, "tilt_absolute", new_tilt, &serial);
         }
     });
@@ -449,12 +521,20 @@ fn current_axis(path: &Path, id: u32, snapshot: i64) -> i64 {
     }
 }
 
-/// One tick of the hold-to-pan timer. Computes the kernel-current
-/// pan / tilt, adds `step_units` in the direction dictated by
-/// `dx` / `dy`, clamps to the descriptor range, and writes back.
-/// Shared with the engage handler (first tick at `LONG_PRESS_MS`)
-/// and with the recurring `glib::timeout_add_local` callback
-/// (every `HOLD_REPEAT_MS` thereafter).
+/// One tick of the hold-to-pan timer. Adds `step_units` to the cached
+/// per-axis accumulator (refreshed once at press time by the engage
+/// handler), clamps to the descriptor range, writes back to the
+/// kernel, and stores the new value in the cell so the next tick can
+/// continue from it. Shared with the engage handler (first tick at
+/// `LONG_PRESS_MS`) and with the recurring `glib::timeout_add_local`
+/// callback (every `HOLD_REPEAT_MS` thereafter).
+///
+/// **No kernel read per tick.** That was the v0.3.1 behaviour and it
+/// caused observable stalling: at 20 Hz the V4L2 device has not yet
+/// reflected the previous write when we read it back, so the cached
+/// current returned stale state and the step accumulated against an
+/// out-of-date value. With a local accumulator the writes form a
+/// strictly monotone sequence and motion is smooth.
 ///
 /// `step_units` is resolved at engage time from
 /// [`resolved_hold_step`] (or that value × [`HOLD_ACCELERATOR_MULT`]
@@ -465,19 +545,21 @@ fn hold_tick(
     dx: i64,
     dy: i64,
     step_units: i64,
-    pan: IntRange,
-    tilt: IntRange,
+    accum: &PtzAccumulators,
     path: &Rc<PathBuf>,
     serial: &Rc<Option<String>>,
 ) {
     if dx != 0 {
-        let current = current_axis(path, CID_PAN_ABSOLUTE, pan.current);
-        let new_pan = (current + dx * step_units).clamp(pan.min, pan.max);
+        let current = accum.pan.get();
+        let new_pan = (current + dx * step_units).clamp(accum.pan_range.min, accum.pan_range.max);
+        accum.pan.set(new_pan);
         write(path, CID_PAN_ABSOLUTE, "pan_absolute", new_pan, serial);
     }
     if dy != 0 {
-        let current = current_axis(path, CID_TILT_ABSOLUTE, tilt.current);
-        let new_tilt = (current + dy * step_units).clamp(tilt.min, tilt.max);
+        let current = accum.tilt.get();
+        let new_tilt =
+            (current + dy * step_units).clamp(accum.tilt_range.min, accum.tilt_range.max);
+        accum.tilt.set(new_tilt);
         write(path, CID_TILT_ABSOLUTE, "tilt_absolute", new_tilt, serial);
     }
 }
@@ -519,19 +601,12 @@ fn resolved_hold_step() -> i64 {
 /// the image-control rows.
 pub fn wire_keyboard_arrows<W>(
     target: &W,
-    controls: &[ControlDescriptor],
+    accum: &PtzAccumulators,
     path: &Path,
     serial: Option<&str>,
 ) where
     W: IsA<gtk::Widget>,
 {
-    let Some(pan) = find_int(controls, CID_PAN_ABSOLUTE) else {
-        return;
-    };
-    let Some(tilt) = find_int(controls, CID_TILT_ABSOLUTE) else {
-        return;
-    };
-
     let owned_path: Rc<PathBuf> = Rc::new(path.to_path_buf());
     let owned_serial: Rc<Option<String>> = Rc::new(serial.map(str::to_owned));
 
@@ -546,6 +621,7 @@ pub fn wire_keyboard_arrows<W>(
     controller.set_propagation_phase(gtk::PropagationPhase::Bubble);
 
     {
+        let accum = accum.clone();
         let active_holds = active_holds.clone();
         let owned_path = owned_path.clone();
         let owned_serial = owned_serial.clone();
@@ -568,6 +644,11 @@ pub fn wire_keyboard_arrows<W>(
                 gtk::gdk::Key::Up | gtk::gdk::Key::KP_Up => (0, 1),
                 gtk::gdk::Key::Down | gtk::gdk::Key::KP_Down => (0, -1),
                 gtk::gdk::Key::Home | gtk::gdk::Key::KP_Home => {
+                    // Reset both axes to 0 and sync the accumulator so
+                    // any subsequent hold starts from the recentered
+                    // position rather than the pre-reset cached value.
+                    accum.pan.set(0);
+                    accum.tilt.set(0);
                     write(
                         &owned_path,
                         CID_PAN_ABSOLUTE,
@@ -595,6 +676,26 @@ pub fn wire_keyboard_arrows<W>(
                 return glib::Propagation::Stop;
             }
 
+            // Refresh per-axis accumulator from the kernel once at
+            // press time (mirrors the on-screen pad's engage logic) so
+            // the hold loop starts from the camera's actual position.
+            // Only refresh the axis we are about to move so an active
+            // hold on the other axis isn't perturbed.
+            if dx != 0 {
+                accum.pan.set(current_axis(
+                    &owned_path,
+                    CID_PAN_ABSOLUTE,
+                    accum.pan_range.current,
+                ));
+            }
+            if dy != 0 {
+                accum.tilt.set(current_axis(
+                    &owned_path,
+                    CID_TILT_ABSOLUTE,
+                    accum.tilt_range.current,
+                ));
+            }
+
             // Resolve the per-tick step once at engage time
             // (T-101c). Shift modifier multiplies by the
             // accelerator constant for one-shot fast pans without
@@ -608,7 +709,8 @@ pub fn wire_keyboard_arrows<W>(
             // then schedule the recurring HOLD_REPEAT_MS ticker.
             // Hot-plug REMOVE (T-110) self-cancels the timer via
             // the path existence check on each tick.
-            hold_tick(dx, dy, step_units, pan, tilt, &owned_path, &owned_serial);
+            hold_tick(dx, dy, step_units, &accum, &owned_path, &owned_serial);
+            let accum_tick = accum.clone();
             let path_tick = owned_path.clone();
             let serial_tick = owned_serial.clone();
             let source =
@@ -616,7 +718,7 @@ pub fn wire_keyboard_arrows<W>(
                     if !path_tick.exists() {
                         return glib::ControlFlow::Break;
                     }
-                    hold_tick(dx, dy, step_units, pan, tilt, &path_tick, &serial_tick);
+                    hold_tick(dx, dy, step_units, &accum_tick, &path_tick, &serial_tick);
                     glib::ControlFlow::Continue
                 });
             active_holds.borrow_mut().insert(key_id, source);
