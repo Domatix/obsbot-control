@@ -12,6 +12,46 @@
 
 ## 2026-06-02 (v0.4 first-slice validation closure)
 
+### [2026-06-02T08:10:00Z] [T-203] Flatpak smoke-test passed; build gate closed
+
+Ran the deferred T-203 `flatpak-builder` smoke-test end-to-end
+(`flatpak-builder --user --install` against
+build-aux/io.github.domatix.ObsbotCamControl.json). The host has
+flatpak-builder 1.16.3 + GNOME Platform/Sdk 48 + the rust-stable
+SDK extension already installed, so the run was possible despite
+the prior "Flatpak paused" note in STATE.
+
+Two real issues surfaced — exactly what the smoke-test was for:
+1. **Missing build dependency**: GNOME Sdk 48 does not ship
+   `blueprint-compiler`, so the app `build.rs` (which compiles
+   the `.blp` templates) panicked in the sandbox
+   ("blueprint-compiler must be installed and on PATH"). Fixed
+   by adding a build-only `blueprint-compiler` module (v0.16.0,
+   matching the host) before the app module, `cleanup: ["*"]`.
+   Committed `fix(flatpak): add blueprint-compiler build module
+   (T-203)` (34665aa).
+2. **Disk**: the first re-run filled the 16 GB `/tmp` tmpfs
+   (state-dir hit 16 GB). Re-ran with `--state-dir` on `/home`
+   (729 GB free). Infra-only, no manifest change.
+
+After the fix the build succeeds: all three modules
+(blueprint-compiler, gst-plugin-gtk4 building libgstgtk4.so from
+gst-plugins-rs 0.13.5, app with -Dlive-preview=true) build and
+`io.github.domatix.ObsbotCamControl 0.3.2` installs to the user
+installation. Headless verification: `gst-inspect-1.0
+gtk4paintablesink` inside the app sandbox finds the plugin from
+`/app/lib/gstreamer-1.0/libgstgtk4.so` (GTK 4 Paintable Sink,
+0.13.5, MPL).
+
+PLAN T-203 build gate → DONE; the lone remaining check is the
+user's on-screen confirmation that the installed Flatpak's
+preview renders camera frames (not machine-verifiable). That is
+the only thing between here and a v0.4.0 milestone cut.
+
+Follow-up logged: flatpak-builder warned `org.gnome.Platform//48`
+is EOL as of 2026-03-24. Builds fine now; a Flathub submission
+will need the runtime bumped to GNOME 49+ and a re-test.
+
 ### [2026-06-02T07:25:00Z] Point release v0.3.2 reached
 
 Native-only point release on top of v0.3.1, bundling the v0.4

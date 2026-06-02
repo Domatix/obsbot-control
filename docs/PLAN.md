@@ -1818,7 +1818,13 @@
 
 ### T-203 — Flatpak GStreamer plugin module (v0.4)
 
-- **State**: IN_PROGRESS (manifest edited on
+- **State**: DONE for the build gate (flatpak-builder builds +
+  installs the app and the bundled gtk4paintablesink loads in the
+  sandbox, verified headless 2026-06-02). The only remaining
+  check is the user's on-screen confirmation that the installed
+  Flatpak's preview renders camera frames — the v0.4.0 go/no-go
+  glance. See the 2026-06-02 Outcome below.
+- **State (historical)**: IN_PROGRESS (manifest edited on
   `feat/T-201-202-203-v04`; not yet run through
   `flatpak-builder` — the host's Flatpak install is paused
   per private-repo policy).
@@ -1860,13 +1866,39 @@
         `meson compile cargo-build` against
         `-Dlive-preview=true` — 1m 47s release build,
         includes the gstreamer chain).
-  - [ ] `flatpak-builder` smoke-test of the new module —
-        deferred until the host's Flatpak install is
-        re-enabled (user-driven). Manifest is the
-        deliverable; downstream `flatpak-builder` run is
-        the validation gate.
-- **Out of scope**: cutting a v0.4.0 tag (waits for the
-  flatpak-builder validation gate).
+  - [x] `flatpak-builder` smoke-test (2026-06-02): builds all
+        three modules (blueprint-compiler, gst-plugin-gtk4,
+        app), installs `io.github.domatix.ObsbotCamControl
+        0.3.2` to the user installation, and `gst-inspect-1.0
+        gtk4paintablesink` inside the app sandbox finds the
+        plugin from `/app/lib/gstreamer-1.0/libgstgtk4.so`
+        (GTK 4 Paintable Sink, 0.13.5, MPL).
+  - [~] On-screen render: the installed Flatpak's preview
+        actually shows camera frames. User's v0.4.0 go/no-go
+        glance — launch the Flatpak, toggle preview with the
+        Tiny 2 connected, confirm frames render. Not machine-
+        verifiable (needs camera + display).
+- **Outcome (2026-06-02) — smoke-test run + manifest fix**:
+  ran `flatpak-builder --user --install` against the manifest.
+  Two real issues surfaced and were fixed:
+  * **Missing build dep**: GNOME Sdk 48 does not ship
+    `blueprint-compiler`, so the app `build.rs` (which compiles
+    the `.blp` templates) failed in the sandbox. Added a
+    build-only `blueprint-compiler` module (v0.16.0, matching
+    the host) before the app module, `cleanup: ["*"]`. Committed
+    `fix(flatpak): add blueprint-compiler build module (T-203)`.
+  * **Disk**: the build overflowed the 16 GB `/tmp` tmpfs;
+    re-ran with `--state-dir` on `/home` (729 GB free). Build
+    infrastructure note only — no manifest change.
+  After the fix, the full build + install succeeds and the
+  bundled sink loads in the sandbox (verified headless).
+- **Follow-up — runtime EOL**: flatpak-builder warned that
+  `org.gnome.Platform//48` is end-of-life as of 2026-03-24.
+  Builds fine today, but a Flathub submission will need the
+  manifest bumped to GNOME 49+ (and a re-test). Queued.
+- **Out of scope**: cutting a v0.4.0 tag (the build gate is now
+  green; the tag waits only on the user's on-screen render
+  confirmation above).
 - **Outcome (2026-05-19)**: shipped on `feat/T-200-preview`,
   squash-merged to `main`. Final shape diverges from the
   draft acceptance criteria in three places, all user-driven
