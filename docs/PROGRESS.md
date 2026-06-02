@@ -10,6 +10,83 @@
 
 ---
 
+## 2026-06-02 (v0.4 first-slice validation closure)
+
+### [2026-06-02T06:47:44Z] [process] Working-tree reconciliation hardened (§4.4) after orphaned-diff incident
+
+Root incident: a prior session validated the v0.4 first slice
+against the connected Tiny 2 Lite, found two bugs, fixed them in
+the working tree — and then ended without committing or recording
+anything. `STATE.md` claimed `working_tree: uncommitted STATE
+update only` while `git status` showed ~270 lines across
+`preview.rs`, `ptz_pad.rs`, `controls_view.rs`. A later session
+could neither trust STATE.md nor explain the diff.
+
+Preventive measures landed in `CLAUDE.md`:
+- §0 gains step 6: run `git status --short` at session start and
+  reconcile against STATE.md's `working_tree`; surface any
+  mismatch instead of glossing over it.
+- §1.1: the `working_tree` field is now authoritative and
+  verifiable — it must enumerate every path `git status --short`
+  reports; "uncommitted STATE update only" with code untracked is
+  a contract violation.
+- §4.4 (new): mandatory working-tree reconciliation at session
+  start and before any handoff; functional changes that pass the
+  §2.3 gates must not linger untracked across sessions without a
+  recorded reason.
+
+### [2026-06-02T06:47:44Z] [T-202] DONE — grayscale validated; dual-videoconvert no-op fix committed
+
+User validated the grayscale toggle against the Tiny 2 Lite: live
+colour → black-and-white instantly, toggle off → colour returns.
+The fix that made it actually work (discovered in the prior
+validation session, previously uncommitted): the single-
+`videoconvert` chain let `gtk4paintablesink` dmabuf-import the
+upstream buffer, pushing `videobalance` into passthrough so
+`saturation = 0.0` was a silent no-op (plus
+`gst_video_frame_map_id` assertion spam). Fix brackets
+`videobalance` with `vc_pre` + `vc_post` videoconverts; `start()`
+re-finds `vc_pre` by name. Cargo gates green default + with
+`obsbot-gui/live-preview`. Committed `fix(gui): grayscale filter
+no-op via dual videoconvert (T-202)`. PLAN T-202 → DONE; logged a
+minor known issue (grayscale toggled while preview off is lost on
+start).
+
+### [2026-06-02T06:47:44Z] [T-201] DONE — snapshot validated
+
+User validated: start preview, push the `camera-photo-symbolic`
+button → PNG lands at `~/Pictures/obsbot-camera-*.png` and matches
+the on-screen frame. No code change needed beyond what already
+shipped in the v0.4 first-slice bundle. PLAN T-201 → DONE.
+
+### [2026-06-02T06:47:44Z] [T-101c] DONE — PTZ tuning validated; hold-accumulator stall fix committed
+
+User validated: `ptz-speed-fast` slider (80 vs 20) changes hold
+speed visibly, Shift+Arrow triples the step, unplug mid-hold stops
+writes without spam. The fix that made the hold smooth (discovered
+in the prior validation session, previously uncommitted): the
+v0.3.1 hold path re-read the kernel position every 50 ms tick, but
+at 20 Hz the V4L2 device had not yet reflected the previous write,
+so each tick stacked the same step on stale state and the camera
+stalled. Fix: per-axis local accumulator (`PtzAccumulators`)
+seeded from the kernel once at press time, then driven locally per
+tick; tap path still re-reads per click. `build_ptz_pad` returns
+`(group, PtzAccumulators)` so `controls_view` threads them into
+`wire_keyboard_arrows`; reset / Home sync the accumulators to 0/0.
+Cargo gates green default + with `obsbot-gui/live-preview`.
+Committed `fix(gui): smooth PTZ hold via local accumulator
+(T-101c)`. PLAN T-101c → DONE.
+
+### [2026-06-02T06:47:44Z] [T-204] Queued — shrink preview pane ~20%
+
+User feedback: the embedded preview "se hace muy grande respecto
+al resto de la ventana". Queued TODO in PLAN: drop
+`gtk::Picture::height_request` 240 → 192 in
+`build_preview_widgets` (clean 20% cut; `content_fit = Contain`
+letterboxes without distortion, no width change needed).
+
+---
+
 ## 2026-05-19 (T-200 resumed)
 
 ### [2026-05-19T02:30:00Z] Milestone v0.3.1 reached

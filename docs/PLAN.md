@@ -1385,10 +1385,11 @@
 
 ### T-101c — PTZ tuning follow-ups (speed slider + Shift accelerator + hot-plug timer cleanup)
 
-- **State**: IN_PROGRESS (code complete on
-  `feat/T-101c-ptz-tuning`; awaiting hardware ergonomics
-  validation, will squash to main when green)
+- **State**: DONE (validated against the Tiny 2 Lite
+  2026-06-02; squashed into the v0.4 first-slice bundle on
+  `main`. One fix landed during validation — see Outcome.)
 - **Started**: 2026-05-19T02:45:00Z
+- **Completed**: 2026-06-02T06:47:44Z
 - **Depends on**: T-101b squashed to `main` (96e33ba).
 - **Origin**: follow-up list queued in T-101b's PLAN entry +
   STATE under `follow_ups_queued`.
@@ -1432,11 +1433,33 @@
         modifier multiplies by `HOLD_ACCELERATOR_MULT`.
   - [x] Both timer closures abort cleanly when the device
         path disappears mid-hold.
-  - [ ] Hardware ergonomics validation: a future user-facing
-        Preferences dialog will surface the slider; for now
-        the schema can be poked with
-        `gsettings set io.github.domatix.ObsbotCamControl
-        ptz-speed-fast 80` for a fast-pan smoke test.
+  - [x] Hardware ergonomics validation (2026-06-02): speed
+        slider via `gsettings set ... ptz-speed-fast 80`
+        produces a visibly faster hold than `20`; Shift+Arrow
+        triples the step; unplugging mid-hold stops the writes
+        without spam. User confirmed green.
+- **Outcome — accumulator fix discovered during validation
+  (2026-06-02)**: the hold path shipped in v0.3.1 re-read the
+  kernel position on every 50 ms tick (`hold_tick` called
+  `current_axis` per tick). At the 20 Hz cadence the V4L2
+  device had not yet reflected the previous write, so each tick
+  read stale state and stacked the same step on it — the camera
+  visibly stalled instead of panning smoothly. Fixed by adding
+  a per-axis local accumulator (`PtzAccumulators`: two
+  `Rc<Cell<i64>>` + the cached ranges) seeded from the kernel
+  **once at press time** (gesture engage / key down); every
+  subsequent tick adds `step_units` to the cell and writes it
+  back without re-reading. The tap path still re-reads per click
+  (taps can be seconds apart — AI tracking / preset recall move
+  the camera between them). `build_ptz_pad` now returns
+  `(group, PtzAccumulators)` so `controls_view` threads the same
+  accumulators into `wire_keyboard_arrows` without re-
+  introspecting the control list. `btn_reset` and the keyboard
+  `Home` path sync the accumulators to 0/0 so a hold right after
+  a recenter starts from the recentered position. Files:
+  `ptz_pad.rs` (accumulator struct + engage refresh + tick
+  rewrite), `controls_view.rs` (tuple plumbing). Committed as
+  `fix(gui): smooth PTZ hold via local accumulator (T-101c)`.
 - **Out of scope for T-101c**:
   - Preferences dialog UI for the speed slider — that comes
     with v0.6 polish or as a tiny T-101d if the user wants it
@@ -1710,11 +1733,11 @@
 
 ### T-201 — Snapshot to file (v0.4)
 
-- **State**: IN_PROGRESS (impl on
-  `feat/T-201-202-203-v04`, awaiting hardware visual
-  validation: pulse the snapshot button while preview is on
-  → file appears under `~/Pictures/`).
+- **State**: DONE (validated against the Tiny 2 Lite
+  2026-06-02; impl squashed into the v0.4 first-slice bundle
+  on `main`).
 - **Started**: 2026-05-19T03:00:00Z
+- **Completed**: 2026-06-02T06:47:44Z
 - **Depends on**: T-200 squashed to main.
 - **Description**: header-bar `camera-photo-symbolic` button
   pulls the latest paintable from the `gtk4paintablesink`,
@@ -1731,20 +1754,21 @@
         `obsbot-gui/live-preview`.
   - [x] Button only renders with the `live-preview` Cargo
         feature enabled (no compile-time cost when off).
-  - [ ] Hardware validation: start preview, push button,
-        verify the PNG lands at `~/Pictures/obsbot-camera-*.
-        png`, opens fine in `eog`, dimensions match the
-        camera's negotiated caps.
+  - [x] Hardware validation (2026-06-02): start preview, push
+        button, PNG lands at `~/Pictures/obsbot-camera-*.png`,
+        opens fine, matches the on-screen frame. User confirmed
+        green.
 - **Out of scope**: file-chooser dialog (just always saves
   to Pictures; preferences-dialog override comes later);
   JPEG output (PNG only); EXIF / metadata embedding.
 
 ### T-202 — Post-process filters (greyscale) (v0.4)
 
-- **State**: IN_PROGRESS (greyscale toggle on
-  `feat/T-201-202-203-v04`, awaiting hardware visual
-  validation. Sepia / invert deferred to a follow-up).
+- **State**: DONE (validated against the Tiny 2 Lite
+  2026-06-02; impl squashed into the v0.4 first-slice bundle
+  on `main`. One fix landed during validation — see Outcome.)
 - **Started**: 2026-05-19T03:00:00Z
+- **Completed**: 2026-06-02T06:47:44Z
 - **Depends on**: T-200 squashed to main.
 - **Description**: `videobalance` (name = `vb_filter`) sits
   in the pipeline unconditionally with `saturation = 1.0`
@@ -1759,10 +1783,34 @@
   - [x] Header-bar toggle wired.
   - [x] Cargo gates green default + with
         `obsbot-gui/live-preview`.
-  - [ ] Hardware validation: toggle grayscale while preview
-        is on, observe colour → black-and-white instantly;
-        toggle off → colour returns; toggle when preview is
-        off → no-op (no crash, no toast).
+  - [x] Hardware validation (2026-06-02): toggle grayscale
+        while preview is on → colour to black-and-white
+        instantly; toggle off → colour returns. User confirmed
+        green (after the dual-videoconvert fix below).
+- **Outcome — dual-videoconvert fix discovered during
+  validation (2026-06-02)**: the first cut linked
+  `v4l2src ! videoconvert ! videobalance ! gtk4paintablesink`,
+  and the grayscale toggle was a silent no-op — flipping
+  `videobalance.saturation` to 0.0 changed nothing on screen.
+  Root cause: with a single `videoconvert`, `gtk4paintablesink`
+  sometimes dmabuf-imports the upstream buffer directly, which
+  pushes `videobalance` into passthrough so the `saturation`
+  property never applies; it also spammed
+  `gst_video_frame_map_id: assertion '...format == meta->format'
+  failed` warnings from the mismatched `GstVideoMeta`. Fixed by
+  bracketing `videobalance` with two `videoconvert` elements —
+  `vc_pre` (named) normalises the raw UVC format into a layout
+  `videobalance` can mutate in place, `vc_post` lets the sink
+  pick its preferred format (commonly RGBA). `start()` now
+  re-finds `vc_pre` by name instead of guessing `videoconvert0`.
+  Files: `preview.rs`. Committed as `fix(gui): grayscale filter
+  no-op via dual videoconvert (T-202)`.
+- **Known minor (logged, not blocking)**: toggling grayscale
+  while the preview is *off* (pipeline not yet built) flips the
+  button visually but is lost — `start()` does not re-apply the
+  toggle state, so the feed comes up in colour. Candidate for a
+  small follow-up (re-apply toggle on start, or disable the
+  filter buttons while preview is off).
 - **Out of scope**: sepia (needs a color matrix or
   frei0r-filter-sepia0r — `gst-plugins-bad` dependency);
   invert (needs `videoflip method=other` or similar). Both
@@ -1874,6 +1922,40 @@
   preview feature actually compile (T-200)`, plus the final
   squash-commit on main covering the bus-drain + revealer +
   header-bar toggle + banner UX iteration.
+
+### T-204 — Shrink the preview pane ~20% (v0.4 polish)
+
+- **State**: TODO
+- **Origin**: user feedback 2026-06-02 — the embedded preview
+  "se hace muy grande respecto al resto de la ventana"; it
+  dominates the controls page and pushes the groups below the
+  fold on the reference machine.
+- **Depends on**: T-200 (the preview widgets this resizes).
+- **Description**: reduce the preview pane's footprint by
+  roughly 20% so it reads as a feed *above* the controls
+  rather than the page's centre of gravity. The lever is in
+  `controls_view::build_preview_widgets`:
+  `gtk::Picture::height_request(240)` is the fixed vertical
+  reservation while revealed. Drop it to `192` (240 × 0.8 =
+  192), a clean 20% cut. The `adw::Clamp` `maximum_size(600)`
+  bounds the width to line up with the 600 px page clamp; the
+  `content_fit = Contain` keeps the aspect ratio, so the
+  rendered frame letterboxes inside the shorter box without
+  distortion — no width change needed for a height-only 20%
+  reduction.
+- **Acceptance criteria**:
+  - [ ] `height_request` lowered from 240 → 192 in
+        `build_preview_widgets`.
+  - [ ] Cargo gates green default + with
+        `obsbot-gui/live-preview`.
+  - [ ] Visual check: with preview on, the pane is visibly
+        smaller and at least one control group is reachable
+        without scrolling on the reference window size; the
+        frame is not stretched (letterboxes top/bottom on a
+        16:9 feed).
+- **Out of scope**: a user-resizable / draggable preview pane
+  (a `gtk::Paned` split is a larger v0.6 ergonomics item);
+  remembering a per-user preview height in `GSettings`.
 
 ---
 
