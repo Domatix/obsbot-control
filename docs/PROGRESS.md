@@ -12,6 +12,46 @@
 
 ## 2026-06-02 (v0.4 first-slice validation closure)
 
+### [2026-06-02T07:25:00Z] Point release v0.3.2 reached
+
+Native-only point release on top of v0.3.1, bundling the v0.4
+first slice now that it is hardware-validated. Chose v0.3.2 over
+v0.4.0 deliberately: a v0.4.0 milestone cut would, per CLAUDE.md
+§7, require the Flatpak to build — i.e. the T-203 `flatpak-builder`
+smoke-test, which needs the host's Flatpak re-enabled and a
+camera-side render validation neither of which is available in
+this session. v0.3.2 carries no Flatpak gate (native / .deb
+channel, like v0.3.1) so it ships the validated work now; v0.4.0
+stays queued behind the Flatpak smoke-test.
+
+Contents (all DONE + validated 2026-06-02): T-201 snapshot, T-202
+grayscale (dual-videoconvert fix), T-101c PTZ speed slider + Shift
+accelerator + hot-plug cleanup (local-accumulator hold fix), T-204
+preview pane 20% shrink.
+
+Release prep:
+* Workspace + meson version 0.3.1 -> 0.3.2.
+* AppStream metainfo gains the v0.3.2 <release> block (newest
+  first); `appstreamcli validate --no-net` passes (one
+  info-level redundancy note, no errors).
+* README Status block rewritten for v0.3.2; the stale line-11
+  "pre-alpha, no functionality yet" banner corrected to "alpha,
+  functional on the native build".
+* .deb extended-description bumped to v0.3.2 (adds snapshot +
+  grayscale + tunable PTZ speed to the feature list).
+
+CLAUDE.md §7 milestone gate (adapted for a point release):
+1. Bundled tasks DONE on main (T-101c, T-201, T-202, T-204).
+2. `cargo test --workspace` passes (1 doctest + 2 unit;
+   hardware tests `#[ignore]`d).
+3. `cargo clippy --workspace --all-targets -- -D warnings` and
+   the `--features obsbot-gui/live-preview` variant both exit 0.
+4. Flatpak intentionally NOT re-validated — this is the native
+   channel cut; the Flatpak gate is what defers v0.4.0.
+5. AppStream metainfo carries the v0.3.2 entry.
+6. Annotated `v0.3.2` tag cut against this commit.
+7. This entry.
+
 ### [2026-06-02T07:10:00Z] [T-204] DONE — preview pane shrunk 20%
 
 `gtk::Picture::height_request` 240 → 192 in

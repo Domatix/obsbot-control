@@ -8,7 +8,9 @@ GTK 4, libadwaita, and Rust. Targets GNOME Circle inclusion.
 - **Repo**: hosted under the [`Domatix`](https://github.com/Domatix)
   GitHub organization.
 
-> ⚠️ **Status**: pre-alpha. Project scaffolding only. No functionality yet.
+> ⚠️ **Status**: alpha. Functional on the native build (V4L2 standard
+> controls, vendor XU / AI tracking, live preview, PTZ); the Flatpak
+> channel lags the native build. Not yet submitted to Flathub.
 
 ## Goals
 
@@ -21,6 +23,19 @@ GTK 4, libadwaita, and Rust. Targets GNOME Circle inclusion.
 - Flatpak as primary distribution channel.
 
 ## Status
+
+**v0.3.2 — Snapshot, grayscale, PTZ speed** (released 2026-06-02).
+Completes the first slice of v0.4 work on the native build,
+validated against the Tiny 2 Lite: a header-bar **snapshot**
+button saves the current frame as PNG to your Pictures folder
+(T-201); a **grayscale** toggle switches the live feed between
+colour and black-and-white (T-202); the PTZ hold gains a tunable
+**speed** (`ptz-speed-fast`) and a **Shift+Arrow** accelerator,
+and now drives from a local position accumulator so fast pans no
+longer stall (T-101c). The embedded preview pane is 20% shorter
+so it no longer dominates the window (T-204). The Flatpak
+artifact still tracks v0.3.0 until the GStreamer plugin module is
+validated end-to-end in the manifest.
 
 **v0.3.1 — Live preview + smooth PTZ** (released 2026-05-19).
 Native build adds the v0.4 Live Preview pipeline behind a

@@ -77,6 +77,38 @@
   </supports>
 
   <releases>
+    <release version="0.3.2" date="2026-06-02" type="development">
+      <description>
+        <p>
+          Point release completing the first slice of v0.4 work on
+          the native build, validated against the Tiny 2 Lite:
+        </p>
+        <ul>
+          <li>Snapshot to file (T-201): a header-bar camera button
+            saves the current preview frame as a PNG under your
+            Pictures folder.</li>
+          <li>Grayscale preview filter (T-202): a header-bar toggle
+            switches the live feed between colour and black-and-white
+            instantly.</li>
+          <li>PTZ speed control (T-101c): a tunable hold speed
+            (ptz-speed-fast GSettings key), a Shift+Arrow accelerator
+            for fast keyboard pans, and clean cancellation of an
+            in-progress hold when the camera is unplugged.</li>
+          <li>Smoother PTZ hold: press-and-hold now drives the camera
+            from a local position accumulator instead of re-reading
+            the device every tick, fixing a visible stall during fast
+            pans.</li>
+          <li>Smaller preview pane (T-204): the embedded feed is 20%
+            shorter so it sits as a banner above the controls rather
+            than dominating the window.</li>
+        </ul>
+        <p>
+          The Flatpak distribution still tracks v0.3.0 until the
+          gstreamer1.0-gtk4 plugin module is validated end-to-end in
+          the manifest; the .deb / native builds carry these changes.
+        </p>
+      </description>
+    </release>
     <release version="0.3.1" date="2026-05-19" type="development">
       <description>
         <p>
