@@ -2042,8 +2042,9 @@
 
 ### T-205 — Bump Flatpak runtime off EOL GNOME 48 → GNOME 50
 
-- **State**: IN_PROGRESS
+- **State**: DONE
 - **Started**: 2026-06-02T09:20:00Z
+- **Completed**: 2026-06-04T00:00:00Z
 - **Depends on**: T-203 (the working Flatpak manifest).
 - **Origin**: the T-203 flatpak-builder run warned that
   `org.gnome.Platform//48` is end-of-life as of 2026-03-24. A
@@ -2057,12 +2058,15 @@
   automatically. No app-code change — only
   `build-aux/io.github.domatix.ObsbotCamControl.json`.
 - **Acceptance criteria**:
-  - [ ] `runtime-version` 48 → 50; `llvm19` → `llvm20`; the three
+  - [x] `runtime-version` 48 → 50; `llvm19` → `llvm20`; the three
         `/usr/lib/sdk/llvm19` paths → `llvm20`.
-  - [ ] `flatpak-builder` builds + installs against GNOME 50 and
+  - [x] `flatpak-builder` builds + installs against GNOME 50 and
         `gst-inspect-1.0 gtk4paintablesink` still loads in the
-        sandbox (re-run the T-203 headless verification).
-  - [ ] No EOL warning in the build output.
+        sandbox (re-run the T-203 headless verification). Verified
+        2026-06-04: build exit 0, `runtime=org.gnome.Platform/x86_64/50`,
+        `gtk4paintablesink` loads from
+        `/app/lib/gstreamer-1.0/libgstgtk4.so` (0.13.5).
+  - [x] No EOL warning in the build output (`grep -ic end-of-life` = 0).
 - **Out of scope**: actually submitting to Flathub (separate
   process — repo fork, flathub.json, reviewer round-trips);
   pinning the `gst-plugins-rs` tag to a newer release (0.13.5

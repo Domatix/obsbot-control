@@ -10,6 +10,28 @@
 
 ---
 
+## 2026-06-04 (Flathub runtime bump closure)
+
+### [2026-06-04T00:00:00Z] [T-205] DONE — GNOME 50 build verified, manifest committed
+
+Re-ran the headless flatpak-builder verification against the bumped
+manifest after the GNOME 50 SDK finished installing (Platform/Sdk 50,
+`rust-stable//25.08`, `llvm20//25.08`, freedesktop base 25.08). Build
+exited 0; the installed app reports
+`runtime=org.gnome.Platform/x86_64/50`; `gst-inspect-1.0` inside the
+sandbox still resolves `gtk4paintablesink` from
+`/app/lib/gstreamer-1.0/libgstgtk4.so` (gst-plugins-rs 0.13.5); and
+`grep -ic end-of-life build50.log` is 0 — the EOL warning that
+motivated this task is gone. All three acceptance criteria satisfied.
+`build-aux/io.github.domatix.ObsbotCamControl.json` (the only changed
+file — no app code) committed as
+`build(flatpak): bump runtime GNOME 48 → 50 (T-205)`. PLAN.md T-205 →
+DONE; STATE.md goes idle. The runtime-EOL line in the v0.4.0 gate is
+now closed: the manifest targets a supported runtime, so a Flathub
+submission is unblocked on the runtime front.
+
+---
+
 ## 2026-06-02 (v0.4 first-slice validation closure)
 
 ### [2026-06-02T09:20:00Z] [T-205] Started — bump Flatpak runtime GNOME 48 → 50

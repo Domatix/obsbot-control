@@ -6,21 +6,21 @@
 
 ---
 
-active_task: T-205  # Flathub prep: bump Flatpak runtime off EOL GNOME 48 → GNOME 50
-active_task_state: IN_PROGRESS
+active_task: none
+active_task_state: IDLE
 active_branch: main
-last_completed_task: T-101d  # PTZ single-step; closed alongside the v0.4 task set in the v0.4.0 cut
+last_completed_task: T-205  # Flathub prep: Flatpak runtime bumped off EOL GNOME 48 → GNOME 50, verified headless 2026-06-04
 last_milestone: v0.4.0  # Live Preview milestone cut 2026-06-02 (Flatpak-validated); v0.3.2 same day (native rollup)
-last_commit_on_main: 8daec14  # docs: record v0.4.0 release SHA (tag v0.4.0 on c542e0f)
-last_step: 2026-06-02 — started T-205 (Flathub runtime bump). Edited the Flatpak manifest GNOME 48→50 (freedesktop base 24.08→25.08): runtime-version 50, llvm19→llvm20, the three /usr/lib/sdk/llvm19 paths→llvm20. Installing GNOME 50 Platform/Sdk + rust-stable//25.08 + llvm20//25.08, then re-running flatpak-builder to confirm it builds + gst-inspect still finds gtk4paintablesink with no EOL warning.
-next_step: finish T-205 — once GNOME 50 SDK is installed, run flatpak-builder against the updated manifest, verify build + sandbox gst-inspect + no EOL warning, then commit the manifest change.
+last_commit_on_main: 5ab4ebe  # build(flatpak): bump runtime GNOME 48 → 50 (T-205) — docs commit follows
+last_step: 2026-06-04 — closed T-205. flatpak-builder against the GNOME 50 manifest exits 0; installed app links org.gnome.Platform/x86_64/50; sandbox gst-inspect resolves gtk4paintablesink from /app/lib/gstreamer-1.0/libgstgtk4.so (gst-plugins-rs 0.13.5); zero EOL warnings. Manifest committed (5ab4ebe); PLAN→DONE, PROGRESS/STATE updated.
+next_step: no active task. Runtime-EOL gate is closed → Flathub submission is unblocked on the runtime front (separate process: repo fork, flathub.json, reviewer round-trips — out of T-205 scope). Other open items: T-202 (grayscale-while-off lost on start), T-017 (Arch PKGBUILD validation on an Arch host), T-400 (post-v1.0 OBSBOT Meet). Propose next on user confirmation.
 blockers: none
 working_tree:
-  status: build-aux/io.github.domatix.ObsbotCamControl.json (runtime 48→50, llvm19→llvm20) held uncommitted pending the GNOME-50 flatpak-builder verification; everything else (docs cleanup + T-205 scaffolding) committed.
+  status: docs/PLAN.md, docs/PROGRESS.md, docs/STATE.md modified (T-205 closure: DONE + journal entry + this pointer); about to be committed together. Manifest already committed at 5ab4ebe.
 v0_4_0_gate:
   - T-203 build gate: DONE + verified headless 2026-06-02 (flatpak-builder builds all 3 modules, installs io.github.domatix.ObsbotCamControl 0.3.2, sandbox gst-inspect-1.0 finds gtk4paintablesink in /app/lib/gstreamer-1.0/libgstgtk4.so).
   - T-203 render check: PENDING USER — launch the installed Flatpak, toggle preview, confirm camera frames render on screen. Not machine-verifiable. Last thing before v0.4.0.
-  - runtime EOL: org.gnome.Platform//48 is EOL (2026-03-24). Builds today; bump to GNOME 49+ before any Flathub submission.
+  - runtime EOL: CLOSED 2026-06-04 (T-205) — manifest now targets org.gnome.Platform//50 (verified headless). Flathub-unblocked on the runtime front.
 still_open_non_hardware:
   - T-017 Arch PKGBUILD build/install/remove on an Arch host (community stakeholder, no rush).
   - T-202 minor: grayscale toggled while preview off is lost on start (re-apply on start, or disable filter buttons while off).
@@ -30,4 +30,4 @@ follow_ups_queued:
   - T-400 (post-v1.0): add OBSBOT Meet (original) to the model matrix.
 known_issues:
   - Q9 (PROTOCOL.md): pan_speed/tilt_speed accept writes but no motion on Tiny 2 Lite firmware 5.10. PTZ moves via discrete pan_absolute/tilt_absolute single steps (T-101d).
-updated_at: 2026-06-02T09:00:00Z
+updated_at: 2026-06-04T00:00:00Z
