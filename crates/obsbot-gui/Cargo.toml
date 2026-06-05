@@ -94,11 +94,14 @@ Native GNOME application to control OBSBOT Tiny 2 family webcams \
 (Tiny 2 and Tiny 2 Lite) over UVC/V4L2. v0.4.0 ships AI auto-framing, \
 HDR, FOV, vendor XU controls, V4L2 standard sliders, single-step PTZ \
 (one click or arrow-key press = one move) with zoom and focus, and a \
-feature-gated live-preview pipeline with snapshot-to-PNG and a \
-grayscale filter (requires gstreamer1.0-gtk4 on the host, opt in at \
-build time with --features live-preview). Unofficial test package; \
+live-preview pipeline with snapshot-to-PNG and a grayscale filter. \
+The preview needs the recommended GStreamer plugin packages at \
+runtime (gstreamer1.0-gtk4 in particular); without them the app \
+still runs and reports the missing element. Unofficial test package; \
 Flatpak via Flathub is the supported channel."""
+features = ["live-preview"]
 depends = "$auto"
+recommends = "gstreamer1.0-gtk4, gstreamer1.0-plugins-good, gstreamer1.0-plugins-base"
 assets = [
     ["target/release/obsbot-cam-control", "usr/bin/", "755"],
     ["../../builddir/data/io.github.domatix.ObsbotCamControl.desktop", "usr/share/applications/", "644"],

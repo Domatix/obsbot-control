@@ -1055,5 +1055,46 @@ pad to discrete single steps:
 
 ---
 
+## ADR-0022 — Ship live-preview in the .deb artifact; GStreamer plugins as Recommends
+
+**Status**: Accepted, 2026-06-05. Amends [[ADR-0015]] (the .deb
+convenience artifact).
+
+**Context**: while producing 0.4.0 hand-out artifacts for
+colleague testing, the regenerated `.deb` turned out to exclude
+the live preview: `obsbot-gui`'s `default = []` feature set
+(chosen so plain `cargo build` works without GStreamer dev
+packages) also governs what `cargo deb` compiles. A v0.4.0
+package whose headline milestone is Live Preview, shipped without
+the preview, would mislead testers. Debian 13 ships the required
+runtime plugin as `gstreamer1.0-gtk4` (0.13.5); some still-common
+distros (e.g. Ubuntu 24.04) do not ship it at all. The GUI
+degrades gracefully when the element is missing —
+`PreviewError::MissingElement` surfaces as a user-visible toast
+and everything else keeps working.
+
+**Decision**:
+
+- Set `features = ["live-preview"]` in
+  `[package.metadata.deb]` so the `.deb` binary always includes
+  the preview pipeline.
+- Declare the runtime plugin packages (`gstreamer1.0-gtk4`,
+  `gstreamer1.0-plugins-good`, `gstreamer1.0-plugins-base`) as
+  **Recommends**, not Depends. Linked libraries (e.g.
+  `libgstreamer1.0-0`) still land in Depends via `$auto`.
+
+**Consequences**:
+
+- The `.deb` installs on distros without `gstreamer1.0-gtk4`
+  (apt installs Recommends by default where available, but their
+  absence is not fatal); there the app runs with preview
+  disabled and a clear missing-element toast.
+- On Debian 13+ the preview works out of the box.
+- The dev-time default feature set is unchanged: plain
+  `cargo build` / `cargo test` still need no GStreamer dev
+  packages. Tracked as task T-206.
+
+---
+
 <!-- Append new ADRs above this line, never below. Newest ADRs go at the bottom
      of the list but new entries are added; do not edit old ones. -->

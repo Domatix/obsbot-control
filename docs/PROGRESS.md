@@ -10,6 +10,34 @@
 
 ---
 
+## 2026-06-05 (hand-out artifacts for colleague testing)
+
+### [2026-06-05T07:00:00Z] [T-206] DONE — .deb now ships live-preview; 0.4.0 hand-out artifacts produced
+
+Produced the two artifacts the user will hand to colleagues, both
+under `build-aux/dist/` (git-ignored): a distributable Flatpak bundle
+`obsbot-cam-control-0.4.0-x86_64.flatpak` (built from the user-repo
+ostree commit with `--runtime-repo` pointing at Flathub so the GNOME
+50 runtime auto-resolves; verified by a real `flatpak install
+--reinstall` from the file — version 0.4.0,
+`runtime=org.gnome.Platform/x86_64/50`), and a regenerated
+`obsbot-cam-control_0.4.0-1_amd64.deb` replacing the stale 0.1.0 one.
+The first `.deb` rebuild exposed that `cargo deb` compiles with
+`default = []` — no live preview in the v0.4.0 "Live Preview" package.
+Fixed per [[DECISIONS.md ADR-0022]]: `features = ["live-preview"]` +
+`recommends = "gstreamer1.0-gtk4, gstreamer1.0-plugins-good,
+gstreamer1.0-plugins-base"` in `[package.metadata.deb]`
+(`crates/obsbot-gui/Cargo.toml`), extended-description refreshed.
+Verified on the rebuilt `.deb`: Depends gains `libgstreamer1.0-0`
+($auto ⇒ feature compiled in), Recommends lists the three plugin
+packages, and the extracted binary contains the `gtk4paintablesink`
+pipeline strings. §2.3 gates green (fmt, clippy -D warnings, 61
+tests). Also pushed the two T-205 commits (5ab4ebe, 13f61a4) with the
+user's explicit OK. Commit
+`build(deb): ship live-preview in the .deb artifact (T-206)` follows.
+
+---
+
 ## 2026-06-04 (Flathub runtime bump closure)
 
 ### [2026-06-04T00:00:00Z] [T-205] DONE — GNOME 50 build verified, manifest committed

@@ -2074,6 +2074,34 @@
 
 ---
 
+### T-206 — Ship live-preview in the .deb artifact
+
+- **State**: DONE
+- **Started**: 2026-06-05T06:45:00Z
+- **Completed**: 2026-06-05T07:00:00Z
+- **Depends on**: T-016 (the cargo-deb packaging), T-201/T-202
+  (the live-preview pipeline).
+- **Origin**: regenerating the 0.4.0 hand-out `.deb` for
+  colleague testing revealed it carried no preview — `cargo deb`
+  builds with the crate's `default = []` features. See
+  [[DECISIONS.md ADR-0022]].
+- **Description**: add `features = ["live-preview"]` and a
+  `recommends` line (gstreamer1.0-gtk4, -plugins-good,
+  -plugins-base) to `[package.metadata.deb]` in
+  `crates/obsbot-gui/Cargo.toml`; refresh the
+  extended-description. Dev default features unchanged.
+- **Acceptance criteria**:
+  - [x] Rebuilt `.deb` Depends gains `libgstreamer1.0-0` via
+        `$auto` (proof the feature compiled in) and Recommends
+        lists the three plugin packages.
+  - [x] `strings usr/bin/obsbot-cam-control` from the extracted
+        `.deb` contains `gtk4paintablesink` (preview pipeline
+        present).
+  - [x] §2.3 gates green (fmt, clippy `-D warnings`, tests —
+        61 passed) with the metadata change.
+
+---
+
 ## Beyond v1.0 — Multi-model OBSBOT support (planned)
 
 ### T-400 — Add OBSBOT Meet (original) as a supported model
