@@ -22,7 +22,7 @@
 # revisit when v1.0 lands a public release.
 
 pkgname=obsbot-cam-control
-pkgver=0.1.0
+pkgver=0.4.0
 pkgrel=1
 pkgdesc="Native GNOME app to control OBSBOT Tiny 2 family webcams over UVC/V4L2"
 arch=('x86_64')
@@ -31,15 +31,22 @@ license=('GPL-3.0-or-later')
 # Runtime deps: derived from the linked-ELF surface verified on the
 # T-016 .deb (libadwaita-1, libgtk-4, libglib-2, libgio-2). Arch's
 # `gtk4` package pulls glib2 / pango / cairo / harfbuzz / gdk-pixbuf
-# transitively, so listing those two is sufficient. No gstreamer
-# yet (T-200+ scope).
-depends=('gtk4' 'libadwaita')
+# transitively. The gstreamer set mirrors ADR-0022 (.deb): the
+# live-preview pipeline needs gtk4paintablesink (gst-plugin-gtk4),
+# videoconvert (gst-plugins-base, pulls gstreamer core) and
+# v4l2src + videobalance (gst-plugins-good). Unlike the .deb's
+# Recommends, pacman has hard deps only — and on Arch all three are
+# in extra, so the install-everywhere concern does not apply.
+depends=('gtk4' 'libadwaita' 'gst-plugins-base' 'gst-plugins-good'
+         'gst-plugin-gtk4')
 # Build deps: `rust` ships cargo on Arch; `meson` is the build-
 # system orchestrator; `clang` provides libclang for the bindgen
-# pass v4l2-sys-mit needs (same root cause that forced the llvm19
+# pass v4l2-sys-mit needs (same root cause that forced the llvm
 # SDK extension in the Flatpak manifest, T-014 outcome notes);
-# `pkgconf` for gtk4-sys / libadwaita-sys link-flag discovery.
-makedepends=('rust' 'meson' 'clang' 'pkgconf')
+# `pkgconf` for gtk4-sys / libadwaita-sys link-flag discovery;
+# `blueprint-compiler` for the .blp → .ui pass in obsbot-gui's
+# build.rs (T-017 validation caught its absence here).
+makedepends=('rust' 'meson' 'clang' 'pkgconf' 'blueprint-compiler')
 source=()
 sha256sums=()
 # Cargo workspace `[profile.release]` already does
@@ -55,7 +62,9 @@ build() {
     # `--buildtype=plain`, and our top-level meson.build maps
     # `plain` to cargo's release profile (matches meson's "plain"
     # semantics — optimised with distro-controlled flags).
-    arch-meson "$startdir/.." build
+    # -Dlive-preview=true mirrors the Flatpak manifest and the
+    # ADR-0022 .deb: the v0.4.0 package ships the preview pipeline.
+    arch-meson "$startdir/.." build -Dlive-preview=true
     meson compile -C build
 }
 

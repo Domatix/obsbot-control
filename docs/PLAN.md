@@ -3127,6 +3127,53 @@
   options still produces release (verified locally — same
   BuildID as before).
 
+### T-017b — Run the deferred T-017 validation on Arch (containerised) + 0.4.0 refresh
+
+- **State**: IN_PROGRESS
+- **Started**: 2026-06-05T07:30:00Z
+- **Depends on**: T-017 (the PKGBUILD), T-206 (the ADR-0022
+  preview-in-packages decision this mirrors).
+- **Origin**: the user's boss asked for an Arch build
+  (2026-06-05); T-017's two pacman-side acceptance criteria were
+  explicitly deferred until "the Arch stakeholder runs the
+  artifact through". Pre-flight review of the stale PKGBUILD
+  already surfaced three real issues — exactly the class of
+  defect the deferred run was meant to catch:
+  1. `makedepends` lacked `blueprint-compiler` (obsbot-gui's
+     build.rs shells out to it; the build would have failed).
+  2. `pkgver` was stale at 0.1.0.
+  3. The build carried no live preview (no `-Dlive-preview=true`),
+     inconsistent with the v0.4.0 milestone and [[ADR-0022]].
+- **Description**: fix the PKGBUILD (pkgver 0.4.0,
+  `makedepends+=blueprint-compiler`, `-Dlive-preview=true`,
+  gstreamer runtime deps incl. `gst-plugin-gtk4`), then run the
+  real validation in a rootless-podman `archlinux:latest`
+  container on the Debian host: `makepkg` produces the
+  `.pkg.tar.zst`, `pacman -U` installs it cleanly, the binary
+  executes, `pacman -R` removes it cleanly.
+- **Acceptance criteria**:
+  - [ ] `makepkg` inside an up-to-date `archlinux:latest`
+        container produces
+        `obsbot-cam-control-0.4.0-1-x86_64.pkg.tar.zst`.
+  - [ ] `pacman -U` installs it cleanly inside the container;
+        `pacman -Qi obsbot-cam-control` reports 0.4.0-1.
+  - [ ] The installed binary executes in the container (GUI
+        cannot render headless; acceptance = process starts and
+        fails gracefully on missing display, not on linkage).
+  - [ ] `pacman -R obsbot-cam-control` removes it cleanly.
+  - [ ] The `.pkg.tar.zst` lands in `build-aux/dist/` for the
+        Arch stakeholder.
+- **Handoff note (2026-06-05, [[DECISIONS.md ADR-0023]])**: the
+  PKGBUILD half is DONE and committed (pkgver 0.4.0,
+  `blueprint-compiler` in makedepends, `-Dlive-preview=true`,
+  gstreamer deps). The Debian host has no container runtime, so the
+  five acceptance criteria above were **not** run here; they
+  transfer to the incoming developer, who validates on a real Arch
+  host or container — the simplest path is `./build-aux/build-arch.sh`
+  on Arch, or the `docker run … archlinux:latest` recipe printed by
+  that script on a non-Arch host. This doubles as the boss's
+  requested Arch build. First task for whoever picks the project up.
+
 ---
 
 ## Backlog (future milestones)

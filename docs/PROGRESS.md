@@ -12,6 +12,52 @@
 
 ## 2026-06-05 (hand-out artifacts for colleague testing)
 
+### [2026-06-05T09:00:00Z] [T-017b] PROJECT HANDOFF — committed PKGBUILD refresh; Arch validation transferred to incoming developer ([[DECISIONS.md ADR-0023]])
+
+The user is handing the project to another developer. The
+persistent-memory method (CLAUDE.md → STATE.md →
+PLAN/PROGRESS/DECISIONS) makes the technical handoff near-free; the
+remaining work was tying loose ends. Branch audit: the five
+local-only `feat/*` branches (T-101b, T-101c, T-201-202-203-v04,
+T-300-xu-tracking, backup-pre-rewrite-2026-05-13) are **all**
+residue — their content is in `main` or in the v0.3.x tags
+(verified by content diff, not patch-id, to defeat squash-merge
+noise). Nothing is orphaned on a fresh clone, so the branches stay
+on the original machine and `main` is the single source of truth.
+
+T-017b resolved at the handoff boundary: the PKGBUILD half is DONE
+and committed (pkgver 0.4.0, `blueprint-compiler` in makedepends,
+`-Dlive-preview=true`, gstreamer deps). The Debian host has no
+container runtime and installing one needs sudo the session cannot
+perform, so the five pacman-side acceptance criteria were not run
+here; they transfer to the incoming developer (the simplest path is
+`./build-aux/build-arch.sh` on a real Arch host, or the
+`docker … archlinux:latest` recipe that script prints on non-Arch).
+This is also the Arch build the boss asked for. Added
+`docs/HANDOFF.md` as the human "start here" pointer. Committed
+build-aux/PKGBUILD + the four docs + HANDOFF.md together and pushed
+to `main`. Working tree clean for the clone.
+
+### [2026-06-05T07:30:00Z] [T-017b] Started — Arch build validation (boss request); PKGBUILD pre-flight caught 3 defects
+
+The user's boss asked for an Arch build. This is exactly T-017's
+deferred pacman-side validation ("run by CI or a contributor on
+Arch"). Pre-flight review of `build-aux/PKGBUILD` surfaced three
+real issues before any container ran: (1) `makedepends` lacked
+`blueprint-compiler` — obsbot-gui's build.rs shells out to it, so
+makepkg would have failed on a clean Arch host; (2) stale
+pkgver=0.1.0; (3) no `-Dlive-preview=true`, so the v0.4.0 package
+would have shipped previewless — the same defect ADR-0022 just
+fixed in the .deb. All three fixed: pkgver 0.4.0, makedepends +=
+blueprint-compiler, depends += gst-plugins-base/-good +
+gst-plugin-gtk4 (hard deps — pacman has no Recommends; all in
+extra), build() passes -Dlive-preview=true. PLAN gains T-017b with
+container-shaped acceptance criteria (makepkg → pacman -U → binary
+exec → pacman -R, rootless podman archlinux:latest). Host has no
+docker/podman; waiting on the user to `sudo apt install podman`.
+PKGBUILD + docs held uncommitted until the container validation
+passes (T-205 held-pending-verification shape).
+
 ### [2026-06-05T07:00:00Z] [T-206] DONE — .deb now ships live-preview; 0.4.0 hand-out artifacts produced
 
 Produced the two artifacts the user will hand to colleagues, both

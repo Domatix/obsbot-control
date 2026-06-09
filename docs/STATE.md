@@ -6,17 +6,17 @@
 
 ---
 
-active_task: none
-active_task_state: IDLE
+active_task: T-017b  # PKGBUILD half DONE; Arch validation transferred to incoming dev (ADR-0023 handoff)
+active_task_state: IN_PROGRESS
 active_branch: main
 last_completed_task: T-206  # .deb now ships live-preview (ADR-0022); 0.4.0 hand-out artifacts (.flatpak bundle + .deb) produced for colleague testing
 last_milestone: v0.4.0  # Live Preview milestone cut 2026-06-02 (Flatpak-validated); v0.3.2 same day (native rollup)
-last_commit_on_main: 13f61a4  # docs: mark T-205 done (pushed); T-206 commit follows this STATE update
-last_step: 2026-06-05 — T-206 done. Hand-out artifacts in build-aux/dist/ (git-ignored): obsbot-cam-control-0.4.0-x86_64.flatpak (install-verified, runtime GNOME 50) + obsbot-cam-control_0.4.0-1_amd64.deb (now with live-preview compiled in, GStreamer plugins as Recommends per ADR-0022). T-205 commits pushed with user OK.
-next_step: no active task. Flathub submission unblocked on the runtime front (separate process: repo fork, flathub.json, reviewer round-trips). Other open items: T-202 (grayscale-while-off lost on start), T-017 (Arch PKGBUILD validation on an Arch host), T-400 (post-v1.0 OBSBOT Meet). Propose next on user confirmation.
-blockers: none
+last_commit_on_main: 065fe14  # build(deb): ship live-preview in the .deb (T-206, pushed); handoff commit follows this STATE update
+last_step: 2026-06-05 — PROJECT HANDOFF (ADR-0023). T-017b PKGBUILD refresh committed (pkgver 0.4.0, makedepends += blueprint-compiler, -Dlive-preview=true, gstreamer deps). Arch validation could not run here (Debian host, no container runtime); transferred to incoming developer. Added docs/HANDOFF.md as the human "start here". Audit confirmed all 5 local-only feat/* branches are residue already in main / v0.3.x tags — nothing orphaned on a fresh clone.
+next_step: INCOMING DEV — read CLAUDE.md → this file → docs/HANDOFF.md. First actionable task is T-017b: run the Arch validation (./build-aux/build-arch.sh on Arch, or the docker archlinux:latest recipe it prints) — makepkg → pacman -U → binary exec → pacman -R, drop .pkg.tar.zst in build-aux/dist/. Then T-202, Flathub prep, T-400.
+blockers: none on main. T-017b Arch validation pending an Arch host (transferred to incoming dev, not a blocker on this machine).
 working_tree:
-  status: crates/obsbot-gui/Cargo.toml, docs/PLAN.md, docs/PROGRESS.md, docs/DECISIONS.md, docs/STATE.md modified (T-206: deb features+recommends, task record, ADR-0022, journal, this pointer); about to be committed together as the T-206 commit.
+  status: clean after the handoff commit (build-aux/PKGBUILD + docs/PLAN.md + docs/PROGRESS.md + docs/DECISIONS.md + docs/STATE.md + new docs/HANDOFF.md committed together).
 v0_4_0_gate:
   - T-203 build gate: DONE + verified headless 2026-06-02 (flatpak-builder builds all 3 modules, installs io.github.domatix.ObsbotCamControl 0.3.2, sandbox gst-inspect-1.0 finds gtk4paintablesink in /app/lib/gstreamer-1.0/libgstgtk4.so).
   - T-203 render check: PENDING USER — launch the installed Flatpak, toggle preview, confirm camera frames render on screen. Not machine-verifiable. Last thing before v0.4.0.

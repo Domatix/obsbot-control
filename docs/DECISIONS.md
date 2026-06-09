@@ -1096,5 +1096,54 @@ and everything else keeps working.
 
 ---
 
+## ADR-0023 — Hand the project off to an incoming developer; T-017b Arch validation transfers with it
+
+**Date**: 2026-06-05
+**Status**: accepted
+**Context**: The project is being handed to another developer who
+will carry the remaining work. The persistent-memory method this
+repo follows (CLAUDE.md → STATE.md → PLAN/PROGRESS/DECISIONS) was
+built precisely so a cold reader can resume without tribal
+knowledge; the handoff exercises that design. Two loose ends had to
+be tied first: (1) an uncommitted working tree (the T-017b PKGBUILD
+0.4.0 refresh) that would otherwise reach the new developer as an
+unexplained diff; (2) the T-017b Arch validation itself, which
+could not run on this Debian host (no container runtime; installing
+one needs sudo the session cannot perform). An audit confirmed the
+five local-only `feat/*` branches are all residue already in `main`
+or in the v0.3.x tags — no orphaned work would be lost on a fresh
+clone.
+**Decision**:
+
+- Commit the T-017b PKGBUILD refresh + docs now so `main` is the
+  single source of truth and the working tree is clean for the
+  clone. The PKGBUILD is corrected and ready (pkgver 0.4.0,
+  `blueprint-compiler` in makedepends, `-Dlive-preview=true`,
+  gstreamer runtime deps); only the *execution* of the validation
+  is outstanding.
+- Reassign T-017b's remaining acceptance criteria (makepkg →
+  pacman -U → binary exec → pacman -R) to the incoming developer,
+  who runs them on a real Arch host or container. This also serves
+  the boss's request for an Arch build directly.
+- Add `docs/HANDOFF.md` as the human-facing "start here" entry
+  point, pointing at the existing machine-readable docs rather
+  than duplicating them.
+- Do not push the local `feat/*` branches; they are residue and
+  `main` carries their content. Leave them on the original
+  machine (branch-hygiene policy: delete only on explicit ask).
+
+**Consequences**:
+
+- The new developer clones, reads `CLAUDE.md` (which routes them
+  to `STATE.md`), and resumes from a clean tree with T-017b as the
+  first actionable task.
+- The Arch validation moves closer to its natural environment (a
+  real Arch stakeholder) instead of being forced through a
+  containerised Debian workaround.
+- `STATE.md` keeps T-017b `IN_PROGRESS` (PKGBUILD done, validation
+  pending) so its state is unambiguous to the cold reader.
+
+---
+
 <!-- Append new ADRs above this line, never below. Newest ADRs go at the bottom
      of the list but new entries are added; do not edit old ones. -->
