@@ -263,28 +263,40 @@ impl PreviewPipeline {
         // For the paintable handoff we still need the gtk4
         // sink up-front.
         //
-        // Why two `videoconvert` elements:
+        // Element chain: vc_pre → vb_caps → videobalance → vc_post →
+        // gtk4paintablesink.
         // - `vc_pre` normalises whatever raw format `v4l2src` is
-        //   negotiating (YUYV / NV12 / I420 — varies per UVC build)
-        //   into a layout `videobalance` can mutate in place.
-        //   Without this the sink sometimes dmabuf-imports the
-        //   upstream buffer directly and `videobalance` falls back
-        //   to passthrough, so the `saturation` property has no
-        //   observable effect (T-202 grayscale silently no-ops).
-        //   It also clears the spammy `gst_video_frame_map_id:
-        //   assertion 'info->finfo->format == meta->format' failed`
-        //   warnings caused by the upstream `GstVideoMeta` not
-        //   matching the renegotiated downstream caps.
-        // - `vc_post` lets the sink pick whatever format it
-        //   prefers (commonly RGBA) without constraining what
-        //   `videobalance` runs on.
+        //   negotiating (YUYV / NV12 / MJPEG-decoded — varies per UVC
+        //   build) into a layout `videobalance` can mutate.
+        // - `vb_caps` (T-209) is the load-bearing fix: a `capsfilter`
+        //   pinning `video/x-raw, format=I420` in **system memory**.
+        //   Without it the Tiny 2 hands YUY2 dmabufs straight through
+        //   to the sink (zero-copy), `videobalance` falls back to
+        //   passthrough so the grayscale `saturation` write has no
+        //   effect, and every frame logs `gst_video_frame_map_id:
+        //   assertion 'info->finfo->format == meta->format' failed` +
+        //   `Gdk-WARNING: proper colorstate for YUV dmabufs`. Forcing a
+        //   concrete system-memory format makes `videoconvert` do a
+        //   real copy, breaking the dmabuf path so `videobalance`
+        //   actually runs. I420 is what `videobalance` handles natively.
+        // - `vc_post` lets the sink pick whatever format it prefers
+        //   (commonly RGBA) without constraining `videobalance`.
         let videoconvert_pre = gst::ElementFactory::make("videoconvert")
             .name("vc_pre")
             .build()
             .map_err(|_| PreviewError::MissingElement("videoconvert".to_string()))?;
+        let videobalance_caps = gst::ElementFactory::make("capsfilter")
+            .name("vb_caps")
+            .property(
+                "caps",
+                gst::Caps::builder("video/x-raw")
+                    .field("format", "I420")
+                    .build(),
+            )
+            .build()
+            .map_err(|_| PreviewError::MissingElement("capsfilter".to_string()))?;
         // T-202: `videobalance` sits in the pipeline unconditionally
-        // with saturation = 1.0 (identity transform — costs only the
-        // YUV ↔ YUV passthrough on each frame). Toggling grayscale
+        // with saturation = 1.0 (identity transform). Toggling grayscale
         // is a property write on this element, no relink needed.
         let videobalance = gst::ElementFactory::make("videobalance")
             .name("vb_filter")
@@ -302,10 +314,22 @@ impl PreviewPipeline {
         let paintable: gtk::gdk::Paintable = sink.property::<gtk::gdk::Paintable>("paintable");
 
         pipeline
-            .add_many([&videoconvert_pre, &videobalance, &videoconvert_post, &sink])
+            .add_many([
+                &videoconvert_pre,
+                &videobalance_caps,
+                &videobalance,
+                &videoconvert_post,
+                &sink,
+            ])
             .expect("pipeline.add_many on fresh elements cannot fail");
-        gst::Element::link_many([&videoconvert_pre, &videobalance, &videoconvert_post, &sink])
-            .expect("vc_pre → videobalance → vc_post → gtk4paintablesink link cannot fail");
+        gst::Element::link_many([
+            &videoconvert_pre,
+            &videobalance_caps,
+            &videobalance,
+            &videoconvert_post,
+            &sink,
+        ])
+        .expect("vc_pre → vb_caps → videobalance → vc_post → gtk4paintablesink link cannot fail");
 
         Ok(Self {
             pipeline,

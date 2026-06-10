@@ -3176,8 +3176,10 @@
 
 ### T-207 — Stop the preview when the camera is no longer in use (lifecycle fix)
 
-- **State**: IN_PROGRESS (code DONE + cargo gates green; hardware
-  validation of the LED behaviour pending the user / a colleague)
+- **State**: DONE (2026-06-11). Verified via a `/proc/<pid>/fd` monitor:
+  the V4L2 node is released on navigate-back and on window close, no
+  lingering process. The remaining LED-on symptom was firmware, handled
+  by T-208.
 - **Started**: 2026-06-10
 - **Depends on**: T-200 (preview pipeline), T-110 (hot-plug REMOVE
   pop path the `hidden` signal now also covers).
@@ -3224,10 +3226,10 @@
 
 ### T-208 — Auto-sleep the camera when the preview stops (firmware power-down)
 
-- **State**: IN_PROGRESS — REDESIGNED to deferred sleep on 2026-06-11
-  ([[DECISIONS.md ADR-0025]]); code DONE + cargo gates green; end-to-end
-  hardware validation pending the user. See "Redesign" note at the end
-  of this task.
+- **State**: DONE (2026-06-11) — REDESIGNED to deferred sleep
+  ([[DECISIONS.md ADR-0025]]). User confirmed the camera now powers down
+  ("ya parece que se apaga"). See "Redesign" note at the end of this
+  task.
 - **Started**: 2026-06-10
 - **Depends on**: T-207 (single `stop` chokepoint it hooks into),
   T-300 (`set_sleep` / `SleepState`), T-302 (the manual "Camera
@@ -3290,6 +3292,41 @@
     toggle off → camera sleeps after ~3-5 s; re-open → wakes + shows
     video; window close → window vanishes, camera sleeps, app exits
     ~4 s later; camera open in another app → stays awake.
+
+### T-209 — Fix the preview pipeline format negotiation (grayscale + CRITICAL spam)
+
+- **State**: IN_PROGRESS (code DONE + cargo gates green + verified
+  headless; user visual confirmation pending).
+- **Started**: 2026-06-11
+- **Depends on**: T-200 (preview pipeline), T-202 (grayscale toggle).
+- **Problem**: the Tiny 2 only offers `MJPG` (HD/4K) and `YUYV` (≤640×480)
+  — no raw HD. The pipeline negotiated YUY2 640×480, and the
+  `gtk4paintablesink` imported the YUV buffers as **dmabuf zero-copy**,
+  so `videobalance` ran in passthrough (the grayscale `saturation` write
+  had no effect) and every frame logged `gst_video_frame_map_id:
+  assertion 'info->finfo->format == meta->format' failed` +
+  `Gdk-WARNING: proper colorstate for YUV dmabufs`.
+- **Fix**: insert a `capsfilter` (`vb_caps`) pinning
+  `video/x-raw, format=I420` in **system memory** between `vc_pre` and
+  `videobalance`. This forces `videoconvert` to do a real copy, breaking
+  the dmabuf passthrough so `videobalance` actually mutates the frame.
+- **Acceptance criteria**:
+  - `cargo fmt --all --check`, clippy default + `--features
+    obsbot-gui/live-preview`, `cargo test --workspace` green. **DONE**.
+  - Grayscale actually desaturates. **DONE (verified headless
+    2026-06-11)**: drove the real camera through the new chain to a
+    fakesink and read the I420 U plane — mean |U−128| was 19.10 at
+    saturation 1.0 (colour) and 0.00 at saturation 0.0 (grayscale), so
+    `videobalance` now acts.
+  - **User validation pending**: in the app, the grayscale toggle
+    visibly desaturates the preview, and the `GStreamer-Video-CRITICAL`
+    spam is gone from the log.
+  - Commit `fix(gui): force system-memory I420 so grayscale works and
+    the CRITICAL spam stops (T-209)`.
+- **Possible follow-up**: the camera maxes at 640×480 in raw YUYV; if HD
+  preview is wanted, add a `decodebin`/`jpegdec` path to use the MJPG
+  stream. Out of scope for T-209 (the user's issue was the dead toggle +
+  log spam, not resolution).
 
 ---
 

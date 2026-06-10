@@ -6,15 +6,15 @@
 
 ---
 
-active_task: T-208  # auto-sleep when unused — REDESIGNED to deferred sleep (ADR-0025); code DONE, end-to-end hardware validation pending
+active_task: T-209  # preview pipeline format fix (capsfilter I420) — grayscale now works + kills CRITICAL spam; verified headless, user visual confirmation pending
 active_task_state: IN_PROGRESS
 active_branch: main
-last_completed_task: T-207  # close V4L2 fd on navigate-away + window-close — confirmed working via /proc fd monitor 2026-06-10. LED-stays-on turned out to be firmware, not a leaked fd → led to T-208.
+last_completed_task: T-208  # deferred auto-sleep (ADR-0025) — user confirmed "ya parece que se apaga". T-207 (fd close) also DONE.
 last_milestone: v0.4.0  # Live Preview milestone cut 2026-06-02 (Flatpak-validated); v0.3.2 same day (native rollup)
-last_commit_on_main: 96ce8f7  # feat(gui): auto-sleep when preview stops (T-208 v1, inline); deferred-sleep redesign commit follows this STATE update
-last_step: 2026-06-11 — T-208 REDESIGN (ADR-0025). Drove /dev/video0 headlessly (Claude is in group video): proved T-207 fd-close works (150 buf/5s healthy), the camera HANGS under rapid churn (replug recovers), and crucially the firmware IGNORES Sleep for ~3s after streaming (accepts at t≈3s; cold Sleep works). So inline T-208 never slept the camera. Reworked: stop() arms a deferred timer (Sleep at t=3,4,5s, skip if another app holds device); start() cancels it + sends explicit Wake before streaming; window close hides+defers Sleep 4s+quits. All cargo gates green (default + --features obsbot-gui/live-preview).
-next_step: USER — end-to-end hardware check of T-208 deferred sleep: enable preview (video shows) → toggle off → camera sleeps (LED off/lens cover) after ~3-5s → re-open preview → wakes + shows video; close window → window vanishes, camera sleeps, app exits ~4s later; safeguard: camera open in another app → stays awake. Then mark T-207+T-208 DONE. Separate open item: T-209 preview pipeline format bug (no MJPEG decoder + dmabuf passthrough → grayscale dead + CRITICAL spam) — diagnosed, not fixed.
-blockers: none on main. T-208 pending eyes-on-hardware. T-017b Arch validation still transferred to incoming dev (ADR-0023).
+last_commit_on_main: b199267  # fix(gui): defer the auto-sleep so the firmware accepts it (T-208); T-209 commit follows this STATE update
+last_step: 2026-06-11 — T-209. User confirmed T-208 sleep works ("ya parece que se apaga"); same report: grayscale toggle still dead. Root cause: gtk4paintablesink dmabuf-imports the camera's YUY2 → videobalance passthrough + per-frame gst_video_frame_map_id CRITICAL. Fix: capsfilter vb_caps pinning video/x-raw,format=I420 in system memory between vc_pre and videobalance. Verified headless on the real camera (read I420 U plane: |U-128| = 19.10 colour vs 0.00 grayscale). Marked T-207 + T-208 DONE. Gates green.
+next_step: USER — visual check in the app: grayscale toggle visibly desaturates the preview, and the GStreamer-Video-CRITICAL spam is gone from the terminal. Then mark T-209 DONE. Optional follow-up: decodebin/jpegdec for HD (MJPG) preview — camera maxes at 640×480 raw YUYV. T-017b Arch validation still transferred to incoming dev (ADR-0023).
+blockers: none on main. T-209 pending eyes-on-hardware. T-017b Arch validation pending an Arch host (transferred to incoming dev).
 working_tree:
   status: after the T-208-redesign commit, only the untracked build artifact obsbot-cam-control-0.4.0-1-x86_64.pkg.tar.zst remains (user said leave it untracked, do not add to git).
 firmware_notes:

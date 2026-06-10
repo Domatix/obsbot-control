@@ -194,6 +194,34 @@ app exits ~4 s later). Note the camera-hang-under-churn risk (replug
 recovers) should be much lower now that we no longer sleep on every
 stop and we wake explicitly on start.
 
+### [2026-06-11T02:10:00Z] [T-207][T-208] DONE — user confirmed the camera now powers down
+
+User ran the deferred-sleep build: "ya parece que se apaga" — the
+camera now sleeps when the preview stops / on close and wakes on
+re-open. T-207 (fd close, machine-verified earlier) and T-208 (deferred
+sleep) marked DONE.
+
+### [2026-06-11T02:15:00Z] [T-209] Fixed + verified headless — grayscale and CRITICAL spam
+
+Same user report flagged the grayscale toggle still doing nothing. Root
+cause (diagnosed 2026-06-10): the Tiny 2 only offers MJPG/YUYV, the
+pipeline negotiated YUY2 640×480, and `gtk4paintablesink` imported the
+YUV buffers as dmabuf zero-copy, so `videobalance` ran in passthrough
+(grayscale no-op) and every frame logged the `gst_video_frame_map_id`
+CRITICAL + the YUV-dmabuf colorstate warning. Fix: insert a `capsfilter`
+(`vb_caps`) pinning `video/x-raw,format=I420` in system memory between
+`vc_pre` and `videobalance`, forcing a real `videoconvert` copy that
+breaks the dmabuf path.
+
+Verified headless against the real camera (throwaway probe, deleted):
+read the I420 U plane off the new chain — mean |U−128| = 19.10 at
+saturation 1.0 (colour) vs 0.00 at saturation 0.0 (grayscale), so
+`videobalance` now mutates the frame. Gates green (fmt, clippy default +
+live-preview, test). IN_PROGRESS pending the user's visual confirmation
+(toggle desaturates the preview + the CRITICAL spam is gone). Possible
+follow-up: a decodebin/jpegdec path for HD (MJPG) preview — the camera
+maxes at 640×480 in raw YUYV; out of scope for T-209.
+
 ---
 
 ## 2026-06-05 (hand-out artifacts for colleague testing)
