@@ -1208,5 +1208,58 @@ robust-stop + visibility-pause) and chose **robust stop**.
 
 ---
 
+## ADR-0025 — Auto-sleep must be deferred ~3 s after streaming; revert the inline T-208 sleep
+
+**Date**: 2026-06-11
+**Status**: accepted (supersedes the inline-sleep mechanism of
+[[ADR-0024]] / T-208; the goal — power the camera down when unused —
+is unchanged)
+**Context**: Hands-on headless probing of the user's Tiny 2 Lite
+(fw 5.10), driving `/dev/video0` directly, established three firmware
+facts that the original T-208 (sleep inline in `PreviewPipeline::stop`)
+did not account for:
+
+- **The firmware ignores a Sleep frame for ~3 s after streaming
+  stops.** Measured by retrying Sleep once per second after a capture:
+  `get_status` read `Awake` at t=1 s and t=2 s, flipped to `Sleep` at
+  t≈3 s. A *cold* Sleep (no preceding capture) works immediately. So
+  T-208's inline sleep — fired the instant the stream stopped — never
+  actually slept the camera.
+- **Closing the V4L2 fd does not power the camera down** (confirmed
+  earlier, ADR-0024); only the XU Sleep frame does.
+- **Rapid open/close/sleep/wake churn hangs the camera** (accepts
+  open + negotiates caps but delivers 0 buffers; a USB replug
+  recovers). Sleeping on *every* stop made this worse.
+
+**Decision**:
+
+- Revert the inline sleep. `stop` instead **arms a deferred timer**
+  that sends Sleep at t=3,4,5 s (retries absorb firmware jitter),
+  skipping if another process holds the device. `start` cancels the
+  pending timer and sends an explicit **Wake** before opening the
+  stream (a prior auto-sleep may have powered the camera down).
+- Window close hides the window for an instant-feeling close, keeps
+  the app alive (hidden, not destroyed), fires Sleep after 4 s, then
+  `app.quit()` — because we cannot block the close for 3 s without it
+  feeling broken.
+- Keep the `another_process_has_device` safeguard and the `Drop`
+  backstop from T-207.
+
+**Consequences**:
+
+- The camera now actually sleeps (LED off, lens cover) a few seconds
+  after the preview stops or the window closes, and wakes reliably on
+  the next preview.
+- Closing the app keeps the process alive ~4 s (window hidden) before
+  it exits — a deliberate, bounded trade to honour "sleep on close".
+  Not a persistent background app.
+- Less sleep/wake churn than the inline design, lowering the
+  camera-hang risk. The hang itself (firmware-level, replug-recover)
+  remains a latent issue tracked separately.
+- `SLEEP_DELAY_SECS` (3) is hardware-measured on one unit; other
+  OBSBOT models/firmwares may differ and can tune the constant.
+
+---
+
 <!-- Append new ADRs above this line, never below. Newest ADRs go at the bottom
      of the list but new entries are added; do not edit old ones. -->

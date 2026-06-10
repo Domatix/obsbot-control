@@ -65,15 +65,33 @@ pub fn build(app: &adw::Application) -> adw::ApplicationWindow {
 
     window.set_application(Some(app));
 
-    // T-207: release the camera's V4L2 capture node on window close
-    // rather than leaving it to `Drop` ordering at process teardown.
-    // Without the `live-preview` feature there is no pipeline to stop,
-    // so the body is compiled out and the handler just proceeds.
-    window.connect_close_request(|_| {
-        #[cfg(feature = "live-preview")]
-        crate::preview::stop_active();
-        glib::Propagation::Proceed
-    });
+    // T-207 / T-208: on window close, stop the preview stream and power
+    // the camera down before quitting. The OBSBOT firmware ignores
+    // Sleep for ~3 s after streaming, so we hide the window for an
+    // instant-feeling close, keep the app alive briefly while the
+    // camera powers down, then quit. Only wired with the `live-preview`
+    // feature; without it the default close (destroy + quit) applies.
+    #[cfg(feature = "live-preview")]
+    {
+        let app_for_close = app.clone();
+        window.connect_close_request(move |win| {
+            crate::preview::stop_active();
+            crate::preview::cancel_deferred_sleep();
+            if let Some(path) = crate::preview::active_camera_path() {
+                // Hiding (not destroying) the window keeps the app alive
+                // without an explicit hold, so the deferred sleep below
+                // can run before we quit.
+                win.set_visible(false);
+                let app = app_for_close.clone();
+                glib::timeout_add_seconds_local_once(4, move || {
+                    crate::preview::send_sleep(&path);
+                    app.quit();
+                });
+                return glib::Propagation::Stop;
+            }
+            glib::Propagation::Proceed
+        });
+    }
 
     // Window-level toast surface (T-108 / T-110): bound once and
     // reused for V4L2 write failures *and* hot-plug REMOVE notices.

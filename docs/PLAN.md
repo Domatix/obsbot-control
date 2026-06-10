@@ -3224,8 +3224,10 @@
 
 ### T-208 — Auto-sleep the camera when the preview stops (firmware power-down)
 
-- **State**: IN_PROGRESS (code DONE + cargo gates green; hardware
-  validation pending the user)
+- **State**: IN_PROGRESS — REDESIGNED to deferred sleep on 2026-06-11
+  ([[DECISIONS.md ADR-0025]]); code DONE + cargo gates green; end-to-end
+  hardware validation pending the user. See "Redesign" note at the end
+  of this task.
 - **Started**: 2026-06-10
 - **Depends on**: T-207 (single `stop` chokepoint it hooks into),
   T-300 (`set_sleep` / `SleepState`), T-302 (the manual "Camera
@@ -3268,6 +3270,26 @@
     lifecycle to refresh it.
   - `auto-sleep-optin`: make T-208 a `GSettings` toggle if any user
     wants the old always-awake behaviour.
+- **Redesign (2026-06-11, [[DECISIONS.md ADR-0025]])**: headless
+  probing of the user's Tiny 2 Lite (fw 5.10) found the firmware
+  **ignores Sleep for ~3 s after streaming** (accepted at t≈3 s; cold
+  Sleep works), so the inline sleep never powered the camera down. Also
+  found that rapid sleep/wake/open/close churn hangs the camera (replug
+  recovers). New mechanism:
+  - `stop` arms a deferred timer (`PENDING_SLEEP` thread_local) that
+    sends Sleep at t=3,4,5 s, skipping if `another_process_has_device`.
+  - `start` cancels the pending timer and sends an explicit **Wake**
+    before opening the stream (recovers a camera a prior auto-sleep
+    powered down).
+  - Window close hides the window (instant-feeling), keeps the app
+    alive, fires Sleep after 4 s via `timeout_add_seconds_local_once`,
+    then `app.quit()` — can't block the close 3 s synchronously.
+  - `SLEEP_DELAY_SECS = 3` / `SLEEP_LAST_ATTEMPT_SECS = 5` constants in
+    `preview.rs`, hardware-measured; tunable for other models.
+  - **New acceptance** (hardware, user): preview on → video shows;
+    toggle off → camera sleeps after ~3-5 s; re-open → wakes + shows
+    video; window close → window vanishes, camera sleeps, app exits
+    ~4 s later; camera open in another app → stays awake.
 
 ---
 

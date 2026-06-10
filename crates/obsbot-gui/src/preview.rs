@@ -86,6 +86,97 @@ thread_local! {
     /// failed upgrade (page already gone) is a silent no-op.
     static ACTIVE_PREVIEW: RefCell<Option<Weak<RefCell<Option<PreviewPipeline>>>>> =
         const { RefCell::new(None) };
+
+    /// GLib source id of the pending deferred-sleep timer (T-208).
+    /// `stop` arms it; `start` (re-using the camera) and a fresh `stop`
+    /// cancel/replace it. Held so we can cancel a sleep the user
+    /// pre-empted by re-opening the preview.
+    static PENDING_SLEEP: RefCell<Option<glib::SourceId>> = const { RefCell::new(None) };
+}
+
+/// Seconds after the stream stops before the OBSBOT firmware will
+/// accept a Sleep frame. Measured on a Tiny 2 Lite (fw 5.10): Sleep is
+/// ignored at 1–2 s post-stream and honoured at ~3 s, so we begin
+/// attempts here.
+const SLEEP_DELAY_SECS: u32 = 3;
+/// Last second at which we retry the Sleep frame, to absorb firmware
+/// jitter around the 3 s threshold (attempts fire at 3, 4 and 5 s).
+const SLEEP_LAST_ATTEMPT_SECS: u32 = 5;
+
+/// `/dev/videoN` of the currently-active preview pipeline (T-208), if
+/// any preview has been started. Used by the window close handler to
+/// sleep that exact camera on exit.
+pub fn active_camera_path() -> Option<PathBuf> {
+    ACTIVE_PREVIEW.with(|cell| {
+        let slot = cell.borrow().as_ref().and_then(Weak::upgrade)?;
+        let path = slot.borrow().as_ref().and_then(|p| p.device_path.clone());
+        path
+    })
+}
+
+/// Cancel any pending deferred-sleep timer (T-208). Called from
+/// `start` (we're about to use the camera) and from the window close
+/// path (which sleeps synchronously on its own schedule instead).
+pub fn cancel_deferred_sleep() {
+    PENDING_SLEEP.with(|cell| {
+        if let Some(id) = cell.borrow_mut().take() {
+            id.remove();
+        }
+    });
+}
+
+/// Arm a timer that puts the camera to sleep a few seconds after the
+/// preview stops (T-208). The delay is mandatory: the firmware ignores
+/// Sleep for ~3 s after streaming. Skips the sleep if another process
+/// grabbed the device meanwhile. Replaces any previously-armed timer.
+fn arm_deferred_sleep(path: PathBuf) {
+    cancel_deferred_sleep();
+    let ticks = std::cell::Cell::new(0u32);
+    let id = glib::timeout_add_seconds_local(1, move || {
+        let t = ticks.get() + 1;
+        ticks.set(t);
+        if t < SLEEP_DELAY_SECS {
+            return glib::ControlFlow::Continue;
+        }
+        // Another app started using the camera while we waited — leave
+        // it awake and stop trying.
+        if another_process_has_device(&path) {
+            PENDING_SLEEP.with(|cell| *cell.borrow_mut() = None);
+            return glib::ControlFlow::Break;
+        }
+        send_sleep(&path);
+        if t >= SLEEP_LAST_ATTEMPT_SECS {
+            PENDING_SLEEP.with(|cell| *cell.borrow_mut() = None);
+            return glib::ControlFlow::Break;
+        }
+        glib::ControlFlow::Continue
+    });
+    PENDING_SLEEP.with(|cell| *cell.borrow_mut() = Some(id));
+}
+
+/// Send the XU Sleep frame on a fresh fd (T-208). Best-effort: failures
+/// are logged, never propagated. Public so the window close handler can
+/// fire the final sleep on its own deferred schedule.
+pub fn send_sleep(path: &Path) {
+    match OpenOptions::new().read(true).write(true).open(path) {
+        Ok(f) => {
+            if let Err(err) = set_sleep(&f, SleepState::Sleep) {
+                eprintln!("preview: failed to put camera to sleep: {err}");
+            }
+        }
+        Err(err) => eprintln!("preview: open {path:?} to sleep camera failed: {err}"),
+    }
+}
+
+/// Send the XU Wake frame on a fresh fd (T-208). Best-effort. Called
+/// from `start` so a camera an earlier auto-sleep powered down is
+/// responsive before we open the stream.
+fn wake_camera(path: &Path) {
+    if let Ok(f) = OpenOptions::new().read(true).write(true).open(path) {
+        if let Err(err) = set_sleep(&f, SleepState::Awake) {
+            eprintln!("preview: failed to wake camera: {err}");
+        }
+    }
 }
 
 /// Register the controls page's pipeline slot as the active preview
@@ -257,6 +348,13 @@ impl PreviewPipeline {
             return Ok(());
         }
 
+        // T-208: cancel any deferred sleep armed by a previous stop and
+        // wake the camera before opening the stream. An earlier
+        // auto-sleep may have powered it down; the firmware needs the
+        // explicit Wake to be responsive right away.
+        cancel_deferred_sleep();
+        wake_camera(path);
+
         // Build a fresh v4l2src each start so changing cameras
         // mid-session works without leaking the previous source.
         let src = gst::ElementFactory::make("v4l2src")
@@ -298,8 +396,6 @@ impl PreviewPipeline {
         }
         self.is_playing = true;
         // Remember the device so `stop` can sleep this exact camera.
-        // Opening the V4L2 stream above already wakes the firmware, so
-        // no explicit Wake frame is needed here.
         self.device_path = Some(path.to_path_buf());
         Ok(())
     }
@@ -329,37 +425,16 @@ impl PreviewPipeline {
         }
         self.is_playing = false;
 
-        // T-208: closing the V4L2 capture node does NOT power the
-        // OBSBOT down — the firmware stays awake (LED on, gimbal up),
-        // so the camera looks "in use" when it is not. Now that the
-        // stream is stopped, send the XU Sleep frame to power it off.
-        // The user asked for this on every stop (toggle-off, navigate
-        // back, window close — all routed through `stop`).
-        if let Some(path) = self.device_path.as_deref() {
-            sleep_camera_if_unused(path);
+        // T-208: closing the V4L2 fd does NOT power the OBSBOT down —
+        // the firmware stays awake (LED on, gimbal up). We cannot sleep
+        // it inline: the firmware ignores Sleep for ~3 s after
+        // streaming (measured on fw 5.10), and sleeping on every stop
+        // also churns sleep/wake enough to hang the camera. So arm a
+        // deferred timer that sends Sleep once the firmware accepts it;
+        // `start` cancels it if the user re-opens the preview first.
+        if let Some(path) = self.device_path.clone() {
+            arm_deferred_sleep(path);
         }
-    }
-}
-
-/// Put the camera to sleep (XU Sleep frame) so the firmware powers
-/// down after the preview stops (T-208) — unless another process is
-/// holding the V4L2 device, in which case we leave it awake so we
-/// never sleep a camera the user is streaming in Zoom / OBS / Cheese.
-/// Best-effort: every failure is logged, never propagated (the
-/// preview is already stopped regardless of whether sleep succeeds).
-fn sleep_camera_if_unused(path: &Path) {
-    if another_process_has_device(path) {
-        return;
-    }
-    let file = match OpenOptions::new().read(true).write(true).open(path) {
-        Ok(f) => f,
-        Err(err) => {
-            eprintln!("preview: open {path:?} to sleep camera failed: {err}");
-            return;
-        }
-    };
-    if let Err(err) = set_sleep(&file, SleepState::Sleep) {
-        eprintln!("preview: failed to put camera to sleep: {err}");
     }
 }
 

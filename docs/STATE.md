@@ -6,17 +6,19 @@
 
 ---
 
-active_task: T-208  # auto-sleep the camera when the preview stops (firmware power-down); code DONE, hardware validation pending
+active_task: T-208  # auto-sleep when unused — REDESIGNED to deferred sleep (ADR-0025); code DONE, end-to-end hardware validation pending
 active_task_state: IN_PROGRESS
 active_branch: main
-last_completed_task: T-207  # close V4L2 fd on navigate-away + window-close — confirmed working via /proc fd monitor 2026-06-10 (fd released on back AND on close; no lingering process). LED-stays-on turned out to be firmware, not a leaked fd → led to T-208.
+last_completed_task: T-207  # close V4L2 fd on navigate-away + window-close — confirmed working via /proc fd monitor 2026-06-10. LED-stays-on turned out to be firmware, not a leaked fd → led to T-208.
 last_milestone: v0.4.0  # Live Preview milestone cut 2026-06-02 (Flatpak-validated); v0.3.2 same day (native rollup)
-last_commit_on_main: 51f251a  # fix(gui): stop preview pipeline on navigate-away and window close (T-207); T-208 commit follows this STATE update
-last_step: 2026-06-10 — T-208 (ADR-0024). Colleagues' "camera stays on when unused" was the OBSBOT firmware not powering down on stream-stop (T-207 already proved the fd closes). User confirmed the manual Sleep switch (T-302) powers their Tiny 2 Lite down, then asked to auto-sleep on every preview stop. Implemented in PreviewPipeline::stop (the T-207 chokepoint): record device_path in start, send set_sleep(Sleep) on a fresh fd after NULL, skip if /proc shows another process holds the device. All cargo gates green. Also diagnosed (separate, NOT fixed): the preview pipeline has a format bug — camera offers only MJPG/YUYV, no MJPEG decoder + dmabuf passthrough → grayscale dead, GStreamer-Video-CRITICAL spam, preview stalls (T-202 root cause + missing decoder).
-next_step: USER — hardware-validate T-208: preview on (LED on) → toggle off → LED off + lens cover; repeat for back + window close; safeguard check (camera open in another app → stays awake). Then mark T-207 + T-208 DONE. Pending decision: tackle the preview pipeline format bug (proposed T-209) — grayscale/CRITICAL/stall.
+last_commit_on_main: 96ce8f7  # feat(gui): auto-sleep when preview stops (T-208 v1, inline); deferred-sleep redesign commit follows this STATE update
+last_step: 2026-06-11 — T-208 REDESIGN (ADR-0025). Drove /dev/video0 headlessly (Claude is in group video): proved T-207 fd-close works (150 buf/5s healthy), the camera HANGS under rapid churn (replug recovers), and crucially the firmware IGNORES Sleep for ~3s after streaming (accepts at t≈3s; cold Sleep works). So inline T-208 never slept the camera. Reworked: stop() arms a deferred timer (Sleep at t=3,4,5s, skip if another app holds device); start() cancels it + sends explicit Wake before streaming; window close hides+defers Sleep 4s+quits. All cargo gates green (default + --features obsbot-gui/live-preview).
+next_step: USER — end-to-end hardware check of T-208 deferred sleep: enable preview (video shows) → toggle off → camera sleeps (LED off/lens cover) after ~3-5s → re-open preview → wakes + shows video; close window → window vanishes, camera sleeps, app exits ~4s later; safeguard: camera open in another app → stays awake. Then mark T-207+T-208 DONE. Separate open item: T-209 preview pipeline format bug (no MJPEG decoder + dmabuf passthrough → grayscale dead + CRITICAL spam) — diagnosed, not fixed.
 blockers: none on main. T-208 pending eyes-on-hardware. T-017b Arch validation still transferred to incoming dev (ADR-0023).
 working_tree:
-  status: after the T-208 commit, only the untracked build artifact obsbot-cam-control-0.4.0-1-x86_64.pkg.tar.zst remains (leftover .pkg from a PKGBUILD test run — user said leave it untracked, do not add to git).
+  status: after the T-208-redesign commit, only the untracked build artifact obsbot-cam-control-0.4.0-1-x86_64.pkg.tar.zst remains (user said leave it untracked, do not add to git).
+firmware_notes:
+  - Tiny 2 Lite fw 5.10: XU Sleep frame IGNORED for ~3s after streaming stops (accepted at t≈3s); cold Sleep works immediately. set_sleep(Awake)/get_status reliable. Rapid open/close/sleep/wake churn can hang capture (0 buffers, no error) until USB replug. (ADR-0025)
 v0_4_0_gate:
   - T-203 build gate: DONE + verified headless 2026-06-02 (flatpak-builder builds all 3 modules, installs io.github.domatix.ObsbotCamControl 0.3.2, sandbox gst-inspect-1.0 finds gtk4paintablesink in /app/lib/gstreamer-1.0/libgstgtk4.so).
   - T-203 render check: PENDING USER — launch the installed Flatpak, toggle preview, confirm camera frames render on screen. Not machine-verifiable. Last thing before v0.4.0.

@@ -125,6 +125,75 @@ auto-sleep) and `auto-sleep-optin` (GSettings toggle). Known UX trade:
 sleeping on every stop means rapid toggle off/on lowers then raises the
 gimbal — accepted per the user's "always sleep when unused" request.
 
+### [2026-06-11T00:40:00Z] [T-208/diagnosis] Autonomous headless probing — T-208 is broken: firmware ignores Sleep right after streaming
+
+Claude is in the `video` group and `/dev/video0` is accessible, so I
+drove the camera headless from a throwaway `examples/preview_probe.rs`
+(built with `--features live-preview`, run against the live device,
+then deleted — never committed). Findings, all reproduced on the
+user's Tiny 2 Lite (fw 5.10):
+
+1. **The preview pipeline is fine.** With a healthy camera the current
+   `v4l2src ! videoconvert ! … ! fakesink` flows 150 buffers / 5s
+   (30 fps @ 640×480 YUY2). So "preview doesn't work" was NOT a format
+   bug — it was the camera being hung.
+2. **The camera hangs after repeated rapid open/close cycles.** Mid
+   session it accepts `open` + negotiates caps but delivers **0
+   buffers** (pipeline stuck in PAUSED, no error). A USB **replug**
+   fully recovers it (0 → 150 buffers immediately after). This is the
+   user's "after several tries the preview stops working."
+3. **`set_sleep(Sleep)` is IGNORED right after streaming.** Replaying
+   the T-208 cycle (capture → Sleep), `get_status` read back `Awake`
+   every time — the firmware does not honour Sleep immediately after a
+   capture session. But a **cold** Sleep (no streaming first) works:
+   `Awake → set_sleep(Sleep) → Sleep`. ⇒ **T-208 as written does not
+   actually sleep the camera**, because it sends Sleep inside `stop`,
+   right after the stream ends. This matches the user's report that
+   stopping the preview left the camera on.
+4. Capture is also **intermittent** under rapid cycling (one cycle
+   returned 0 buffers with no error, neighbours returned ~50) — the
+   sleep/wake churn T-208 adds likely contributes to both the
+   intermittent failures and the eventual hang.
+
+Net: T-208 needs rethinking — sending Sleep on `stop` neither works
+(ignored post-stream) nor is safe (churn → hangs). Options for the
+user: (a) revert T-208; (b) Sleep on a delayed timer after stop (delay
+unknown, ≥1.5s insufficient in tests); (c) accept that closing the fd
+is the most we can reliably do and document the firmware limitation.
+Pending user direction + their visual confirmation that the cold Sleep
+dropped the lens cover. The T-209 preview-pipeline polish (grayscale /
+CRITICAL spam) is a separate, lower-priority cosmetic issue.
+
+### [2026-06-11T01:30:00Z] [T-208] Redesigned — deferred sleep (user chose "revert immediate + deferred")
+
+Measured the post-stream Sleep threshold headlessly (one capture, then
+retry Sleep once per second): the firmware **ignores Sleep at 1–2 s and
+accepts it at ~3 s** after the stream stops. Redesigned T-208 around
+that (ADR-0025):
+
+- `PreviewPipeline::stop` no longer sleeps inline. It arms a deferred
+  timer (`arm_deferred_sleep`) that fires Sleep at t=3,4,5 s (a few
+  retries to absorb firmware jitter), skipping if `another_process_has_
+  device` shows someone else grabbed the camera. Held in a
+  `PENDING_SLEEP` thread_local `glib::SourceId`.
+- `PreviewPipeline::start` cancels any pending sleep and sends an
+  explicit Wake (`set_sleep(Awake)`) before opening the stream, so a
+  camera an earlier auto-sleep powered down comes back responsive.
+- Window close (`window.rs`): can't wait 3 s synchronously without
+  freezing the close, so it hides the window (instant-feeling close),
+  keeps the app alive (hidden window, no destroy), fires Sleep after
+  4 s via `timeout_add_seconds_local_once`, then `app.quit()`.
+
+This covers preview-toggle-off and navigate-back cleanly (app stays
+alive for the timer) and window-close via the hide-then-quit path.
+Gates green: fmt, clippy default + `--features obsbot-gui/live-preview`,
+`cargo test --workspace`. Still IN_PROGRESS pending the user's
+end-to-end hardware check (toggle off → camera sleeps after ~3-5 s;
+re-open → wakes and shows video; close → window vanishes, camera sleeps,
+app exits ~4 s later). Note the camera-hang-under-churn risk (replug
+recovers) should be much lower now that we no longer sleep on every
+stop and we wake explicitly on start.
+
 ---
 
 ## 2026-06-05 (hand-out artifacts for colleague testing)
