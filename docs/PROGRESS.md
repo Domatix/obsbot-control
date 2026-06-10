@@ -10,6 +10,41 @@
 
 ---
 
+## 2026-06-10 (preview lifecycle bug from colleague testing)
+
+### [2026-06-10T00:00:00Z] [T-207] Fixed — stop the preview on navigate-away and window close
+
+Colleagues testing the 0.4.0 hand-out artifacts reported the camera
+sometimes staying on (LED lit) when nobody is using it. Traced it to
+the preview lifecycle: the GStreamer pipeline only returned to NULL on
+an explicit toggle-off or on `PreviewPipeline::drop`, and the `Drop`
+path is non-deterministic under `AdwNavigationView` (popped page +
+`Rc` clones in the header-bar closures linger), so `v4l2src` stayed in
+PLAYING while the user was back on the camera list or had closed the
+window. SPEC §4.3 Background Portal is not implemented, so this was a
+missing stop, not a runaway background app. Recorded as
+[[DECISIONS.md ADR-0024]]; user picked the "robust stop" scope (no
+minimise/focus visibility-pause yet).
+
+Code (three edits, all behind the `live-preview` feature):
+- `preview.rs`: new `ACTIVE_PREVIEW` `thread_local!` weak
+  back-reference + `register_active` / `stop_active` (mirrors the
+  T-108 toast / T-111 row-registry thread_local pattern).
+- `controls_view.rs::build_controls_page`: registers the slot and
+  wires `AdwNavigationPage::connect_hidden` → `pipeline.stop()`
+  (covers the back button and the T-110 `pop_to_tag` REMOVE).
+- `window.rs::build`: `connect_close_request` → `preview::stop_active`.
+
+Gates green 2026-06-10: `cargo fmt --all --check`, clippy
+`--workspace --all-targets -D warnings` both default and
+`--features obsbot-gui/live-preview`, `cargo test --workspace`
+(6 unit + 1 doc). The `Drop` impl stays as a backstop. T-207 left
+IN_PROGRESS: the LED behaviour is hardware-only and needs the user /
+a colleague to confirm on a real unit (preview on → press back →
+LED off while on the list; same for window close).
+
+---
+
 ## 2026-06-05 (hand-out artifacts for colleague testing)
 
 ### [2026-06-05T09:00:00Z] [T-017b] PROJECT HANDOFF — committed PKGBUILD refresh; Arch validation transferred to incoming developer ([[DECISIONS.md ADR-0023]])

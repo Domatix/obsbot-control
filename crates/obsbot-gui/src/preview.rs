@@ -60,13 +60,52 @@
 //! ioctl. The kernel uvcvideo driver accepts both descriptors
 //! concurrently — confirmed during T-101a hardware validation.
 
+use std::cell::RefCell;
 use std::path::Path;
+use std::rc::{Rc, Weak};
 
 use gstreamer as gst;
 use gstreamer::prelude::*;
 use gtk4 as gtk;
 
 use crate::i18n::gettext;
+
+thread_local! {
+    /// Weak handle to the currently-visible controls page's pipeline
+    /// slot (T-207). Set by `controls_view::build_controls_page` when
+    /// it wires the preview, so a window-level handler
+    /// (`window::build`'s `connect_close_request`) can release the
+    /// V4L2 device on close without threading the `Rc` through the
+    /// window. Weak (not strong) so the page's own teardown — and the
+    /// `connect_hidden` stop wired alongside this — still owns the
+    /// pipeline lifetime; this is purely a back-reference for the
+    /// close path. A later page build supersedes the entry, and a
+    /// failed upgrade (page already gone) is a silent no-op.
+    static ACTIVE_PREVIEW: RefCell<Option<Weak<RefCell<Option<PreviewPipeline>>>>> =
+        const { RefCell::new(None) };
+}
+
+/// Register the controls page's pipeline slot as the active preview
+/// (T-207). See [`stop_active`]. Called once per controls-page build
+/// right after the preview machinery is wired.
+pub fn register_active(slot: &Rc<RefCell<Option<PreviewPipeline>>>) {
+    ACTIVE_PREVIEW.with(|cell| *cell.borrow_mut() = Some(Rc::downgrade(slot)));
+}
+
+/// Stop whatever preview pipeline is currently active (T-207), if any.
+/// Used by the window's close handler so the camera's capture node is
+/// released deterministically on close instead of relying on `Drop`
+/// ordering at process teardown. No-op when no preview is active or
+/// the page that owned it is already gone.
+pub fn stop_active() {
+    ACTIVE_PREVIEW.with(|cell| {
+        if let Some(slot) = cell.borrow().as_ref().and_then(Weak::upgrade) {
+            if let Some(pipeline) = slot.borrow_mut().as_mut() {
+                pipeline.stop();
+            }
+        }
+    });
+}
 
 /// Errors surfacing from the preview pipeline. Mapped to user-
 /// visible toasts by the caller via

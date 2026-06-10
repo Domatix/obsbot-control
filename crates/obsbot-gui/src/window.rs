@@ -65,6 +65,16 @@ pub fn build(app: &adw::Application) -> adw::ApplicationWindow {
 
     window.set_application(Some(app));
 
+    // T-207: release the camera's V4L2 capture node on window close
+    // rather than leaving it to `Drop` ordering at process teardown.
+    // Without the `live-preview` feature there is no pipeline to stop,
+    // so the body is compiled out and the handler just proceeds.
+    window.connect_close_request(|_| {
+        #[cfg(feature = "live-preview")]
+        crate::preview::stop_active();
+        glib::Propagation::Proceed
+    });
+
     // Window-level toast surface (T-108 / T-110): bound once and
     // reused for V4L2 write failures *and* hot-plug REMOVE notices.
     // Lives as long as the window so toasts dispatched right around

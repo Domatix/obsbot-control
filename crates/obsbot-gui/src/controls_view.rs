@@ -106,6 +106,24 @@ pub fn build_controls_page(cam: &CameraInfo) -> adw::NavigationPage {
             header_bar.pack_end(&toggle);
             header_bar.pack_end(&snapshot);
             header_bar.pack_end(&grayscale);
+
+            // T-207: release the camera deterministically when the
+            // user navigates away. `AdwNavigationPage::hidden` fires on
+            // pop (back button) and on the T-110 `pop_to_tag` after a
+            // hot-plug REMOVE — both cases where the preview must stop
+            // even though the page widget (and its `Drop`) may linger
+            // in the NavigationView's transition/cache for a while.
+            // Relying on `Drop` alone left the v4l2src in PLAYING with
+            // the camera LED on while the user sat on the camera list.
+            // Also register this slot so the window's close handler can
+            // stop it (see `window::build`).
+            crate::preview::register_active(&handles.pipeline);
+            let pipeline = handles.pipeline.clone();
+            page.connect_hidden(move |_| {
+                if let Some(p) = pipeline.borrow_mut().as_mut() {
+                    p.stop();
+                }
+            });
         }
     }
     #[cfg(not(feature = "live-preview"))]

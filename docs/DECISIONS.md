@@ -1145,5 +1145,68 @@ clone.
 
 ---
 
+## ADR-0024 — Stop the preview on navigate-away and window close; do not rely on Drop
+
+**Date**: 2026-06-10
+**Status**: accepted
+**Context**: Colleagues testing the 0.4.0 hand-out artifacts reported
+that the camera sometimes stays on (LED lit) when nobody is actively
+using it. Investigation of the preview lifecycle found the GStreamer
+pipeline only returns to NULL — releasing the V4L2 capture node — in
+two places: an explicit toggle-off (`controls_view.rs`), and
+`PreviewPipeline::drop` (`preview.rs`). Neither covers the common
+"stop using it" gestures:
+
+- **Navigating back** to the camera list (the `←` button, or the
+  T-110 `pop_to_tag` after a hot-plug REMOVE) leaves the pipeline in
+  PLAYING. The page is popped, but `AdwNavigationView` retains the
+  page and the `Rc<RefCell<Option<PreviewPipeline>>>` clones live on
+  inside the header-bar toggle / snapshot / grayscale closures, so
+  the `Drop`-based stop is non-deterministic and frequently does not
+  fire promptly. The camera keeps capturing while the user is on the
+  list.
+- **Closing the window**: process exit closes the fd, so this case
+  usually self-heals, but the ordering is not guaranteed and a future
+  background-hold would break it.
+- **`preview-default-on`** aggravates the above by auto-starting the
+  pipeline on every controls-page open.
+
+SPEC §4.3 (XDG Background Portal) is listed as scope but is **not**
+implemented, so the app does not run in the background deliberately —
+the bug is purely a missing stop, not a runaway background process.
+The user was offered three scopes (diagnose-only / robust-stop /
+robust-stop + visibility-pause) and chose **robust stop**.
+
+**Decision**:
+
+- Stop the pipeline **deterministically via signals**, not via
+  `Drop`. Add `preview::register_active` / `preview::stop_active`
+  (a `thread_local!` weak back-reference to the active page's
+  pipeline slot). `controls_view::build_controls_page` wires
+  `AdwNavigationPage::connect_hidden` → `pipeline.stop()` for the
+  navigation cases, and `window::build` wires
+  `connect_close_request` → `preview::stop_active()` for close.
+- Keep the `Drop` impl as a backstop; it is no longer the primary
+  release path.
+- **Out of scope for now**: pausing/resuming the preview on window
+  minimise or focus-loss. If the preview is left explicitly on and
+  the window is merely minimised, the camera stays on — recorded as a
+  follow-up (`preview-visibility-pause`), and the natural place for
+  the eventual SPEC §4.3 Background Portal work.
+
+**Consequences**:
+
+- Releasing the camera no longer depends on GObject finalization
+  timing under `AdwNavigationView`; the LED goes off as soon as the
+  user leaves the page or closes the window.
+- One more `thread_local!` (mirrors the T-108 toast-overlay and
+  T-111 row-registry patterns already in `settings.rs`), gated on the
+  `live-preview` feature so feature-off builds are unaffected.
+- The LED-behaviour acceptance is hardware-only; T-207 stays
+  `IN_PROGRESS` until the user / a colleague confirms it on a real
+  unit.
+
+---
+
 <!-- Append new ADRs above this line, never below. Newest ADRs go at the bottom
      of the list but new entries are added; do not edit old ones. -->

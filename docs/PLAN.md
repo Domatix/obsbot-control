@@ -3174,6 +3174,54 @@
   that script on a non-Arch host. This doubles as the boss's
   requested Arch build. First task for whoever picks the project up.
 
+### T-207 — Stop the preview when the camera is no longer in use (lifecycle fix)
+
+- **State**: IN_PROGRESS (code DONE + cargo gates green; hardware
+  validation of the LED behaviour pending the user / a colleague)
+- **Started**: 2026-06-10
+- **Depends on**: T-200 (preview pipeline), T-110 (hot-plug REMOVE
+  pop path the `hidden` signal now also covers).
+- **Reported by**: colleagues testing the 0.4.0 hand-out artifacts —
+  "the camera sometimes stays on (LED lit) when nobody is using it".
+- **Root cause** ([[DECISIONS.md ADR-0024]]): the GStreamer pipeline
+  only ever returned to NULL on (a) an explicit toggle-off, or
+  (b) `PreviewPipeline::drop`. Nothing stopped it when the user
+  navigated back to the camera list or closed the window, and the
+  `Drop` path is non-deterministic under `AdwNavigationView` (the
+  popped page — and the `Rc<RefCell<Option<PreviewPipeline>>>` clones
+  held by the header-bar toggle / snapshot / grayscale closures —
+  can linger in the view's transition/cache), so `v4l2src` stayed in
+  PLAYING with the camera capturing while the user sat on the list.
+  Aggravated by `preview-default-on`, which auto-starts the pipeline
+  on every controls-page open. SPEC §4.3 (XDG Background Portal) is
+  **not** implemented, so the app does not run in the background on
+  purpose — this was purely a missing stop.
+- **Scope** (user chose "robust stop", not visibility-pause): stop
+  the pipeline deterministically on navigation-away and window close;
+  do **not** (yet) pause/resume on window minimise/focus-loss. That
+  visibility-pause is recorded as a follow-up.
+- **Acceptance criteria**:
+  - `preview::register_active` / `preview::stop_active` expose a
+    `thread_local!` weak back-reference to the active page's pipeline
+    slot so a window-level handler can stop it. **DONE**.
+  - `controls_view::build_controls_page` registers the slot and wires
+    `AdwNavigationPage::connect_hidden` → `pipeline.stop()` (covers
+    the back button and the T-110 `pop_to_tag` on REMOVE). **DONE**.
+  - `window::build` wires `connect_close_request` →
+    `preview::stop_active()` (gated on the `live-preview` feature).
+    **DONE**.
+  - `cargo fmt --all --check`, `cargo clippy --workspace
+    --all-targets -- -D warnings` (default features) and the same
+    with `--features obsbot-gui/live-preview`, plus
+    `cargo test --workspace`, all green. **DONE** — verified
+    2026-06-10.
+  - **User validation pending**: with the preview on, press the back
+    button → confirm the camera LED goes off while on the camera
+    list. Repeat for closing the window. (Not machine-verifiable —
+    needs eyes on the hardware LED.)
+  - Commit `fix(gui): stop preview pipeline on navigate-away and
+    window close (T-207)`.
+
 ---
 
 ## Backlog (future milestones)
