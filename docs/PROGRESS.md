@@ -222,6 +222,19 @@ live-preview, test). IN_PROGRESS pending the user's visual confirmation
 follow-up: a decodebin/jpegdec path for HD (MJPG) preview — the camera
 maxes at 640×480 in raw YUYV; out of scope for T-209.
 
+### [2026-06-11T02:25:00Z] [T-209] DONE — session closed, pushed to origin/main
+
+User accepted the build ("de locos") and asked to commit, push and
+close the session. Marked T-209 DONE. Session summary: a 3-fix arc off
+the colleagues' "camera stays on when unused" report — T-207 (release
+the V4L2 fd on navigate-back/close), T-208 (deferred XU Sleep, ADR-0025,
+because the firmware ignores Sleep for ~3 s post-stream), T-209
+(capsfilter I420 → grayscale works + CRITICAL spam gone). Four feature
+commits (51f251a, 96ce8f7, b199267, 1b115f2) + this docs commit pushed
+to origin/main. Working tree clean except the untracked
+obsbot-cam-control-0.4.0-1-x86_64.pkg.tar.zst the user asked to leave
+alone. No active task; candidate next work recorded in STATE.
+
 ---
 
 ## 2026-06-05 (hand-out artifacts for colleague testing)

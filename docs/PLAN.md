@@ -3295,8 +3295,9 @@
 
 ### T-209 — Fix the preview pipeline format negotiation (grayscale + CRITICAL spam)
 
-- **State**: IN_PROGRESS (code DONE + cargo gates green + verified
-  headless; user visual confirmation pending).
+- **State**: DONE (2026-06-11). Code + cargo gates green, verified
+  headless (chroma collapse), and accepted by the user on the
+  deferred-sleep + grayscale build.
 - **Started**: 2026-06-11
 - **Depends on**: T-200 (preview pipeline), T-202 (grayscale toggle).
 - **Problem**: the Tiny 2 only offers `MJPG` (HD/4K) and `YUYV` (≤640×480)

@@ -6,15 +6,15 @@
 
 ---
 
-active_task: T-209  # preview pipeline format fix (capsfilter I420) — grayscale now works + kills CRITICAL spam; verified headless, user visual confirmation pending
-active_task_state: IN_PROGRESS
+active_task: none  # session closed 2026-06-11 after the preview lifecycle/sleep/grayscale trio shipped + pushed
+active_task_state: IDLE
 active_branch: main
-last_completed_task: T-208  # deferred auto-sleep (ADR-0025) — user confirmed "ya parece que se apaga". T-207 (fd close) also DONE.
+last_completed_task: T-209  # capsfilter I420 fix — grayscale works + CRITICAL spam gone (verified headless + user-accepted). T-207 + T-208 also DONE this session.
 last_milestone: v0.4.0  # Live Preview milestone cut 2026-06-02 (Flatpak-validated); v0.3.2 same day (native rollup)
-last_commit_on_main: b199267  # fix(gui): defer the auto-sleep so the firmware accepts it (T-208); T-209 commit follows this STATE update
-last_step: 2026-06-11 — T-209. User confirmed T-208 sleep works ("ya parece que se apaga"); same report: grayscale toggle still dead. Root cause: gtk4paintablesink dmabuf-imports the camera's YUY2 → videobalance passthrough + per-frame gst_video_frame_map_id CRITICAL. Fix: capsfilter vb_caps pinning video/x-raw,format=I420 in system memory between vc_pre and videobalance. Verified headless on the real camera (read I420 U plane: |U-128| = 19.10 colour vs 0.00 grayscale). Marked T-207 + T-208 DONE. Gates green.
-next_step: USER — visual check in the app: grayscale toggle visibly desaturates the preview, and the GStreamer-Video-CRITICAL spam is gone from the terminal. Then mark T-209 DONE. Optional follow-up: decodebin/jpegdec for HD (MJPG) preview — camera maxes at 640×480 raw YUYV. T-017b Arch validation still transferred to incoming dev (ADR-0023).
-blockers: none on main. T-209 pending eyes-on-hardware. T-017b Arch validation pending an Arch host (transferred to incoming dev).
+last_commit_on_main: 1b115f2  # fix(gui): force system-memory I420 (T-209); session-close docs commit follows + pushed to origin/main
+last_step: 2026-06-11 — Closed a 3-fix session sparked by colleagues' "camera stays on when unused": T-207 (release V4L2 fd on navigate-back + window-close, machine-verified via /proc monitor), T-208 (deferred XU Sleep — firmware ignores Sleep for ~3s post-stream, ADR-0025; user-confirmed power-down), T-209 (capsfilter I420 → grayscale works + kills gst_video_frame_map_id CRITICAL spam, verified headless). All four feature commits + docs pushed to origin/main. Claude drove /dev/video0 headlessly for diagnosis (Claude is in group video).
+next_step: NONE active. Candidate next tasks: T-017b Arch validation (still transferred to incoming dev, ADR-0023); optional preview HD via decodebin/jpegdec (camera maxes at 640×480 raw YUYV); follow-ups preview-visibility-pause, sleep-switch-sync, auto-sleep-optin (see follow_ups_queued).
+blockers: none on main. T-017b Arch validation pending an Arch host (transferred to incoming dev, ADR-0023).
 working_tree:
   status: after the T-208-redesign commit, only the untracked build artifact obsbot-cam-control-0.4.0-1-x86_64.pkg.tar.zst remains (user said leave it untracked, do not add to git).
 firmware_notes:
