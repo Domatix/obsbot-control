@@ -3222,6 +3222,53 @@
   - Commit `fix(gui): stop preview pipeline on navigate-away and
     window close (T-207)`.
 
+### T-208 — Auto-sleep the camera when the preview stops (firmware power-down)
+
+- **State**: IN_PROGRESS (code DONE + cargo gates green; hardware
+  validation pending the user)
+- **Started**: 2026-06-10
+- **Depends on**: T-207 (single `stop` chokepoint it hooks into),
+  T-300 (`set_sleep` / `SleepState`), T-302 (the manual "Camera
+  awake" switch that proves Sleep works on this unit).
+- **Context** ([[DECISIONS.md ADR-0024]] + the 2026-06-10 PROGRESS
+  diagnosis): T-207 confirmed the app closes the V4L2 fd correctly,
+  but the OBSBOT firmware does NOT power down on stream-stop — the
+  camera stays awake (LED on, gimbal up) until it receives the XU
+  Sleep frame. The user confirmed the manual "Camera awake" switch
+  sleeps their Tiny 2 Lite (fw 5.10), so the hook is viable. User
+  requested auto-sleep **whenever the camera is not in use** (preview
+  toggled off, navigated back to the list, or app closed).
+- **Design**:
+  - Put the sleep logic inside `PreviewPipeline::stop` — the single
+    chokepoint all three triggers route through (toggle-off,
+    `connect_hidden`, `connect_close_request`/`stop_active`), so no
+    per-call-site duplication.
+  - `PreviewPipeline` remembers the `device_path` from `start`;
+    `stop` sends `set_sleep(Sleep)` on a fresh R/W fd after the
+    stream is in NULL.
+  - **Safeguard**: scan `/proc/<pid>/fd/*` and skip the sleep if any
+    process other than us holds the device — never sleep a camera the
+    user is streaming in another app. Conservative on read errors
+    (attempts the sleep).
+  - Best-effort: open/ioctl failures are logged to stderr, never
+    propagated (the preview is already stopped).
+- **Acceptance criteria**:
+  - `cargo fmt --all --check`, clippy default + `--features
+    obsbot-gui/live-preview`, `cargo test --workspace` all green.
+    **DONE** — verified 2026-06-10.
+  - **User validation pending**: enable preview (LED on) → toggle it
+    off → camera sleeps (LED off, lens cover). Repeat for navigate-
+    back and window-close. Open the camera in another app, then stop
+    our preview → camera stays awake (safeguard).
+  - Commit `feat(gui): auto-sleep the camera when the preview stops
+    (T-208)`.
+- **Known follow-ups** (not blocking):
+  - `sleep-switch-sync`: the T-302 "Camera awake" switch can show a
+    stale state after an auto-sleep / stream-wake; wire the preview
+    lifecycle to refresh it.
+  - `auto-sleep-optin`: make T-208 a `GSettings` toggle if any user
+    wants the old always-awake behaviour.
+
 ---
 
 ## Backlog (future milestones)

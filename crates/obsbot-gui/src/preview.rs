@@ -61,12 +61,15 @@
 //! concurrently — confirmed during T-101a hardware validation.
 
 use std::cell::RefCell;
-use std::path::Path;
+use std::fs::OpenOptions;
+use std::path::{Path, PathBuf};
 use std::rc::{Rc, Weak};
 
 use gstreamer as gst;
 use gstreamer::prelude::*;
 use gtk4 as gtk;
+use obsbot_core::xu::commands::set_sleep;
+use obsbot_core::xu::SleepState;
 
 use crate::i18n::gettext;
 
@@ -142,6 +145,11 @@ pub struct PreviewPipeline {
     /// Whether the pipeline is currently in PLAYING. Avoids a
     /// double-start that `GStreamer` would otherwise warn about.
     is_playing: bool,
+    /// `/dev/videoN` the pipeline was last started against (T-208).
+    /// `stop` uses it to send the XU Sleep frame so the OBSBOT
+    /// firmware powers down (LED off, lens cover) instead of staying
+    /// awake after the V4L2 fd closes. `None` until the first `start`.
+    device_path: Option<PathBuf>,
 }
 
 impl PreviewPipeline {
@@ -212,6 +220,7 @@ impl PreviewPipeline {
             pipeline,
             paintable,
             is_playing: false,
+            device_path: None,
         })
     }
 
@@ -288,6 +297,10 @@ impl PreviewPipeline {
             return Err(PreviewError::PipelineStart(msg));
         }
         self.is_playing = true;
+        // Remember the device so `stop` can sleep this exact camera.
+        // Opening the V4L2 stream above already wakes the firmware, so
+        // no explicit Wake frame is needed here.
+        self.device_path = Some(path.to_path_buf());
         Ok(())
     }
 
@@ -315,7 +328,69 @@ impl PreviewPipeline {
             let _ = self.pipeline.remove(&el);
         }
         self.is_playing = false;
+
+        // T-208: closing the V4L2 capture node does NOT power the
+        // OBSBOT down — the firmware stays awake (LED on, gimbal up),
+        // so the camera looks "in use" when it is not. Now that the
+        // stream is stopped, send the XU Sleep frame to power it off.
+        // The user asked for this on every stop (toggle-off, navigate
+        // back, window close — all routed through `stop`).
+        if let Some(path) = self.device_path.as_deref() {
+            sleep_camera_if_unused(path);
+        }
     }
+}
+
+/// Put the camera to sleep (XU Sleep frame) so the firmware powers
+/// down after the preview stops (T-208) — unless another process is
+/// holding the V4L2 device, in which case we leave it awake so we
+/// never sleep a camera the user is streaming in Zoom / OBS / Cheese.
+/// Best-effort: every failure is logged, never propagated (the
+/// preview is already stopped regardless of whether sleep succeeds).
+fn sleep_camera_if_unused(path: &Path) {
+    if another_process_has_device(path) {
+        return;
+    }
+    let file = match OpenOptions::new().read(true).write(true).open(path) {
+        Ok(f) => f,
+        Err(err) => {
+            eprintln!("preview: open {path:?} to sleep camera failed: {err}");
+            return;
+        }
+    };
+    if let Err(err) = set_sleep(&file, SleepState::Sleep) {
+        eprintln!("preview: failed to put camera to sleep: {err}");
+    }
+}
+
+/// Whether a process *other than us* currently holds `path` open, by
+/// scanning `/proc/<pid>/fd/*` symlinks (T-208). Our own PID is
+/// excluded because the just-stopped `v4l2src` fd may not be fully
+/// reaped yet. Conservative: any read error yields `false` (we would
+/// rather attempt the sleep than skip it), matching the user's "sleep
+/// whenever it is not in use" intent.
+fn another_process_has_device(path: &Path) -> bool {
+    let my_pid = std::process::id();
+    let Ok(entries) = std::fs::read_dir("/proc") else {
+        return false;
+    };
+    for entry in entries.flatten() {
+        let Ok(pid) = entry.file_name().to_string_lossy().parse::<u32>() else {
+            continue;
+        };
+        if pid == my_pid {
+            continue;
+        }
+        let Ok(fds) = std::fs::read_dir(entry.path().join("fd")) else {
+            continue;
+        };
+        for fd in fds.flatten() {
+            if std::fs::read_link(fd.path()).is_ok_and(|target| target == path) {
+                return true;
+            }
+        }
+    }
+    false
 }
 
 impl Drop for PreviewPipeline {

@@ -38,10 +38,92 @@ Code (three edits, all behind the `live-preview` feature):
 Gates green 2026-06-10: `cargo fmt --all --check`, clippy
 `--workspace --all-targets -D warnings` both default and
 `--features obsbot-gui/live-preview`, `cargo test --workspace`
-(6 unit + 1 doc). The `Drop` impl stays as a backstop. T-207 left
-IN_PROGRESS: the LED behaviour is hardware-only and needs the user /
-a colleague to confirm on a real unit (preview on → press back →
-LED off while on the list; same for window close).
+(6 unit + 1 doc). The `Drop` impl stays as a backstop.
+
+### [2026-06-10T19:10:00Z] [T-207] Validated software-side via fd monitor — LED is a firmware (Sleep) issue, not a leaked fd
+
+Ran a `/proc/<pid>/fd` monitor (no lsof/fuser on this host) while the
+user exercised the build. Objective transitions (pid `obsbot-cam-
+control` holding `/dev/video0`): preview-on → OPEN; **press back →
+released within ~1 poll**; re-enter + preview-on → OPEN; **close
+window → released, stays free**. So T-207's fix works — the V4L2
+node is closed on navigate-away *and* on window close, no process
+lingers. **But the user reports the camera LED stays lit ~30 s after
+close with the device already free.** Conclusion: the OBSBOT Tiny 2
+firmware does NOT sleep on stream-stop; the gimbal stays up / LED on
+until it receives the XU Sleep frame. This — not a background app /
+leaked fd — is the real "camera stays on when unused" the colleagues
+hit. `obsbot_core::xu::commands::set_sleep` already exists (T-300) and
+is wired to the "Camera awake" switch in `extras_view.rs` (T-302), so
+the hook is available; auto-sleep on preview-stop / close is a new
+design decision (new task), pending (a) user confirmation that the
+manual switch actually powers down their Tiny 2 Lite (firmware 5.10,
+which has the Q9 PTZ quirk), and (b) the UX call on when to auto-sleep.
+
+Separately, the user reports the **grayscale ("eye") button still does
+nothing and spams the log** — the pre-existing T-202 videobalance-
+passthrough concern, tracked apart from T-207.
+
+### [2026-06-10T19:55:00Z] [T-207/diagnosis] set_sleep confirmed working; preview pipeline has a format-negotiation bug
+
+Three findings from the user's hands-on session + the app stderr log
+(`/tmp/obsbot-crash.log`) + `v4l2-ctl --list-formats-ext`:
+
+1. **`set_sleep` works on the Tiny 2 Lite (fw 5.10).** Toggling the
+   "Camera awake" switch OFF (T-302) powers the camera down (LED off,
+   lens cover). So the firmware-sleep hook is viable. BUT: starting
+   the preview wakes the camera (the V4L2 stream reactivates it), and
+   stopping the preview / navigating back does NOT re-sleep it, so the
+   camera stays physically on. The switch's UI state also desyncs from
+   the real power state after a preview cycle. → real fix for the
+   colleagues' "camera stays on when unused" report is **auto-sleep on
+   preview-stop / window-close** (+ keep the switch in sync). New task,
+   pending a UX decision (when to auto-sleep; must not sleep a camera
+   another app is using; likely a GSettings opt-in).
+2. **Preview pipeline format bug.** The camera offers `MJPG` (1080p/
+   4K/720p) and `YUYV` (≤640×480) only — no raw HD. The current
+   pipeline (`v4l2src ! videoconvert ! videobalance ! videoconvert !
+   gtk4paintablesink`) has **no MJPEG decoder** and lets the sink
+   import YUV dmabufs zero-copy, so `videobalance` runs in passthrough
+   (grayscale no-ops) and every frame logs `GStreamer-Video-CRITICAL:
+   gst_video_frame_map_id: assertion 'info->finfo->format ==
+   meta->format' failed` + `Gdk-WARNING: FIXME: proper colorstate for
+   YUV dmabufs`. Likely fix: `decodebin` (handles MJPG + raw) and/or a
+   `capsfilter` forcing system-memory `video/x-raw` (e.g. I420) before
+   `videobalance` to break the dmabuf passthrough. Needs HW iteration;
+   this is the T-202 root cause + a missing decoder.
+3. **`Vulkan: renderD128 Permiso denegado`** — GDK can't open the
+   render node, falls back to another GL path. Environment/permissions,
+   secondary; not the cause of the above.
+
+T-207 itself (close the V4L2 fd on navigate-away / window-close) is
+confirmed working via the fd monitor and is independent of 1–3.
+
+### [2026-06-10T20:30:00Z] [T-208] Implemented — auto-sleep the camera whenever the preview stops
+
+User picked the auto-sleep line of work and asked for it on *every*
+stop (toggle-off, navigate-back, window-close). Implemented inside
+`PreviewPipeline::stop` (the single chokepoint all three triggers go
+through, courtesy of T-207), so no per-call-site duplication:
+`PreviewPipeline` now records the `device_path` from `start`, and
+`stop` — after the stream is in NULL — opens a fresh R/W fd and sends
+`set_sleep(SleepState::Sleep)` (the same XU frame T-302's manual
+switch uses, which the user confirmed powers their unit down).
+Safeguard `another_process_has_device` scans `/proc/<pid>/fd/*` and
+skips the sleep when any other process holds the device, so we never
+sleep a camera the user is streaming in Zoom/OBS/Cheese. All sleep
+failures are best-effort (stderr), never propagated. Mirrors
+`extras_view.rs`'s open pattern (`OpenOptions::read(true).write(true)`).
+
+Gates green 2026-06-10: fmt, clippy default + `--features
+obsbot-gui/live-preview`, `cargo test --workspace`. T-208 left
+IN_PROGRESS pending hardware validation (toggle preview off → LED off
+/ lens cover; same for back + close; and the safeguard: camera open in
+another app → stays awake). Two non-blocking follow-ups noted in PLAN:
+`sleep-switch-sync` (the "Camera awake" switch can read stale after an
+auto-sleep) and `auto-sleep-optin` (GSettings toggle). Known UX trade:
+sleeping on every stop means rapid toggle off/on lowers then raises the
+gimbal — accepted per the user's "always sleep when unused" request.
 
 ---
 

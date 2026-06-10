@@ -6,17 +6,17 @@
 
 ---
 
-active_task: T-207  # stop preview on navigate-away + window close (camera-stays-on bug from colleague testing); code DONE, hardware LED validation pending
+active_task: T-208  # auto-sleep the camera when the preview stops (firmware power-down); code DONE, hardware validation pending
 active_task_state: IN_PROGRESS
 active_branch: main
-last_completed_task: T-206  # .deb now ships live-preview (ADR-0022); 0.4.0 hand-out artifacts (.flatpak bundle + .deb) produced for colleague testing
+last_completed_task: T-207  # close V4L2 fd on navigate-away + window-close — confirmed working via /proc fd monitor 2026-06-10 (fd released on back AND on close; no lingering process). LED-stays-on turned out to be firmware, not a leaked fd → led to T-208.
 last_milestone: v0.4.0  # Live Preview milestone cut 2026-06-02 (Flatpak-validated); v0.3.2 same day (native rollup)
-last_commit_on_main: 5e23c7c  # build(arch): refresh PKGBUILD to 0.4.0 and hand off (T-017b); T-207 fix commit follows this STATE update
-last_step: 2026-06-10 — T-207 (ADR-0024). Colleagues reported the camera LED staying on when unused. Root cause: preview pipeline only stopped on explicit toggle-off or non-deterministic Drop; nothing released the V4L2 node on navigate-back or window close. Fix (3 edits, behind live-preview feature): preview.rs ACTIVE_PREVIEW thread_local + register_active/stop_active; controls_view wires AdwNavigationPage::connect_hidden → stop; window wires connect_close_request → stop_active. All cargo gates green (default + --features obsbot-gui/live-preview). User chose "robust stop" scope (no minimise/focus visibility-pause yet).
-next_step: USER/COLLEAGUE — hardware-validate T-207: preview on → press back → confirm camera LED goes off while on the list; repeat for closing the window. Then mark T-207 DONE. Separately, T-017b Arch validation still transferred to incoming dev (ADR-0023).
-blockers: none on main. T-207 LED behaviour pending eyes-on-hardware. T-017b Arch validation pending an Arch host (transferred to incoming dev).
+last_commit_on_main: 51f251a  # fix(gui): stop preview pipeline on navigate-away and window close (T-207); T-208 commit follows this STATE update
+last_step: 2026-06-10 — T-208 (ADR-0024). Colleagues' "camera stays on when unused" was the OBSBOT firmware not powering down on stream-stop (T-207 already proved the fd closes). User confirmed the manual Sleep switch (T-302) powers their Tiny 2 Lite down, then asked to auto-sleep on every preview stop. Implemented in PreviewPipeline::stop (the T-207 chokepoint): record device_path in start, send set_sleep(Sleep) on a fresh fd after NULL, skip if /proc shows another process holds the device. All cargo gates green. Also diagnosed (separate, NOT fixed): the preview pipeline has a format bug — camera offers only MJPG/YUYV, no MJPEG decoder + dmabuf passthrough → grayscale dead, GStreamer-Video-CRITICAL spam, preview stalls (T-202 root cause + missing decoder).
+next_step: USER — hardware-validate T-208: preview on (LED on) → toggle off → LED off + lens cover; repeat for back + window close; safeguard check (camera open in another app → stays awake). Then mark T-207 + T-208 DONE. Pending decision: tackle the preview pipeline format bug (proposed T-209) — grayscale/CRITICAL/stall.
+blockers: none on main. T-208 pending eyes-on-hardware. T-017b Arch validation still transferred to incoming dev (ADR-0023).
 working_tree:
-  status: after the T-207 fix commit, only the untracked build artifact obsbot-cam-control-0.4.0-1-x86_64.pkg.tar.zst remains (a leftover .pkg from a PKGBUILD test run — not committed; candidate for .gitignore or build-aux/dist/, awaiting user call).
+  status: after the T-208 commit, only the untracked build artifact obsbot-cam-control-0.4.0-1-x86_64.pkg.tar.zst remains (leftover .pkg from a PKGBUILD test run — user said leave it untracked, do not add to git).
 v0_4_0_gate:
   - T-203 build gate: DONE + verified headless 2026-06-02 (flatpak-builder builds all 3 modules, installs io.github.domatix.ObsbotCamControl 0.3.2, sandbox gst-inspect-1.0 finds gtk4paintablesink in /app/lib/gstreamer-1.0/libgstgtk4.so).
   - T-203 render check: PENDING USER — launch the installed Flatpak, toggle preview, confirm camera frames render on screen. Not machine-verifiable. Last thing before v0.4.0.
