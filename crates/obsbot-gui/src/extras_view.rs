@@ -12,10 +12,11 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-//! "Power state & Presets" group widget (T-302).
+//! "Presets" group widget (T-302; the Sleep/Wake switch was dropped in
+//! T-211 as it did not reliably drive the firmware).
 //!
-//! Hosts the Tiny4Linux-only XU surface: Sleep/Wake state and the
-//! three preset-position recall buttons. Also offers a "Show XU status
+//! Hosts the Tiny4Linux-only XU surface: the three preset-position
+//! recall buttons. Also offers a "Show XU status
 //! (hex dump)" row that pops an [`adw::AlertDialog`] rendering the
 //! full 60-byte GET_CUR payload from selector `0x06` — the discovery
 //! frontier for the 55 still-undecoded bytes (see
@@ -39,8 +40,8 @@ use gtk4 as gtk;
 use libadwaita as adw;
 
 use adw::prelude::*;
-use obsbot_core::xu::commands::{recall_preset, set_sleep};
-use obsbot_core::xu::{get_status, SleepState, Status, XuError, STATUS_LEN};
+use obsbot_core::xu::commands::recall_preset;
+use obsbot_core::xu::{get_status, Status, XuError, STATUS_LEN};
 use obsbot_core::{CameraInfo, TINY2_FAMILY};
 
 use crate::i18n::gettext;
@@ -70,13 +71,8 @@ pub fn build_extras_group(cam: &CameraInfo) -> Option<adw::PreferencesGroup> {
         }
     };
 
-    let baseline = get_status(&file).ok();
-
     let group = adw::PreferencesGroup::builder()
-        // GNOME HIG: prefer "and" over "&" — and libadwaita treats
-        // the title as Pango markup so a literal "&" would break the
-        // entity parser.
-        .title(gettext("Power state and presets"))
+        .title(gettext("Presets"))
         .description(gettext(
             "Preset positions are stored in the camera firmware. Use the OBSBOT Center \
              app on Windows or macOS, or the gesture controls on the camera, to program \
@@ -84,41 +80,12 @@ pub fn build_extras_group(cam: &CameraInfo) -> Option<adw::PreferencesGroup> {
         ))
         .build();
 
-    group.add(&sleep_row(&file, baseline.as_ref()));
     group.add(&preset_row(&file, 0));
     group.add(&preset_row(&file, 1));
     group.add(&preset_row(&file, 2));
     group.add(&dump_status_row(&file));
 
     Some(group)
-}
-
-fn sleep_row(file: &Rc<File>, baseline: Option<&Status>) -> adw::SwitchRow {
-    // `Sleep` = the camera is "off" (lens covered, low power); the
-    // switch's "active" state therefore means awake (camera is
-    // streaming). Default-off (Awake) if we couldn't read baseline.
-    let initial_awake = baseline.is_none_or(|s| matches!(s.sleep, SleepState::Awake));
-
-    let row = adw::SwitchRow::builder()
-        .title(gettext("Camera awake"))
-        .subtitle(gettext(
-            "Turn off to put the camera into low-power mode (lens cover descends).",
-        ))
-        .active(initial_awake)
-        .build();
-
-    let file_for_cb = Rc::clone(file);
-    row.connect_active_notify(move |row| {
-        let state = if row.is_active() {
-            SleepState::Awake
-        } else {
-            SleepState::Sleep
-        };
-        if let Err(err) = set_sleep(&file_for_cb, state) {
-            report_xu_error("Sleep state", &err);
-        }
-    });
-    row
 }
 
 fn preset_row(file: &Rc<File>, index: i8) -> adw::ActionRow {
