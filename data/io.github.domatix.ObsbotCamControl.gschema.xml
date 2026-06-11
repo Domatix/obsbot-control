@@ -38,6 +38,21 @@
         next launch.
       </description>
     </key>
+    <key name="color-scheme" type="s">
+      <choices>
+        <choice value="default"/>
+        <choice value="light"/>
+        <choice value="dark"/>
+      </choices>
+      <default>"default"</default>
+      <summary>Application appearance (color scheme)</summary>
+      <description>
+        Controls whether the app follows the system light/dark
+        preference ("default") or forces "light" or "dark". Applied at
+        startup and whenever changed from the primary menu via
+        AdwStyleManager (T-215).
+      </description>
+    </key>
     <key name="preview-default-on" type="b">
       <default>false</default>
       <summary>Start the live preview on page open</summary>

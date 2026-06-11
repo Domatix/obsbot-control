@@ -9,11 +9,11 @@
 active_task: none  # T-210/T-211/T-212 implemented + gated green this session; awaiting user visual/hardware validation
 active_task_state: IDLE
 active_branch: main
-last_completed_task: T-214  # preview card pinned to a fixed 400×300 (ScrolledWindow, no natural-height propagation) so it stops growing with the window. T-210/T-211/T-212/T-213 also DONE this session.
+last_completed_task: T-215  # in-app appearance selector (Follow system/Light/Dark via AdwStyleManager + GSettings). T-210..T-214 also DONE this session. T-216 (PTZ-hang) OPEN — awaiting user diagnosis.
 last_milestone: v0.4.0  # Live Preview milestone cut 2026-06-02 (Flatpak-validated); v0.3.2 same day (native rollup)
-last_commit_on_main: pending  # T-214 preview-size commit follows this STATE update. Prior: 445f16c (T-213), 1aa10ef docs, c6823c8 (T-212), b447901 (T-210), 0b028ff (T-211). Not pushed.
+last_commit_on_main: pending  # T-215 appearance-selector commit follows this STATE update. Prior: be12854 (T-214), 445f16c (T-213), 1aa10ef docs, c6823c8 (T-212), b447901 (T-210), 0b028ff (T-211). Not pushed.
 last_step: 2026-06-11 — Colleague feedback session. T-210: added a `videoflip` (vf_flip) to the preview pipeline + `set_mirror` + a header mirror toggle (object-flip-horizontal). T-211: removed the non-functional "Camera awake" SwitchRow from extras_view (group renamed "Presets"; auto-sleep machinery untouched). T-212: redesigned the controls page into AdwViewStack tabs (Image/Move/AI/Extras) with an AdwViewSwitcher in the header, promoted the preview to a rounded shadowed card (gtk::Stack placeholder↔video), added resources/style.css (loaded via CssProvider in application::run) + a build.rs stage to pack it, and a hero on the camera-list landing. All cargo gates green; startup smoke clean.
-next_step: User to launch the app and validate visually: tabs (Image/Move/AI/Extras) look good, preview card + mirror/grayscale/snapshot work, every control still writes, "Camera awake" gone. If approved, consider cutting 0.4.2 (bump Cargo.toml/PKGBUILD/AppStream + regenerate .deb/.flatpak) for a fresh hand-out.
+next_step: T-216 (PTZ-click hangs camera while preview on) — BLOCKED on user diagnosis: does it also happen with preview OFF, and is AI tracking active? Fix branches by cause (streaming-concurrency vs AI-vs-manual conflict). Then: user validates the T-210..T-215 GUI work; if approved, cut 0.4.2 (bump Cargo.toml/PKGBUILD/AppStream + regen .deb/.flatpak).
 blockers: none on main. T-017b Arch validation pending an Arch host (transferred to incoming dev, ADR-0023).
 working_tree:
   status: clean except the long-untracked stale obsbot-cam-control-0.4.0-1-x86_64.pkg.tar.zst (leave untracked; superseded). dist/ artifacts gitignored. T-210/T-211/T-212 committed (0b028ff, b447901, c6823c8); not pushed.

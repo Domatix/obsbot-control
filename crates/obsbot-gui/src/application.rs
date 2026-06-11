@@ -27,6 +27,7 @@ use adw::prelude::*;
 use gio::ActionEntry;
 
 use crate::i18n::gettext;
+use crate::settings;
 use crate::window;
 
 /// Build the `adw::Application`, register actions, and enter the `GLib`
@@ -82,7 +83,44 @@ fn load_css() {
     }
 }
 
+/// Apply an appearance preference (T-215) to the libadwaita style
+/// manager. `"light"` / `"dark"` force the scheme; anything else
+/// (`"default"`) follows the system light/dark setting.
+fn apply_color_scheme(value: &str) {
+    let scheme = match value {
+        "light" => adw::ColorScheme::ForceLight,
+        "dark" => adw::ColorScheme::ForceDark,
+        _ => adw::ColorScheme::Default,
+    };
+    adw::StyleManager::default().set_color_scheme(scheme);
+}
+
+/// Register the stateful `app.color-scheme` action (T-215) backing the
+/// primary-menu appearance radios. Seeds from the saved `GSettings` value,
+/// applies it immediately, and on each activation updates the style
+/// manager + persists the choice.
+fn register_color_scheme_action(app: &adw::Application) {
+    let initial = settings::color_scheme();
+    apply_color_scheme(&initial);
+
+    let action = gio::SimpleAction::new_stateful(
+        "color-scheme",
+        Some(glib::VariantTy::STRING),
+        &initial.to_variant(),
+    );
+    action.connect_activate(|action, param| {
+        if let Some(value) = param.and_then(glib::Variant::str) {
+            action.set_state(&value.to_variant());
+            apply_color_scheme(value);
+            settings::set_color_scheme(value);
+        }
+    });
+    app.add_action(&action);
+}
+
 fn register_actions(app: &adw::Application, app_id: &str) {
+    register_color_scheme_action(app);
+
     let quit = ActionEntry::builder("quit")
         .activate(|app: &adw::Application, _, _| app.quit())
         .build();

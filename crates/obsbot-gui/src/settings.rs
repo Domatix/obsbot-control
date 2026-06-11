@@ -58,6 +58,9 @@ const KEY: &str = "control-values";
 /// not need a different `.gschema.xml`.
 #[cfg(feature = "live-preview")]
 const KEY_PREVIEW_DEFAULT_ON: &str = "preview-default-on";
+/// `GSettings` key for the T-215 appearance preference
+/// (`"default"` / `"light"` / `"dark"`).
+const KEY_COLOR_SCHEME: &str = "color-scheme";
 /// Duration in seconds before a write-failure toast auto-dismisses.
 /// `adw::Toast` interprets `0` as "never auto-dismiss"; we want users
 /// to actually notice the message but not be hostage to it.
@@ -215,6 +218,29 @@ pub fn load_for_camera(serial: &str) -> HashMap<String, i32> {
 #[cfg(feature = "live-preview")]
 pub fn preview_default_on() -> bool {
     settings_handle().is_some_and(|s| s.boolean(KEY_PREVIEW_DEFAULT_ON))
+}
+
+/// Read the saved appearance preference (T-215): one of `"default"`,
+/// `"light"`, `"dark"`. Returns `"default"` (follow the system) when the
+/// schema cannot be opened, matching the schema-default.
+pub fn color_scheme() -> String {
+    settings_handle().map_or_else(
+        || "default".to_string(),
+        |s| s.string(KEY_COLOR_SCHEME).to_string(),
+    )
+}
+
+/// Persist the appearance preference (T-215). Best-effort: failures are
+/// logged and swallowed (the in-session choice still applies via
+/// `AdwStyleManager`; only persistence across launches is lost).
+pub fn set_color_scheme(value: &str) {
+    let Some(settings) = settings_handle() else {
+        eprintln!("warning: GSettings schema not loadable; appearance not saved");
+        return;
+    };
+    if let Err(err) = settings.set_string(KEY_COLOR_SCHEME, value) {
+        eprintln!("warning: failed to save appearance preference: {err}");
+    }
 }
 
 /// Persist one control's value under `(serial, control_name)`.

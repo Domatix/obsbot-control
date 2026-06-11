@@ -38,6 +38,28 @@ using Adw 1;
 // "Quit" reuses the same `app.quit` action wired to Ctrl+Q.
 menu primary_menu {
   section {
+    label: _("Appearance");
+
+    item {
+      label: _("Follow system");
+      action: "app.color-scheme";
+      target: "default";
+    }
+
+    item {
+      label: _("Light");
+      action: "app.color-scheme";
+      target: "light";
+    }
+
+    item {
+      label: _("Dark");
+      action: "app.color-scheme";
+      target: "dark";
+    }
+  }
+
+  section {
     item {
       label: _("About Obsbot Cam Control");
       action: "app.about";

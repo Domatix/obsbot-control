@@ -10,6 +10,33 @@
 
 ---
 
+## 2026-06-11 (appearance selector + PTZ-hang report)
+
+### [2026-06-11T14:00:00Z] [T-215] Done (code + gates) — in-app appearance selector
+
+User asked for an in-app light/dark override (the app only followed the
+system scheme — ADR-0026). Added a `color-scheme` GSettings key
+(`default`/`light`/`dark`, default `default`), `settings::color_scheme`
+/ `set_color_scheme`, a stateful `app.color-scheme` action wired to
+`AdwStyleManager::set_color_scheme` (applied at startup + persisted), and
+an "Appearance" radio section in the primary menu (`window.blp`).
+`default` = follow system. The custom CSS already uses Adwaita named
+colors so it tracks whichever scheme is active. fmt + clippy (default +
+live-preview) + test green; startup smoke clean.
+
+### [2026-06-11T14:05:00Z] [T-216] Reported — PTZ click while preview on hangs the camera
+
+User: open app → start preview → Move tab → click a PTZ arrow with the
+mouse → the camera drifts down "as if powering off but on", goes
+haywire, and then ignores everything (no tracking, no arrows) until a
+USB replug. Each PTZ click currently does TWO fresh O_RDWR opens of the
+V4L2 node (read pan/tilt JIT in `current_axis`, then write) while the
+preview's `v4l2src` streams on its own fd — a strong match for the
+ADR-0025 firmware churn-hang, but possibly an AI-tracking-vs-manual
+conflict instead. Multiple plausible causes → opened a diagnostic
+question to the user before shipping a hardware-behaviour change
+(CLAUDE.md §5.5). Not yet fixed.
+
 ## 2026-06-11 (follow-up: pin the preview to a fixed size)
 
 ### [2026-06-11T13:30:00Z] [T-214] Fixed — the preview card no longer grows with the window

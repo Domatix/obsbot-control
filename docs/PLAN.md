@@ -3424,6 +3424,47 @@
     still work; preview/mirror/grayscale/snapshot still work.
   - Commit `feat(gui): visual redesign — ViewSwitcher tabs, preview card, custom CSS (T-212)`.
 
+### T-213 — Roomier default window
+
+- **State**: DONE (2026-06-11). Commit `445f16c`.
+- Bumped `window.blp` default 720×540 → 920×800 and added 360×480
+  minimum-size requests so the new preview card does not squeeze the
+  controls. Resource-only.
+
+### T-214 — Pin the preview card to a fixed size
+
+- **State**: DONE (2026-06-11). Commit `be12854`.
+- User: the preview grew with the window. Root cause: `GtkPicture`
+  derives natural height from width × aspect, so as a non-vexpand child
+  the layout handed it ~480 px. Hosted the preview stack in a
+  `GtkScrolledWindow` with `propagate-natural-height = false` + equal
+  min/max content height → fixed 400×300; surplus height flows to the
+  AdwViewStack. Gates green.
+
+### T-215 — Appearance selector (Follow system / Light / Dark)
+
+- **State**: DONE (2026-06-11) — code + cargo gates green (fmt, clippy
+  default + live-preview, test), startup smoke clean; user validation
+  pending.
+- **Depends on**: T-106 (primary menu), T-105 (GSettings plumbing).
+- **Description**: the app followed the system light/dark scheme with no
+  in-app override (ADR-0026 / default `AdwColorScheme::Default`). Add a
+  user-facing override: a new `color-scheme` GSettings key
+  (`default`/`light`/`dark`), a stateful `app.color-scheme` action that
+  drives `AdwStyleManager::set_color_scheme` and persists the choice, and
+  an "Appearance" radio section in the primary menu. `default` keeps the
+  follow-the-system behaviour; the custom CSS already uses Adwaita named
+  colors so it adapts to whichever scheme is active.
+- **Acceptance criteria**:
+  - `data/…gschema.xml` gains the `color-scheme` key with choices.
+  - `settings::{color_scheme, set_color_scheme}` read/write it.
+  - `application.rs` seeds + applies the scheme at startup and on
+    activation; primary menu shows the three radios.
+  - All cargo gates green.
+  - **User validation pending**: switch Light/Dark/Follow-system from the
+    ☰ menu and confirm it applies live and survives a relaunch.
+  - Commit `feat(gui): appearance selector — follow system / light / dark (T-215)`.
+
 ---
 
 ## Backlog (future milestones)
