@@ -3329,6 +3329,101 @@
   stream. Out of scope for T-209 (the user's issue was the dead toggle +
   log spam, not resolution).
 
+### T-210 — Mirror (horizontal flip) toggle for the live preview
+
+- **State**: DONE (2026-06-11) — code + all cargo gates green (fmt,
+  clippy default + `--features live-preview`, `cargo test --workspace`),
+  startup smoke-launched clean (no CSS/GTK warnings); user visual /
+  hardware validation pending.
+- **Started**: 2026-06-11
+- **Depends on**: T-200 (preview pipeline), T-202 (filter-toggle pattern).
+- **Problem**: a colleague testing the hand-out reported "cuando me veo
+  tengo la mano derecha en la izquierda de la pantalla" — the raw UVC feed
+  is not mirrored, so it does not match the self-view (mirror) people
+  expect from a webcam.
+- **Description**: add a `videoflip` element to the preview pipeline
+  (same `videofilter` plugin as the existing `videobalance`, so no new
+  dependency) between `videobalance` and `vc_post`, default
+  `method=none`. Expose `PreviewPipeline::set_mirror(on)` flipping the
+  method to `horizontal-flip`. Add a header-bar `ToggleButton` next to the
+  grayscale one, wired exactly like the grayscale toggle. Preview-only
+  (does not change what other apps capture); resets on page reopen, like
+  grayscale.
+- **Acceptance criteria**:
+  - `videoflip` named `vf_flip` linked into the pipeline; `set_mirror`
+    flips `method` between `none` and `horizontal-flip`.
+  - Header-bar mirror toggle present whenever the preview machinery is.
+  - `cargo fmt --all --check`, clippy (default + `--features
+    obsbot-gui/live-preview`), `cargo test --workspace` green.
+  - **User validation pending**: toggle mirror, confirm the self-view
+    flips horizontally.
+  - Commit `feat(gui): mirror (horizontal-flip) toggle for the preview (T-210)`.
+
+### T-211 — Remove the dead "Camera awake" switch
+
+- **State**: DONE (2026-06-11) — code + all cargo gates green (fmt,
+  clippy default + `--features live-preview`, `cargo test --workspace`),
+  startup smoke-launched clean (no CSS/GTK warnings); user visual /
+  hardware validation pending.
+- **Started**: 2026-06-11
+- **Depends on**: T-302 (the extras group that hosts the switch).
+- **Problem**: the "Camera awake" `AdwSwitchRow` in the Power-state group
+  does not reliably drive the firmware sleep/wake (colleague-confirmed);
+  with the T-208 auto-sleep-on-close in place it is redundant noise.
+- **Description**: delete `extras_view::sleep_row` and its call; drop the
+  now-unused `baseline`/`set_sleep`/`SleepState` bits in that file (keep
+  `get_status`/`Status`/`STATUS_LEN` — still used by the XU hex dump).
+  Rename the group from "Power state and presets" to "Presets" since it no
+  longer carries a power control. The T-208 auto-sleep machinery in
+  `preview.rs`/`window.rs` is independent and stays.
+- **Acceptance criteria**:
+  - No "Camera awake" row renders; presets + hex-dump rows unchanged.
+  - No unused-import / dead-code warnings; all cargo gates green.
+  - Commit `fix(gui): drop the non-functional Camera awake switch (T-211)`.
+
+### T-212 — Visual redesign of the GUI (ViewSwitcher + preview card + CSS)
+
+- **State**: DONE (2026-06-11) — code + all cargo gates green (fmt,
+  clippy default + `--features live-preview`, `cargo test --workspace`),
+  startup smoke-launched clean (no CSS/GTK warnings); user visual /
+  hardware validation pending.
+- **Started**: 2026-06-11
+- **Depends on**: T-210 (mirror toggle lands in the same header cluster).
+- **User ask**: "rehaz la interfaz y hazla MUCHO MÁS CHULA … que la gente
+  diga 'qué gusto'", explicitly **without touching functionality**.
+- **Decisions** (AskUserQuestion, 2026-06-11):
+  1. Controls page reorganised into an `AdwViewStack` + `AdwViewSwitcher`
+     (tabs): Imagen · Movimiento · IA · Extras. All existing groups are
+     redistributed across tabs; every signal/wiring kept verbatim.
+  2. Live preview promoted to a prominent rounded **card** (shadow,
+     always visible above the tabs; placeholder with a Start button when
+     off, video when on). Toggle still drives start/stop.
+  3. Custom `style.css` shipped in the GResource (rounded media + shadow,
+     accent on active filter toggles, polished landing page).
+- **Description**: container/cosmetic refactor only.
+  * `resources/style.css` (new), packed into the GResource via a new
+    build.rs copy stage + a `<file>` entry; loaded once in
+    `application::run` through a `gtk::CssProvider` on the default display.
+  * `controls_view::render_controls`: build the preview card, then an
+    `AdwViewStack` whose pages are `AdwPreferencesPage`s holding the
+    existing groups. Return the stack so `build_controls_page` can mount
+    an `AdwViewSwitcher` as the header title widget.
+  * Preview widget rebuilt as a `gtk::Stack` (placeholder ↔ picture) with
+    `.preview-card` styling; banner/revealer replaced. Snapshot /
+    grayscale / mirror header buttons unchanged in behaviour.
+  * `window.rs` landing page: polished camera list (boxed-list card, icon
+    avatars) — cosmetic only.
+- **Acceptance criteria**:
+  - No control loses its wiring: every slider / switch / combo / button /
+    PTZ key still writes via the same `settings::write_and_save` path.
+  - Tabs only appear for groups the camera advertises (empty tab hidden).
+  - `cargo fmt --all --check`, clippy (default + `--features
+    obsbot-gui/live-preview`), `cargo test --workspace` green; the
+    Blueprint pipeline + GResource still build.
+  - **User validation pending**: app looks visibly nicer; all controls
+    still work; preview/mirror/grayscale/snapshot still work.
+  - Commit `feat(gui): visual redesign — ViewSwitcher tabs, preview card, custom CSS (T-212)`.
+
 ---
 
 ## Backlog (future milestones)

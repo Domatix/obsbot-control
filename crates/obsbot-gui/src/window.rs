@@ -218,6 +218,30 @@ fn build_body(cameras: &[CameraInfo], nav_view: &adw::NavigationView) -> gtk::Wi
     }
 
     let page = adw::PreferencesPage::new();
+
+    // T-212: a compact welcome hero above the camera list — the app
+    // glyph plus a one-line greeting — so the landing page feels
+    // crafted rather than a bare list. Cosmetic only.
+    let hero = adw::PreferencesGroup::new();
+    let hero_box = gtk::Box::builder()
+        .orientation(gtk::Orientation::Vertical)
+        .spacing(8)
+        .halign(gtk::Align::Center)
+        .margin_top(12)
+        .margin_bottom(6)
+        .build();
+    let hero_icon = gtk::Image::from_icon_name("io.github.domatix.ObsbotCamControl");
+    hero_icon.set_pixel_size(72);
+    hero_icon.add_css_class("app-hero-icon");
+    let hero_title = gtk::Label::builder()
+        .label(gettext("Your OBSBOT cameras"))
+        .build();
+    hero_title.add_css_class("title-2");
+    hero_box.append(&hero_icon);
+    hero_box.append(&hero_title);
+    hero.add(&hero_box);
+    page.add(&hero);
+
     let group = adw::PreferencesGroup::builder()
         .title(gettext("Connected cameras"))
         .build();

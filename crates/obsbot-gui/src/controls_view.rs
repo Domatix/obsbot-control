@@ -83,54 +83,61 @@ pub fn build_controls_page(cam: &CameraInfo) -> adw::NavigationPage {
     // find them.
     settings::reset_row_registry(cam.video_path.clone());
 
-    // T-200: pack the live-preview toggle into the header bar so it
-    // is always reachable, while the Picture lives in a `Revealer`
-    // above the scrolled page that only opens while the toggle is
-    // active. Compiled only with the `live-preview` Cargo feature;
-    // a feature-off build leaves the header empty (current
-    // behaviour).
-    #[cfg(feature = "live-preview")]
-    {
-        let (body, preview_slot) = build_body(cam);
-        body_slot.set_child(Some(&body));
-        if let Some(handles) = preview_slot {
-            let header_bar: adw::HeaderBar = builder
-                .object("header_bar")
-                .expect("controls-view.ui missing object 'header_bar'");
-            // pack_end stacks right-to-left: the first pack_end ends
-            // up rightmost. Final layout:
-            //     [<back]   …   [grayscale] [snapshot] [toggle]
-            let toggle = build_preview_toggle(&handles);
-            let snapshot = build_snapshot_button(&handles);
-            let grayscale = build_grayscale_toggle(&handles);
-            header_bar.pack_end(&toggle);
-            header_bar.pack_end(&snapshot);
-            header_bar.pack_end(&grayscale);
+    // T-212: the body is a tabbed `AdwViewStack` (Image · Move · AI ·
+    // Extras) with the live-preview card pinned above it. Mount it,
+    // then pin an `AdwViewSwitcher` in the header bar as the title
+    // widget so the tabs are reachable. Error bodies (no video node,
+    // empty control list) carry no stack and leave the header plain.
+    let (body, preview_slot, view_stack) = build_body(cam);
+    body_slot.set_child(Some(&body));
 
-            // T-207: release the camera deterministically when the
-            // user navigates away. `AdwNavigationPage::hidden` fires on
-            // pop (back button) and on the T-110 `pop_to_tag` after a
-            // hot-plug REMOVE — both cases where the preview must stop
-            // even though the page widget (and its `Drop`) may linger
-            // in the NavigationView's transition/cache for a while.
-            // Relying on `Drop` alone left the v4l2src in PLAYING with
-            // the camera LED on while the user sat on the camera list.
-            // Also register this slot so the window's close handler can
-            // stop it (see `window::build`).
-            crate::preview::register_active(&handles.pipeline);
-            let pipeline = handles.pipeline.clone();
-            page.connect_hidden(move |_| {
-                if let Some(p) = pipeline.borrow_mut().as_mut() {
-                    p.stop();
-                }
-            });
-        }
+    let header_bar: adw::HeaderBar = builder
+        .object("header_bar")
+        .expect("controls-view.ui missing object 'header_bar'");
+
+    if let Some(stack) = view_stack.as_ref() {
+        let switcher = adw::ViewSwitcher::builder()
+            .stack(stack)
+            .policy(adw::ViewSwitcherPolicy::Wide)
+            .build();
+        header_bar.set_title_widget(Some(&switcher));
+    }
+
+    // T-200/T-210: pack the live-preview controls into the header bar.
+    // pack_end stacks right-to-left, so the first pack_end ends up
+    // rightmost. Final layout:
+    //   [<back]  <ViewSwitcher>  …  [toggle][snapshot][mirror][grayscale]
+    // Compiled only with the `live-preview` Cargo feature; a feature-off
+    // build keeps the header switcher-only.
+    #[cfg(feature = "live-preview")]
+    if let Some(handles) = preview_slot {
+        let toggle = build_preview_toggle(&handles);
+        let snapshot = build_snapshot_button(&handles);
+        let mirror = build_mirror_toggle(&handles);
+        let grayscale = build_grayscale_toggle(&handles);
+        header_bar.pack_end(&toggle);
+        header_bar.pack_end(&snapshot);
+        header_bar.pack_end(&mirror);
+        header_bar.pack_end(&grayscale);
+
+        // T-207: release the camera deterministically when the user
+        // navigates away. `AdwNavigationPage::hidden` fires on pop
+        // (back button) and on the T-110 `pop_to_tag` after a hot-plug
+        // REMOVE — both cases where the preview must stop even though
+        // the page widget (and its `Drop`) may linger in the
+        // NavigationView's transition/cache for a while. Also register
+        // this slot so the window's close handler can stop it (see
+        // `window::build`).
+        crate::preview::register_active(&handles.pipeline);
+        let pipeline = handles.pipeline.clone();
+        page.connect_hidden(move |_| {
+            if let Some(p) = pipeline.borrow_mut().as_mut() {
+                p.stop();
+            }
+        });
     }
     #[cfg(not(feature = "live-preview"))]
-    {
-        let (body, ()) = build_body(cam);
-        body_slot.set_child(Some(&body));
-    }
+    let () = preview_slot;
 
     // T-108 / T-110: the toast surface that backs
     // `settings::surface_error` is a window-level
@@ -142,7 +149,7 @@ pub fn build_controls_page(cam: &CameraInfo) -> adw::NavigationPage {
     page
 }
 
-fn build_body(cam: &CameraInfo) -> (gtk::Widget, PreviewSlot) {
+fn build_body(cam: &CameraInfo) -> (gtk::Widget, PreviewSlot, Option<adw::ViewStack>) {
     let Some(path) = cam.video_path.as_deref() else {
         return (
             error_status(
@@ -151,6 +158,7 @@ fn build_body(cam: &CameraInfo) -> (gtk::Widget, PreviewSlot) {
             )
             .upcast(),
             empty_preview_slot(),
+            None,
         );
     };
 
@@ -163,6 +171,7 @@ fn build_body(cam: &CameraInfo) -> (gtk::Widget, PreviewSlot) {
                 )
                 .upcast(),
                 empty_preview_slot(),
+                None,
             );
         }
         Ok(controls) => controls,
@@ -174,6 +183,7 @@ fn build_body(cam: &CameraInfo) -> (gtk::Widget, PreviewSlot) {
                 )
                 .upcast(),
                 empty_preview_slot(),
+                None,
             );
         }
     };
@@ -232,57 +242,37 @@ fn restore_saved_values(
     read_controls(path).ok()
 }
 
-/// Build the controls body plus, when the `live-preview` feature
-/// is enabled, the handles the header-bar toggle binds to. The
-/// outer `gtk::Box` stacks (1) the sticky preview revealer and (2)
-/// the scrollable `PreferencesPage`. With the feature off the
-/// box only holds the page so the layout matches the pre-T-200
-/// behaviour.
+/// Build the controls body: the live-preview card (when the
+/// `live-preview` feature is on) pinned above an `AdwViewStack` whose
+/// pages group the controls into tabs — Image · Move · AI · Extras
+/// (T-212). Returns the outer widget, the preview handles the
+/// header-bar buttons bind to, and the `AdwViewStack` so
+/// `build_controls_page` can drive an `AdwViewSwitcher` from the
+/// header. Empty tabs (groups the camera does not advertise) are never
+/// added. No control loses its wiring: the exact same group / row
+/// builders run as before — they are merely distributed across tabs
+/// instead of one long scrolling page.
 fn render_controls(
     cam: &CameraInfo,
     controls: &[ControlDescriptor],
     path: &Path,
     serial: Option<&str>,
-) -> (gtk::Widget, PreviewSlot) {
+) -> (gtk::Widget, PreviewSlot, Option<adw::ViewStack>) {
     let outer = gtk::Box::new(gtk::Orientation::Vertical, 0);
 
     #[cfg(feature = "live-preview")]
     let preview_slot: PreviewSlot = {
-        let (banner, revealer, handles) = build_preview_widgets(path);
-        outer.append(&banner);
-        outer.append(&revealer);
+        let (card, handles) = build_preview_widgets(path);
+        outer.append(&card);
         Some(handles)
     };
     #[cfg(not(feature = "live-preview"))]
     let preview_slot: PreviewSlot = ();
 
-    let page = adw::PreferencesPage::new();
-    page.set_vexpand(true);
-
-    // Curated groups (AI & Effects, PTZ pad, White balance,
-    // Exposure) consume a specific subset of controls. Mount them
-    // at the top of the page and filter the consumed IDs out of
-    // the generic per-class render below.
-
-    // AI & Effects (T-301) is the marquee v0.3 feature so it goes
-    // first; the controls it surfaces are XU-only and don't overlap
-    // with any V4L2 standard ID, so no filter list to merge.
-    if let Some(ai_group) = build_ai_effects_group(cam) {
-        page.add(&ai_group);
-    }
-    if let Some(extras_group) = build_extras_group(cam) {
-        page.add(&extras_group);
-    }
-    if let Some(ptz_group) = build_ptz_pad(controls, path, serial) {
-        page.add(&ptz_group);
-    }
-    if let Some(exposure_group) = build_exposure_group(controls, path, serial) {
-        page.add(&exposure_group);
-    }
-    if let Some(wb_group) = build_wb_group(controls, path, serial) {
-        page.add(&wb_group);
-    }
-
+    // Generic per-class groups — everything not consumed by a curated
+    // group (PTZ / WB / Exposure). Built first so each lands in the
+    // right tab below. Identical filtering + INACTIVE grey-out +
+    // row-registry wiring as before.
     let mut user_group: Option<adw::PreferencesGroup> = None;
     let mut camera_group: Option<adw::PreferencesGroup> = None;
     let mut other_group: Option<adw::PreferencesGroup> = None;
@@ -311,42 +301,130 @@ fn render_controls(
         group.add(&row);
     }
 
-    for group in [&user_group, &camera_group, &other_group]
-        .into_iter()
-        .flatten()
-    {
-        page.add(group);
-    }
+    let stack = adw::ViewStack::new();
+    stack.set_vexpand(true);
 
-    outer.append(&page);
+    // Image — white balance, exposure, and the generic User-class
+    // sliders (brightness/contrast/saturation/hue/…).
+    let mut image_groups: Vec<adw::PreferencesGroup> = Vec::new();
+    if let Some(wb) = build_wb_group(controls, path, serial) {
+        image_groups.push(wb);
+    }
+    if let Some(exposure) = build_exposure_group(controls, path, serial) {
+        image_groups.push(exposure);
+    }
+    if let Some(g) = user_group {
+        image_groups.push(g);
+    }
+    add_tab(
+        &stack,
+        "image",
+        &gettext("Image"),
+        "applications-graphics-symbolic",
+        &image_groups,
+    );
+
+    // Move — the PTZ pad (pan/tilt/zoom/focus).
+    let mut move_groups: Vec<adw::PreferencesGroup> = Vec::new();
+    if let Some(ptz) = build_ptz_pad(controls, path, serial) {
+        move_groups.push(ptz);
+    }
+    add_tab(
+        &stack,
+        "move",
+        &gettext("Move"),
+        "find-location-symbolic",
+        &move_groups,
+    );
+
+    // AI — the marquee auto-framing / HDR / FOV vendor-XU group.
+    let mut ai_groups: Vec<adw::PreferencesGroup> = Vec::new();
+    if let Some(ai) = build_ai_effects_group(cam) {
+        ai_groups.push(ai);
+    }
+    add_tab(
+        &stack,
+        "ai",
+        &gettext("AI"),
+        "applications-science-symbolic",
+        &ai_groups,
+    );
+
+    // Extras — presets plus any remaining Camera / Other-class controls.
+    let mut extras_groups: Vec<adw::PreferencesGroup> = Vec::new();
+    if let Some(extras) = build_extras_group(cam) {
+        extras_groups.push(extras);
+    }
+    if let Some(g) = camera_group {
+        extras_groups.push(g);
+    }
+    if let Some(g) = other_group {
+        extras_groups.push(g);
+    }
+    add_tab(
+        &stack,
+        "extras",
+        &gettext("Extras"),
+        "preferences-other-symbolic",
+        &extras_groups,
+    );
+
+    outer.append(&stack);
 
     // Arrow-key + Home navigation of the PTZ (T-101b; one keypress =
     // one step since T-101d). Attached to the outer `Box` so any
     // descendant with focus bubbles unhandled keys up to the
     // controller (focused sliders still consume their own arrows).
-    // Skips quietly when the camera does not advertise pan / tilt.
+    // Works regardless of the visible tab. Skips quietly when the
+    // camera does not advertise pan / tilt.
     wire_keyboard_arrows(&outer, controls, path, serial);
 
-    (outer.upcast(), preview_slot)
+    // No tab populated (camera advertised nothing we group) → no
+    // switcher in the header.
+    let view_stack = (stack.pages().n_items() > 0).then_some(stack);
+
+    (outer.upcast(), preview_slot, view_stack)
+}
+
+/// Add `groups` to a fresh scrollable `AdwPreferencesPage` and register
+/// it as a titled, icon'd page in `stack`. No-op when `groups` is empty
+/// so a tab the camera cannot populate never appears.
+fn add_tab(
+    stack: &adw::ViewStack,
+    name: &str,
+    title: &str,
+    icon: &str,
+    groups: &[adw::PreferencesGroup],
+) {
+    if groups.is_empty() {
+        return;
+    }
+    let page = adw::PreferencesPage::new();
+    page.set_vexpand(true);
+    for group in groups {
+        page.add(group);
+    }
+    let stack_page = stack.add_titled(&page, Some(name), title);
+    stack_page.set_icon_name(Some(icon));
 }
 
 fn make_group(title: &str) -> adw::PreferencesGroup {
     adw::PreferencesGroup::builder().title(title).build()
 }
 
-/// Handles for the live-preview machinery (T-200) — the
-/// `gtk::Revealer` that hosts the Picture and the `Rc<RefCell>`
-/// holding the lazy-built pipeline. Owned by `build_preview_toggle`
-/// once the header-bar toggle is wired; the toggle's
-/// `connect_toggled` closure drives both the revealer (sticky
-/// preview slot collapses when off) and the pipeline (NULL when
+/// Handles for the live-preview machinery (T-200, reshaped in T-212) —
+/// the `gtk::Stack` that swaps between the off-state placeholder and
+/// the live Picture, plus the `Rc<RefCell>` holding the lazy-built
+/// pipeline. The header-bar toggle's `connect_toggled` closure drives
+/// both the stack (placeholder ↔ video) and the pipeline (NULL when
 /// off, PLAYING when on).
 #[cfg(feature = "live-preview")]
 struct PreviewHandles {
-    /// Reveals the sticky Picture above the scrollable
-    /// `PreferencesPage`. `reveal_child = false` when the toggle is
-    /// off so the page reclaims the vertical space.
-    revealer: gtk::Revealer,
+    /// Swaps the rounded card between its `"off"` placeholder child
+    /// and its `"on"` Picture child. The card itself is always
+    /// visible (T-212): the video is the centre of gravity of the
+    /// page now, not a collapsible strip.
+    stack: gtk::Stack,
     /// `gtk::Picture` bound to the `gtk4paintablesink` paintable on
     /// first `PreviewPipeline::new` success; rebinding stays cheap
     /// after that because the paintable is stable for the
@@ -358,76 +436,94 @@ struct PreviewHandles {
     /// `/dev/videoN` path owned by value so the closure can outlive
     /// the borrowed `&Path` passed into `render_controls`.
     path: std::path::PathBuf,
-    /// Discoverability banner pinned under the header bar while the
-    /// preview is off. Hosts a "Start" button that activates the
-    /// header-bar toggle; collapses the moment the toggle goes
-    /// active so we do not double-announce the feature once the
-    /// user has found it.
-    banner: adw::Banner,
+    /// "Start preview" button inside the placeholder — an in-card
+    /// entry point that activates the header-bar toggle so all
+    /// start/stop logic stays in one closure.
+    start_button: gtk::Button,
 }
 
-/// Build the sticky preview slot: a discoverability banner plus
-/// the `Revealer` that hosts the Picture. The caller appends both
-/// to its outer `Box` above the scrollable `PreferencesPage`. The
-/// revealer starts hidden so the page is scrollable end-to-end
-/// whenever the preview is off; the banner starts revealed so a
-/// new user notices the feature exists.
+/// Build the prominent preview **card** (T-212): a rounded, shadowed
+/// frame (`.preview-card`) holding a `gtk::Stack` that crossfades
+/// between an off-state placeholder (camera glyph + "Start preview"
+/// pill) and the live `gtk::Picture`. Returned widget is a clamped
+/// card the caller pins at the top of the controls body; it stays
+/// visible whether or not the preview is running.
 #[cfg(feature = "live-preview")]
-fn build_preview_widgets(path: &Path) -> (adw::Banner, gtk::Revealer, PreviewHandles) {
+fn build_preview_widgets(path: &Path) -> (gtk::Widget, PreviewHandles) {
     use std::cell::RefCell;
     use std::rc::Rc;
 
     let picture = gtk::Picture::builder()
         .content_fit(gtk::ContentFit::Contain)
-        // T-204: 192 px = 240 × 0.8, a 20% cut so the feed reads as a
-        // banner above the controls rather than the page's centre of
-        // gravity. `Contain` letterboxes the frame without distortion.
-        .height_request(192)
+        .height_request(260)
         .build();
+    picture.add_css_class("preview-video");
 
-    // Clamp matches `AdwPreferencesPage`'s built-in 600 px clamp
-    // so the preview lines up with the groups in the scrolled
-    // page below.
+    // Off-state placeholder: a soft accent panel with a big camera
+    // glyph and a Start button, so the card never looks broken/empty.
+    let placeholder = gtk::Box::builder()
+        .orientation(gtk::Orientation::Vertical)
+        .spacing(12)
+        .halign(gtk::Align::Center)
+        .valign(gtk::Align::Center)
+        .height_request(260)
+        .build();
+    placeholder.add_css_class("preview-placeholder");
+
+    let ph_icon = gtk::Image::from_icon_name("camera-video-symbolic");
+    ph_icon.set_pixel_size(56);
+    let ph_label = gtk::Label::new(Some(&gettext("Live preview is off")));
+    ph_label.add_css_class("dim-label");
+    let start_button = gtk::Button::builder()
+        .label(gettext("Start preview"))
+        .halign(gtk::Align::Center)
+        .css_classes(vec!["pill".to_string(), "suggested-action".to_string()])
+        .build();
+    placeholder.append(&ph_icon);
+    placeholder.append(&ph_label);
+    placeholder.append(&start_button);
+
+    let stack = gtk::Stack::builder()
+        .transition_type(gtk::StackTransitionType::Crossfade)
+        .transition_duration(200)
+        .build();
+    stack.add_named(&placeholder, Some("off"));
+    stack.add_named(&picture, Some("on"));
+    stack.set_visible_child_name("off");
+
+    // The rounded, shadowed card. `overflow: hidden` clips the inner
+    // stack to the CSS corner radius; the card's own box-shadow is
+    // painted outside that clip so it still shows.
+    let card = gtk::Box::new(gtk::Orientation::Vertical, 0);
+    card.add_css_class("preview-card");
+    card.set_overflow(gtk::Overflow::Hidden);
+    card.append(&stack);
+
     let clamp = adw::Clamp::builder()
-        .maximum_size(600)
+        .maximum_size(640)
         .margin_top(12)
         .margin_start(12)
         .margin_end(12)
-        .margin_bottom(12)
-        .child(&picture)
-        .build();
-
-    let revealer = gtk::Revealer::builder()
-        .transition_type(gtk::RevealerTransitionType::SlideDown)
-        .transition_duration(200)
-        .reveal_child(false)
-        .child(&clamp)
-        .build();
-
-    let banner = adw::Banner::builder()
-        .title(gettext(
-            "Live preview is available — show the camera feed inside the app.",
-        ))
-        .button_label(gettext("Show preview"))
-        .revealed(true)
+        .margin_bottom(6)
+        .child(&card)
         .build();
 
     let handles = PreviewHandles {
-        revealer: revealer.clone(),
+        stack,
         picture,
         pipeline: Rc::new(RefCell::new(None)),
         path: path.to_path_buf(),
-        banner: banner.clone(),
+        start_button,
     };
 
-    (banner, revealer, handles)
+    (clamp.upcast(), handles)
 }
 
-/// Wire a `gtk::ToggleButton` to the preview revealer + pipeline.
+/// Wire a `gtk::ToggleButton` to the preview card stack + pipeline.
 /// The caller packs this into the header bar of the controls page.
 /// Honours the `preview-default-on` `GSettings` key — when true,
 /// emits `toggled` once at construction so the pipeline starts and
-/// the revealer opens on first render.
+/// the card shows the video on first render.
 #[cfg(feature = "live-preview")]
 fn build_preview_toggle(handles: &PreviewHandles) -> gtk::ToggleButton {
     let toggle = gtk::ToggleButton::builder()
@@ -435,13 +531,12 @@ fn build_preview_toggle(handles: &PreviewHandles) -> gtk::ToggleButton {
         .tooltip_text(toggle_tooltip(false))
         .build();
 
-    // The banner's "Show preview" button is an alternative entry
-    // point for users who notice the banner before the icon. It
-    // flips the toggle, which dispatches the existing toggled
-    // closure below — keeping all start/stop logic in one place.
+    // The placeholder's "Start preview" button is an in-card entry
+    // point: it flips the toggle, which dispatches the toggled closure
+    // below — keeping all start/stop logic in one place.
     {
         let toggle_weak = toggle.downgrade();
-        handles.banner.connect_button_clicked(move |_| {
+        handles.start_button.connect_clicked(move |_| {
             if let Some(toggle) = toggle_weak.upgrade() {
                 toggle.set_active(true);
             }
@@ -451,49 +546,60 @@ fn build_preview_toggle(handles: &PreviewHandles) -> gtk::ToggleButton {
     let default_on = settings::preview_default_on();
     toggle.set_active(default_on);
 
-    let banner = handles.banner.clone();
-    let revealer = handles.revealer.clone();
+    let stack = handles.stack.clone();
     let pipeline = handles.pipeline.clone();
     let picture = handles.picture.clone();
     let path = handles.path.clone();
     toggle.connect_toggled(move |btn| {
         let active = btn.is_active();
         btn.set_tooltip_text(Some(&toggle_tooltip(active)));
-        revealer.set_reveal_child(active);
-        // Hide the discoverability banner while the preview is on
-        // (the user has clearly found it); bring it back when the
-        // preview is off so it remains a visual anchor.
-        banner.set_revealed(!active);
 
         if active {
-            let mut slot = pipeline.borrow_mut();
-            if slot.is_none() {
-                match PreviewPipeline::new() {
-                    Ok(p) => {
-                        picture.set_paintable(Some(&p.paintable()));
-                        *slot = Some(p);
+            // Lazily build + start the pipeline. `ok` tracks success so
+            // we never hold the pipeline borrow across the stack
+            // switch or the `set_active(false)` re-entry below.
+            let mut ok = true;
+            {
+                let mut slot = pipeline.borrow_mut();
+                if slot.is_none() {
+                    match PreviewPipeline::new() {
+                        Ok(p) => {
+                            picture.set_paintable(Some(&p.paintable()));
+                            *slot = Some(p);
+                        }
+                        Err(err) => {
+                            settings::surface_error(&format!(
+                                "{}: {err}",
+                                gettext("Could not initialize preview")
+                            ));
+                            ok = false;
+                        }
                     }
-                    Err(err) => {
-                        settings::surface_error(&format!(
-                            "{}: {err}",
-                            gettext("Could not initialize preview")
-                        ));
-                        btn.set_active(false);
-                        return;
+                }
+                if ok {
+                    if let Some(p) = slot.as_mut() {
+                        if let Err(err) = p.start(&path) {
+                            settings::surface_error(&format!(
+                                "{}: {err}",
+                                gettext("Could not start preview")
+                            ));
+                            ok = false;
+                        }
                     }
                 }
             }
-            if let Some(p) = slot.as_mut() {
-                if let Err(err) = p.start(&path) {
-                    settings::surface_error(&format!(
-                        "{}: {err}",
-                        gettext("Could not start preview")
-                    ));
-                    btn.set_active(false);
-                }
+            if ok {
+                stack.set_visible_child_name("on");
+            } else {
+                // Re-enters this closure with active == false, which
+                // stops the (already-idle) pipeline and shows "off".
+                btn.set_active(false);
             }
-        } else if let Some(p) = pipeline.borrow_mut().as_mut() {
-            p.stop();
+        } else {
+            if let Some(p) = pipeline.borrow_mut().as_mut() {
+                p.stop();
+            }
+            stack.set_visible_child_name("off");
         }
     });
 
@@ -515,11 +621,34 @@ fn build_grayscale_toggle(handles: &PreviewHandles) -> gtk::ToggleButton {
         .icon_name("view-reveal-symbolic")
         .tooltip_text(gettext("Toggle grayscale filter"))
         .build();
+    btn.add_css_class("preview-filter");
     let pipeline = handles.pipeline.clone();
     btn.connect_toggled(move |btn| {
         let on = btn.is_active();
         if let Some(p) = pipeline.borrow().as_ref() {
             p.set_grayscale(on);
+        }
+    });
+    btn
+}
+
+/// Mirror-filter toggle (T-210). Flips the `videoflip` `method` on the
+/// live pipeline between `none` and `horizontal-flip` so the user sees
+/// a natural self-view (right hand on the right). Cheap — no pipeline
+/// state change, no relink. Preview-only; resets to off on page
+/// reopen, like the grayscale toggle.
+#[cfg(feature = "live-preview")]
+fn build_mirror_toggle(handles: &PreviewHandles) -> gtk::ToggleButton {
+    let btn = gtk::ToggleButton::builder()
+        .icon_name("object-flip-horizontal-symbolic")
+        .tooltip_text(gettext("Toggle mirror (horizontal flip)"))
+        .build();
+    btn.add_css_class("preview-filter");
+    let pipeline = handles.pipeline.clone();
+    btn.connect_toggled(move |btn| {
+        let on = btn.is_active();
+        if let Some(p) = pipeline.borrow().as_ref() {
+            p.set_mirror(on);
         }
     });
     btn

@@ -1,0 +1,63 @@
+/*
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ *
+ * Custom polish for Obsbot Cam Control (T-212).
+ *
+ * Kept deliberately light and HIG-friendly: it only adds rounding,
+ * soft shadows and accent cues on top of the Adwaita stylesheet using
+ * Adwaita's own named colors (@card_bg_color, @accent_bg_color, …) so
+ * it adapts to light/dark and to the user's accent automatically. No
+ * hard-coded palette, nothing that fights the platform theme.
+ */
+
+/* ----- Live-preview card (T-212) ----------------------------------- */
+
+/* The rounded, shadowed frame around the video / placeholder stack.
+ * `overflow: hidden` is set in code so the inner Picture is clipped to
+ * these corners; the shadow is painted outside the clip so it stays
+ * visible. */
+.preview-card {
+  border-radius: 18px;
+  background-color: @card_bg_color;
+  box-shadow: 0 3px 16px 0 alpha(black, 0.30);
+}
+
+/* The video surface itself — black letterbox behind the frame. */
+.preview-video {
+  border-radius: 18px;
+  background-color: black;
+}
+
+/* Shown while the preview is stopped: a soft accent-tinted panel with
+ * a big camera glyph and a Start button. */
+.preview-placeholder {
+  border-radius: 18px;
+  padding: 24px;
+  background-image: linear-gradient(
+    to bottom right,
+    alpha(@accent_bg_color, 0.16),
+    alpha(@accent_bg_color, 0.04)
+  );
+}
+
+.preview-placeholder image {
+  opacity: 0.55;
+}
+
+/* ----- Header filter toggles (grayscale / mirror) ------------------ */
+
+/* Give the post-process filter toggles a clear accent when active so
+ * the user can tell at a glance that mirror or grayscale is on. */
+button.preview-filter:checked {
+  background-color: @accent_bg_color;
+  color: @accent_fg_color;
+}
+
+/* ----- Landing page (camera list) ---------------------------------- */
+
+/* The app glyph that heads the camera list — large, gently dimmed. */
+.app-hero-icon {
+  opacity: 0.92;
+  margin-top: 6px;
+  margin-bottom: 6px;
+}

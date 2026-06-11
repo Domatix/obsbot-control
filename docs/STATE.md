@@ -6,17 +6,17 @@
 
 ---
 
-active_task: none  # session closed 2026-06-11 after the preview lifecycle/sleep/grayscale trio shipped + pushed
+active_task: none  # T-210/T-211/T-212 implemented + gated green this session; awaiting user visual/hardware validation
 active_task_state: IDLE
 active_branch: main
-last_completed_task: T-209  # capsfilter I420 fix — grayscale works + CRITICAL spam gone (verified headless + user-accepted). T-207 + T-208 also DONE this session.
+last_completed_task: T-212  # GUI redesign (ViewSwitcher tabs + preview card + custom CSS). T-210 (mirror toggle) + T-211 (drop Camera-awake switch) also DONE this session.
 last_milestone: v0.4.0  # Live Preview milestone cut 2026-06-02 (Flatpak-validated); v0.3.2 same day (native rollup)
-last_commit_on_main: 6a9357d  # build: bump version to 0.4.1 (carries T-207/208/209); docs commit follows + pushed to origin/main
-last_step: 2026-06-11 — Cut 0.4.1 (T-207/208/209 over the 0.4.0 Live Preview milestone) and regenerated the hand-out artifacts. Bumped Cargo.toml + PKGBUILD pkgver + AppStream release entry; rebuilt build-aux/dist/obsbot-cam-control_0.4.1-1_amd64.deb (cargo-deb, features=live-preview) and obsbot-cam-control-0.4.1-x86_64.flatpak (flatpak-builder, -Dlive-preview=true). Deleted the stale 0.4.0 .deb/.flatpak from dist (dist/ is gitignored — binaries not committed).
-next_step: NONE active. Hand out the 0.4.1 .deb + .flatpak to colleagues; ask the Arch colleague to rebuild the .pkg from the 0.4.1 PKGBUILD (ADR-0023). Candidate work: optional HD preview via decodebin/jpegdec (camera maxes at 640×480 raw YUYV); follow-ups preview-visibility-pause, sleep-switch-sync, auto-sleep-optin.
+last_commit_on_main: 6a9357d  # next commits (T-211, T-210, T-212) follow once staged
+last_step: 2026-06-11 — Colleague feedback session. T-210: added a `videoflip` (vf_flip) to the preview pipeline + `set_mirror` + a header mirror toggle (object-flip-horizontal). T-211: removed the non-functional "Camera awake" SwitchRow from extras_view (group renamed "Presets"; auto-sleep machinery untouched). T-212: redesigned the controls page into AdwViewStack tabs (Image/Move/AI/Extras) with an AdwViewSwitcher in the header, promoted the preview to a rounded shadowed card (gtk::Stack placeholder↔video), added resources/style.css (loaded via CssProvider in application::run) + a build.rs stage to pack it, and a hero on the camera-list landing. All cargo gates green; startup smoke clean.
+next_step: User to launch the app and validate visually: tabs look good, preview card + mirror/grayscale/snapshot work, every control still writes, "Camera awake" gone. Then commit T-211/T-210/T-212 (3 logical commits) — staged but NOT yet committed.
 blockers: none on main. T-017b Arch validation pending an Arch host (transferred to incoming dev, ADR-0023).
 working_tree:
-  status: after the docs commit, only the untracked stale obsbot-cam-control-0.4.0-1-x86_64.pkg.tar.zst remains (user said leave it untracked; superseded by 0.4.1 — the colleague regenerates the Arch pkg). dist/ artifacts are gitignored.
+  status: UNCOMMITTED edits for T-210/T-211/T-212 — crates/obsbot-gui/{build.rs, src/application.rs, src/controls_view.rs, src/extras_view.rs, src/preview.rs, src/window.rs}, crates/obsbot-gui/resources/{obsbot.gresource.xml, style.css(new)}, docs/{PLAN.md, STATE.md, PROGRESS.md}. Plus the long-untracked stale obsbot-cam-control-0.4.0-1-x86_64.pkg.tar.zst (leave untracked). dist/ artifacts gitignored.
 firmware_notes:
   - Tiny 2 Lite fw 5.10: XU Sleep frame IGNORED for ~3s after streaming stops (accepted at t≈3s); cold Sleep works immediately. set_sleep(Awake)/get_status reliable. Rapid open/close/sleep/wake churn can hang capture (0 buffers, no error) until USB replug. (ADR-0025)
 v0_4_0_gate:
@@ -33,4 +33,4 @@ follow_ups_queued:
   - T-400 (post-v1.0): add OBSBOT Meet (original) to the model matrix.
 known_issues:
   - Q9 (PROTOCOL.md): pan_speed/tilt_speed accept writes but no motion on Tiny 2 Lite firmware 5.10. PTZ moves via discrete pan_absolute/tilt_absolute single steps (T-101d).
-updated_at: 2026-06-05T07:00:00Z
+updated_at: 2026-06-11T12:00:00Z

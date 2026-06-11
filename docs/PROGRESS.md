@@ -10,6 +10,49 @@
 
 ---
 
+## 2026-06-11 (colleague feedback: mirror, drop Camera-awake, GUI glow-up)
+
+### [2026-06-11T12:00:00Z] [T-210/T-211/T-212] Done (code + gates) — mirror toggle, awake-switch removal, visual redesign
+
+Colleague feedback on the 0.4.1 hand-out drove three changes. All
+implemented; `cargo fmt --all --check`, `cargo clippy --workspace
+--all-targets -- -D warnings` (default) + `cargo clippy -p obsbot-gui
+--all-targets --features live-preview -- -D warnings`, and `cargo test
+--workspace` all green; a 6 s startup smoke-launch logged no CSS/GTK
+warnings. User visual/hardware validation still pending.
+
+- **T-210 — Mirror (horizontal flip)**: "cuando me veo tengo la mano
+  derecha en la izquierda". Added a `videoflip` (`vf_flip`) element to
+  the preview pipeline between `videobalance` and `vc_post`
+  (`method=none` default), `PreviewPipeline::set_mirror(on)` flipping it
+  to `horizontal-flip`, and a header-bar `ToggleButton`
+  (`object-flip-horizontal-symbolic`, `.preview-filter`) next to the
+  grayscale one. Same `videofilter` plugin as `videobalance` → no new
+  dependency. Preview-only.
+- **T-211 — Drop the dead "Camera awake" switch**: a colleague showed it
+  does not reliably drive the firmware, and with T-208 auto-sleep it is
+  redundant. Removed `extras_view::sleep_row` + its `set_sleep` /
+  `SleepState` / `baseline` deps; group renamed "Power state and
+  presets" → "Presets". The T-208 auto-sleep machinery in
+  `preview.rs`/`window.rs` is untouched.
+- **T-212 — Visual redesign (user: "MUCHO MÁS CHULA")**, without
+  touching functionality. Decisions taken via AskUserQuestion:
+  ViewSwitcher tabs + featured preview card + custom CSS. The controls
+  page is now an `AdwViewStack` (Image · Move · AI · Extras) driven by an
+  `AdwViewSwitcher` in the header; every existing group/row builder runs
+  unchanged, just distributed across tabs (empty tabs hidden). The live
+  preview is promoted to a rounded, shadowed `.preview-card` holding a
+  `gtk::Stack` that crossfades a placeholder (camera glyph + Start pill)
+  and the video. New `resources/style.css` packed into the GResource via
+  a build.rs staging step and loaded once through a `gtk::CssProvider` in
+  `application::run`. Landing page gained a compact app-icon hero. No
+  control lost its `settings::write_and_save` wiring.
+
+Files: `crates/obsbot-gui/{build.rs, src/application.rs,
+src/controls_view.rs, src/extras_view.rs, src/preview.rs, src/window.rs}`,
+`crates/obsbot-gui/resources/{obsbot.gresource.xml, style.css}`. To be
+landed as three logical commits (T-211, then T-210, then T-212).
+
 ## 2026-06-10 (preview lifecycle bug from colleague testing)
 
 ### [2026-06-10T00:00:00Z] [T-207] Fixed — stop the preview on navigate-away and window close

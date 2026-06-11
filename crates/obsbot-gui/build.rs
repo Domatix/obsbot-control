@@ -31,6 +31,10 @@ use std::path::PathBuf;
 use std::process::Command;
 
 const TEMPLATES: &[&str] = &["window", "controls-view", "ptz-pad"];
+/// Static (non-generated) resource files staged into `OUT_DIR` so the
+/// `GResource` compiler — whose only source dir is `OUT_DIR` — can find
+/// them next to the Blueprint-generated `.ui` files.
+const STATIC_RESOURCES: &[&str] = &["style.css"];
 const SCHEMA_FILENAME: &str = "io.github.domatix.ObsbotCamControl.gschema.xml";
 
 fn main() {
@@ -64,6 +68,23 @@ fn main() {
             "blueprint-compiler failed for {} (exit: {status})",
             input.display(),
         );
+    }
+
+    // Stage 1b — stage static (non-generated) resources into OUT_DIR
+    // so `compile_resources` (whose only source dir is OUT_DIR) can
+    // find them alongside the Blueprint-generated .ui files. The
+    // custom stylesheet (T-212) is the only one for now.
+    for name in STATIC_RESOURCES {
+        let src = resources_dir.join(name);
+        let dst = out_dir.join(name);
+        println!("cargo:rerun-if-changed={}", src.display());
+        std::fs::copy(&src, &dst).unwrap_or_else(|err| {
+            panic!(
+                "failed to stage resource {} → {}: {err}",
+                src.display(),
+                dst.display(),
+            )
+        });
     }
 
     // Stage 2 — .ui → GResource bundle.

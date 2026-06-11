@@ -13,5 +13,6 @@
     <file compressed="true" preprocess="xml-stripblanks">window.ui</file>
     <file compressed="true" preprocess="xml-stripblanks">controls-view.ui</file>
     <file compressed="true" preprocess="xml-stripblanks">ptz-pad.ui</file>
+    <file compressed="true">style.css</file>
   </gresource>
 </gresources>

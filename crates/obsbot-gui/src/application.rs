@@ -51,6 +51,9 @@ pub fn run(app_id: &str) -> glib::ExitCode {
         // resolves the overview icon via the `.desktop` file (T-009);
         // both paths converge on the same hicolor entry T-010 installs.
         gtk::Window::set_default_icon_name(&app_id_owned);
+        // T-212: load the custom stylesheet now that a GdkDisplay
+        // exists (GTK is initialized by the time `startup` fires).
+        load_css();
         register_actions(app, &app_id_owned);
     });
 
@@ -60,6 +63,23 @@ pub fn run(app_id: &str) -> glib::ExitCode {
     });
 
     app.run()
+}
+
+/// Load the custom stylesheet (T-212) from the embedded `GResource` and
+/// apply it to the default display at `APPLICATION` priority — above
+/// the Adwaita theme, below user overrides. Silently does nothing if no
+/// display is available (headless), which never happens for a presented
+/// window.
+fn load_css() {
+    let provider = gtk::CssProvider::new();
+    provider.load_from_resource("/io/github/domatix/ObsbotCamControl/style.css");
+    if let Some(display) = gtk::gdk::Display::default() {
+        gtk::style_context_add_provider_for_display(
+            &display,
+            &provider,
+            gtk::STYLE_PROVIDER_PRIORITY_APPLICATION,
+        );
+    }
 }
 
 fn register_actions(app: &adw::Application, app_id: &str) {

@@ -1261,5 +1261,55 @@ did not account for:
 
 ---
 
+## ADR-0026 — GUI redesign (ViewSwitcher tabs + preview card + custom CSS) and removal of the "Camera awake" switch
+
+**Status**: Accepted, 2026-06-11.
+
+**Context**: A colleague testing the 0.4.1 hand-out gave three pieces
+of feedback: (1) the self-view is not mirrored ("right hand on the left
+of the screen"); (2) the "Camera awake" switch in the Power-state group
+does not reliably drive the firmware sleep/wake; (3) the interface
+should be "MUCHO MÁS CHULA". The user asked to redesign the GUI
+*without touching functionality* and confirmed the direction via
+AskUserQuestion (ViewSwitcher tabs + featured preview card + custom CSS).
+
+**Decisions**:
+
+- **T-210**: add a preview-only mirror toggle (a `videoflip` element +
+  header `ToggleButton`). Preview-only — it does not alter what other
+  apps capture; the raw UVC stream is unchanged.
+- **T-211**: remove the "Camera awake" `AdwSwitchRow`. ROADMAP v0.3
+  listed "Sleep / Wake camera power state" as a feature, but the manual
+  switch never worked reliably and the T-208 auto-sleep-on-close
+  ([[ADR-0024]] / [[ADR-0025]]) already covers the real goal (power the
+  camera down when unused). The XU `set_sleep` backend stays in
+  `obsbot-core`; only the unreliable UI affordance is dropped. A
+  deliberate, documented step back from that ROADMAP v0.3 line item.
+- **T-212**: reorganise the per-camera controls page into an
+  `AdwViewStack` + `AdwViewSwitcher` (tabs: Image · Move · AI · Extras),
+  promote the live preview to a rounded, shadowed card, and ship a
+  custom `style.css`. The CSS is kept light and uses Adwaita's named
+  colors (`@card_bg_color`, `@accent_bg_color`, …) so it adapts to
+  theme/accent and stays HIG-friendly for the GNOME Circle goal
+  ([[SPEC.md §6.2]]) — no hard-coded palette, no fighting the platform
+  theme. All existing group/row builders are reused verbatim and merely
+  redistributed across tabs, so no control loses its write wiring.
+
+**Consequences**:
+
+- The controls page scrolls less and reads as a modern, sectioned app;
+  the preview is the visual centre of gravity.
+- A custom stylesheet now ships in the GResource (loaded via
+  `CssProvider` at `APPLICATION` priority). Future contributors must
+  keep it theme-relative; any hard-coded color is a HIG regression.
+- The only way to sleep the camera from the app is now the automatic
+  on-close path; there is no manual sleep button. If a manual power
+  control is ever wanted back, it needs a reliable firmware path first
+  (the old one was a no-op on the test unit).
+- Tabs are added only for groups the connected camera advertises, so a
+  minimal UVC device still renders cleanly (empty tabs are hidden).
+
+---
+
 <!-- Append new ADRs above this line, never below. Newest ADRs go at the bottom
      of the list but new entries are added; do not edit old ones. -->
