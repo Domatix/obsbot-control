@@ -303,6 +303,18 @@ impl PreviewPipeline {
             .property("saturation", 1.0f64)
             .build()
             .map_err(|_| PreviewError::MissingElement("videobalance".to_string()))?;
+        // T-210: `videoflip` sits in the chain unconditionally with
+        // `method=none` (identity). Toggling the mirror is a single
+        // property write — same cheap pattern as the grayscale
+        // `videobalance` above. It lives in the same `videofilter`
+        // plugin (gst-plugins-good) as `videobalance`, so wherever the
+        // preview already works the element is guaranteed present —
+        // no new Flatpak/Debian plugin dependency.
+        let videoflip = gst::ElementFactory::make("videoflip")
+            .name("vf_flip")
+            .property_from_str("method", "none")
+            .build()
+            .map_err(|_| PreviewError::MissingElement("videoflip".to_string()))?;
         let videoconvert_post = gst::ElementFactory::make("videoconvert")
             .name("vc_post")
             .build()
@@ -318,6 +330,7 @@ impl PreviewPipeline {
                 &videoconvert_pre,
                 &videobalance_caps,
                 &videobalance,
+                &videoflip,
                 &videoconvert_post,
                 &sink,
             ])
@@ -326,10 +339,13 @@ impl PreviewPipeline {
             &videoconvert_pre,
             &videobalance_caps,
             &videobalance,
+            &videoflip,
             &videoconvert_post,
             &sink,
         ])
-        .expect("vc_pre → vb_caps → videobalance → vc_post → gtk4paintablesink link cannot fail");
+        .expect(
+            "vc_pre → vb_caps → videobalance → vf_flip → vc_post → gtk4paintablesink link cannot fail",
+        );
 
         Ok(Self {
             pipeline,
@@ -347,6 +363,18 @@ impl PreviewPipeline {
         let saturation = if on { 0.0f64 } else { 1.0f64 };
         if let Some(el) = self.pipeline.by_name("vb_filter") {
             el.set_property("saturation", saturation);
+        }
+    }
+
+    /// Toggle the T-210 mirror filter on or off. Implemented as the
+    /// `method` property on the always-present `videoflip` element
+    /// (`none` = identity, `horizontal-flip` = mirror). Cheap — no
+    /// relinking, no pipeline state change. Preview-only: it does not
+    /// change what other apps capture from the camera.
+    pub fn set_mirror(&self, on: bool) {
+        let method = if on { "horizontal-flip" } else { "none" };
+        if let Some(el) = self.pipeline.by_name("vf_flip") {
+            el.set_property_from_str("method", method);
         }
     }
 
