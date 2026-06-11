@@ -53,6 +53,16 @@ use crate::wb_group::{build_wb_group, WB_GROUP_IDS};
 /// `resources/obsbot.gresource.xml`'s prefix).
 const CONTROLS_UI: &str = "/io/github/domatix/ObsbotCamControl/controls-view.ui";
 
+/// Fixed display size of the live-preview card (T-214). Chosen at the
+/// Tiny 2's 4:3 feed ratio (400 × 300) so the `Contain` fit fills the
+/// card with no letterbox, while staying small enough that the controls
+/// below keep the bulk of the window. See `build_preview_widgets` for
+/// why these are hard caps rather than minimums.
+#[cfg(feature = "live-preview")]
+const PREVIEW_HEIGHT: i32 = 300;
+#[cfg(feature = "live-preview")]
+const PREVIEW_MAX_WIDTH: i32 = 400;
+
 /// Optional preview-machinery handle returned by `build_body` /
 /// `render_controls`. With the `live-preview` Cargo feature enabled
 /// this carries the revealer + lazy pipeline + `/dev/videoN` path
@@ -455,7 +465,7 @@ fn build_preview_widgets(path: &Path) -> (gtk::Widget, PreviewHandles) {
 
     let picture = gtk::Picture::builder()
         .content_fit(gtk::ContentFit::Contain)
-        .height_request(260)
+        .vexpand(true)
         .build();
     picture.add_css_class("preview-video");
 
@@ -466,7 +476,7 @@ fn build_preview_widgets(path: &Path) -> (gtk::Widget, PreviewHandles) {
         .spacing(12)
         .halign(gtk::Align::Center)
         .valign(gtk::Align::Center)
-        .height_request(260)
+        .vexpand(true)
         .build();
     placeholder.add_css_class("preview-placeholder");
 
@@ -491,16 +501,40 @@ fn build_preview_widgets(path: &Path) -> (gtk::Widget, PreviewHandles) {
     stack.add_named(&picture, Some("on"));
     stack.set_visible_child_name("off");
 
+    // T-214: lock the preview to a fixed height. `GtkPicture` derives
+    // its *natural* height from its width × the video aspect ratio
+    // (≈480 px at the 640 px clamp width for the Tiny 2's 4:3 feed), so
+    // as a non-vexpand child the layout would hand it that natural
+    // height and the card would grow with the window. A
+    // `GtkScrolledWindow` with `propagate-natural-height = false`
+    // (the default) and equal min/max content height does NOT propagate
+    // the child's natural height, pinning the card at PREVIEW_HEIGHT
+    // regardless of window or video size; the surplus window height then
+    // flows to the AdwViewStack below. Scrollbars are disabled — the
+    // `Contain` fit keeps the frame inside the box without overflow.
+    let viewport = gtk::ScrolledWindow::builder()
+        .hscrollbar_policy(gtk::PolicyType::Never)
+        .vscrollbar_policy(gtk::PolicyType::Never)
+        .min_content_height(PREVIEW_HEIGHT)
+        .max_content_height(PREVIEW_HEIGHT)
+        .vexpand(false)
+        .child(&stack)
+        .build();
+
     // The rounded, shadowed card. `overflow: hidden` clips the inner
-    // stack to the CSS corner radius; the card's own box-shadow is
+    // viewport to the CSS corner radius; the card's own box-shadow is
     // painted outside that clip so it still shows.
     let card = gtk::Box::new(gtk::Orientation::Vertical, 0);
     card.add_css_class("preview-card");
     card.set_overflow(gtk::Overflow::Hidden);
-    card.append(&stack);
+    card.set_vexpand(false);
+    card.set_valign(gtk::Align::Start);
+    card.append(&viewport);
 
     let clamp = adw::Clamp::builder()
-        .maximum_size(640)
+        .maximum_size(PREVIEW_MAX_WIDTH)
+        .vexpand(false)
+        .valign(gtk::Align::Start)
         .margin_top(12)
         .margin_start(12)
         .margin_end(12)

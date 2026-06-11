@@ -10,6 +10,23 @@
 
 ---
 
+## 2026-06-11 (follow-up: pin the preview to a fixed size)
+
+### [2026-06-11T13:30:00Z] [T-214] Fixed — the preview card no longer grows with the window
+
+User: enlarging the window also enlarges the preview, and its minimum
+size is already plenty. Root cause: `GtkPicture` derives its natural
+height from width × the video aspect ratio (~480 px at the 640 px clamp
+for the 4:3 feed), so as a non-vexpand child the box handed it that
+natural height — the card tracked the window up to ~480 px. Fix: host
+the preview stack in a `GtkScrolledWindow` with both scrollbars `Never`
+and equal `min/max-content-height` (`propagate-natural-height` is false
+by default), which does NOT propagate the child's natural height —
+pinning the card at a fixed `PREVIEW_HEIGHT` (300) and `PREVIEW_MAX_WIDTH`
+(400), a clean 4:3 box with no letterbox. The surplus window height now
+flows to the AdwViewStack. T-213's larger default window stays. Gates
+green (fmt, clippy default + live-preview, build); startup smoke clean.
+
 ## 2026-06-11 (follow-up: roomier default window)
 
 ### [2026-06-11T13:00:00Z] [T-213] Fixed — enlarge the default window so the preview card does not squeeze the tabs
