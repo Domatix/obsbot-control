@@ -24,6 +24,33 @@ an "Appearance" radio section in the primary menu (`window.blp`).
 colors so it tracks whichever scheme is active. fmt + clippy (default +
 live-preview) + test green; startup smoke clean.
 
+### [2026-06-11T15:00:00Z] [T-216] Investigated + first-cut fix — bare V4L2 can't reproduce the hang; ship snapshot-slam guard + diagnostics
+
+Drove the user's connected Tiny 2 Lite with `v4l2-ctl` to isolate the
+PTZ hang. Findings (all NON-reproducing the hang): position reads during
+a 30 fps stream are reliable and stable; small absolute pan/tilt writes
+during streaming are fine; a large ~38° "slam" write during streaming is
+fine; two extra persistent O_RDWR handles + streaming + writes are fine;
+writes with the camera awake-but-not-streaming are fine. So the firmware
+tolerates motion-during-streaming at the bare V4L2 level — the hang is
+specific to the running app (GStreamer `v4l2src` device claim + app fds)
+and is not reproducible headlessly.
+
+Leading hypothesis: under the live preview the app's JIT read fails, so
+`current_axis` fell back to the page-build **snapshot** (taken while the
+camera was asleep, gimbal parked at an extreme), and writing
+`snapshot ± step` as an absolute slammed the gimbal to that extreme — a
+big fast move that hangs the firmware ("se va hacia abajo").
+
+First-cut fix shipped in `ptz_pad.rs`: `current_axis` now returns
+`Option`; a failed/odd read **skips the move** instead of writing a stale
+absolute. Added `eprintln!("ptz(T-216): …")` diagnostics (read value,
+written target, skipped moves) so the user's next repro confirms whether
+the read fails under the preview. All cargo gates green; camera left at
+pan=0/tilt=0. NEXT: user runs `cargo run -p obsbot-gui --features
+live-preview 2>&1 | tee /tmp/obsbot.log`, reproduces once, shares the log
+— then finalize the fix and strip the instrumentation.
+
 ### [2026-06-11T14:05:00Z] [T-216] Reported — PTZ click while preview on hangs the camera
 
 User: open app → start preview → Move tab → click a PTZ arrow with the

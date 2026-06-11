@@ -3465,6 +3465,52 @@
     ☰ menu and confirm it applies live and survives a relaunch.
   - Commit `feat(gui): appearance selector — follow system / light / dark (T-215)`.
 
+### T-216 — PTZ click hangs the camera while preview is on (investigation + robustness)
+
+- **State**: IN_PROGRESS (2026-06-11) — first-cut mitigation + diagnostic
+  instrumentation shipped; awaiting a user repro log to confirm root cause.
+- **Started**: 2026-06-11
+- **Depends on**: T-101 (PTZ pad), T-200/T-208 (preview + sleep).
+- **Symptom**: app open → start preview → Move tab → click a PTZ arrow →
+  the camera slams down ("as if powering off but on"), goes haywire, and
+  is then unresponsive (no tracking, no PTZ) until a USB replug.
+- **Hardware investigation (2026-06-11, via `v4l2-ctl` on the user's
+  Tiny 2 Lite)** — the bare V4L2 layer does NOT reproduce the hang:
+  - Reads of `pan/tilt_absolute` during a 30 fps stream: reliable,
+    stable (`pan=0, tilt=162000` constant before/during/after).
+  - Small absolute writes during streaming (pan and tilt, ±5° steps):
+    fine, no hang, 30 fps maintained, responsive after.
+  - A large "slam" write during streaming (tilt 162000→298800, ~38°):
+    fine, no hang.
+  - Two extra persistent `O_RDWR` handles open (mimicking the AI +
+    Presets XU groups) + streaming + writes: fine.
+  - Absolute writes with the camera awake but NOT streaming: fine.
+  ⇒ The firmware tolerates motion-during-streaming at the V4L2 level;
+  the hang is specific to the running GTK app (GStreamer `v4l2src`
+  device claim + the app's own read/write fds), which cannot be
+  reproduced headlessly.
+- **Leading hypothesis**: in the app the JIT position read fails while
+  `v4l2src` holds the device, so the old `current_axis` fell back to the
+  **page-build snapshot** — taken while the camera was asleep (gimbal
+  parked at an extreme). Writing `snapshot ± step` as an absolute target
+  then slams the gimbal to the parked extreme — a big fast move that
+  hangs the firmware. Matches "se va hacia abajo".
+- **First-cut fix (this build)**: `current_axis` returns `Option`; on a
+  failed/odd read the move is **skipped** (never write a stale absolute).
+  Plus `eprintln!` diagnostics logging every read value, written target,
+  and any skipped move, so the next user repro confirms whether the read
+  is failing under the preview.
+- **Acceptance criteria**:
+  - With the fix, a PTZ click while preview is on must NOT slam the
+    gimbal / hang the camera. **PENDING user repro.**
+  - The diagnostic log identifies whether the read fails under the
+    preview (decides whether the snapshot-slam hypothesis is right or a
+    deeper `v4l2src`-concurrency fix is needed).
+  - Once confirmed, remove the temporary `eprintln!` instrumentation and
+    land the final fix; all cargo gates green.
+  - Commit (interim) `fix(gui): stop PTZ writing a stale absolute that
+    slams the gimbal + diagnostics (T-216)`.
+
 ---
 
 ## Backlog (future milestones)
