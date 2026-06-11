@@ -51,8 +51,13 @@ menu primary_menu {
 
 Adw.ApplicationWindow window {
   title: "Obsbot Cam Control";
-  default-width: 720;
-  default-height: 540;
+  // T-213: roomier default so the preview card and the controls below
+  // it both get comfortable space (the old 720×540 squeezed the tabs
+  // once the preview card was on screen).
+  default-width: 920;
+  default-height: 800;
+  width-request: 360;
+  height-request: 480;
 
   content: Adw.ToastOverlay toast_overlay {
     Adw.NavigationView nav_view {

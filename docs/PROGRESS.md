@@ -10,6 +10,20 @@
 
 ---
 
+## 2026-06-11 (follow-up: roomier default window)
+
+### [2026-06-11T13:00:00Z] [T-213] Fixed — enlarge the default window so the preview card does not squeeze the tabs
+
+User feedback right after the T-212 redesign: with the preview open the
+card ate most of the screen and the controls below were crammed into a
+tiny strip. Root cause was the unchanged 720×540 default window from
+the pre-card layout. Bumped `window.blp` to default 920×800 and added
+`width-request: 360` / `height-request: 480` minimums so the window
+cannot shrink below a usable size. The preview card stays a fixed ~260
+px tall (no vexpand); the AdwViewStack keeps `vexpand` so the extra
+height now flows to the tabs. Resource-only change; rebuilt + startup
+smoke clean.
+
 ## 2026-06-11 (colleague feedback: mirror, drop Camera-awake, GUI glow-up)
 
 ### [2026-06-11T12:00:00Z] [T-210/T-211/T-212] Done (code + gates) — mirror toggle, awake-switch removal, visual redesign

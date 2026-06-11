@@ -9,9 +9,9 @@
 active_task: none  # T-210/T-211/T-212 implemented + gated green this session; awaiting user visual/hardware validation
 active_task_state: IDLE
 active_branch: main
-last_completed_task: T-212  # GUI redesign (ViewSwitcher tabs + preview card + custom CSS). T-210 (mirror toggle) + T-211 (drop Camera-awake switch) also DONE this session.
+last_completed_task: T-213  # roomier default window (920×800 + min size) so the preview card no longer squeezes the tabs. T-210/T-211/T-212 also DONE this session.
 last_milestone: v0.4.0  # Live Preview milestone cut 2026-06-02 (Flatpak-validated); v0.3.2 same day (native rollup)
-last_commit_on_main: c6823c8  # feat(gui): visual redesign (T-212); preceded by b447901 (T-210) + 0b028ff (T-211). Not pushed.
+last_commit_on_main: pending  # T-213 window-size commit follows this STATE update. Prior: 1aa10ef docs, c6823c8 (T-212), b447901 (T-210), 0b028ff (T-211). Not pushed.
 last_step: 2026-06-11 — Colleague feedback session. T-210: added a `videoflip` (vf_flip) to the preview pipeline + `set_mirror` + a header mirror toggle (object-flip-horizontal). T-211: removed the non-functional "Camera awake" SwitchRow from extras_view (group renamed "Presets"; auto-sleep machinery untouched). T-212: redesigned the controls page into AdwViewStack tabs (Image/Move/AI/Extras) with an AdwViewSwitcher in the header, promoted the preview to a rounded shadowed card (gtk::Stack placeholder↔video), added resources/style.css (loaded via CssProvider in application::run) + a build.rs stage to pack it, and a hero on the camera-list landing. All cargo gates green; startup smoke clean.
 next_step: User to launch the app and validate visually: tabs (Image/Move/AI/Extras) look good, preview card + mirror/grayscale/snapshot work, every control still writes, "Camera awake" gone. If approved, consider cutting 0.4.2 (bump Cargo.toml/PKGBUILD/AppStream + regenerate .deb/.flatpak) for a fresh hand-out.
 blockers: none on main. T-017b Arch validation pending an Arch host (transferred to incoming dev, ADR-0023).
