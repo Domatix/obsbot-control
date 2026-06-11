@@ -11,12 +11,12 @@ active_task_state: IDLE
 active_branch: main
 last_completed_task: T-209  # capsfilter I420 fix — grayscale works + CRITICAL spam gone (verified headless + user-accepted). T-207 + T-208 also DONE this session.
 last_milestone: v0.4.0  # Live Preview milestone cut 2026-06-02 (Flatpak-validated); v0.3.2 same day (native rollup)
-last_commit_on_main: 1b115f2  # fix(gui): force system-memory I420 (T-209); session-close docs commit follows + pushed to origin/main
-last_step: 2026-06-11 — Closed a 3-fix session sparked by colleagues' "camera stays on when unused": T-207 (release V4L2 fd on navigate-back + window-close, machine-verified via /proc monitor), T-208 (deferred XU Sleep — firmware ignores Sleep for ~3s post-stream, ADR-0025; user-confirmed power-down), T-209 (capsfilter I420 → grayscale works + kills gst_video_frame_map_id CRITICAL spam, verified headless). All four feature commits + docs pushed to origin/main. Claude drove /dev/video0 headlessly for diagnosis (Claude is in group video).
-next_step: NONE active. Candidate next tasks: T-017b Arch validation (still transferred to incoming dev, ADR-0023); optional preview HD via decodebin/jpegdec (camera maxes at 640×480 raw YUYV); follow-ups preview-visibility-pause, sleep-switch-sync, auto-sleep-optin (see follow_ups_queued).
+last_commit_on_main: 6a9357d  # build: bump version to 0.4.1 (carries T-207/208/209); docs commit follows + pushed to origin/main
+last_step: 2026-06-11 — Cut 0.4.1 (T-207/208/209 over the 0.4.0 Live Preview milestone) and regenerated the hand-out artifacts. Bumped Cargo.toml + PKGBUILD pkgver + AppStream release entry; rebuilt build-aux/dist/obsbot-cam-control_0.4.1-1_amd64.deb (cargo-deb, features=live-preview) and obsbot-cam-control-0.4.1-x86_64.flatpak (flatpak-builder, -Dlive-preview=true). Deleted the stale 0.4.0 .deb/.flatpak from dist (dist/ is gitignored — binaries not committed).
+next_step: NONE active. Hand out the 0.4.1 .deb + .flatpak to colleagues; ask the Arch colleague to rebuild the .pkg from the 0.4.1 PKGBUILD (ADR-0023). Candidate work: optional HD preview via decodebin/jpegdec (camera maxes at 640×480 raw YUYV); follow-ups preview-visibility-pause, sleep-switch-sync, auto-sleep-optin.
 blockers: none on main. T-017b Arch validation pending an Arch host (transferred to incoming dev, ADR-0023).
 working_tree:
-  status: after the T-208-redesign commit, only the untracked build artifact obsbot-cam-control-0.4.0-1-x86_64.pkg.tar.zst remains (user said leave it untracked, do not add to git).
+  status: after the docs commit, only the untracked stale obsbot-cam-control-0.4.0-1-x86_64.pkg.tar.zst remains (user said leave it untracked; superseded by 0.4.1 — the colleague regenerates the Arch pkg). dist/ artifacts are gitignored.
 firmware_notes:
   - Tiny 2 Lite fw 5.10: XU Sleep frame IGNORED for ~3s after streaming stops (accepted at t≈3s); cold Sleep works immediately. set_sleep(Awake)/get_status reliable. Rapid open/close/sleep/wake churn can hang capture (0 buffers, no error) until USB replug. (ADR-0025)
 v0_4_0_gate:

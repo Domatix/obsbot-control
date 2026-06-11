@@ -235,6 +235,22 @@ to origin/main. Working tree clean except the untracked
 obsbot-cam-control-0.4.0-1-x86_64.pkg.tar.zst the user asked to leave
 alone. No active task; candidate next work recorded in STATE.
 
+### [2026-06-11T07:50:00Z] [release] Cut 0.4.1 and regenerated the hand-out artifacts
+
+The 0.4.0 .deb/.flatpak/.pkg handed to colleagues predated T-207/208/
+209, so bumped to 0.4.1 (Cargo.toml workspace version + PKGBUILD pkgver
++ a 0.4.1 AppStream release entry) and rebuilt the native artifacts:
+- `build-aux/dist/obsbot-cam-control_0.4.1-1_amd64.deb` via
+  `build-aux/build-deb.sh` (cargo-deb, `features = ["live-preview"]` in
+  the deb metadata, so the preview fixes are in).
+- `build-aux/dist/obsbot-cam-control-0.4.1-x86_64.flatpak` via
+  `flatpak-builder` + `flatpak build-bundle` (manifest builds from the
+  local dir with `-Dlive-preview=true`, GNOME runtime 50).
+Deleted the stale 0.4.0 .deb/.flatpak from dist (dist/ is gitignored;
+binaries are not committed). The Arch `.pkg.tar.zst` is the colleague's
+to regenerate from the bumped PKGBUILD after a pull (ADR-0023). Bump
+commit 6a9357d + this docs entry pushed to origin/main.
+
 ---
 
 ## 2026-06-05 (hand-out artifacts for colleague testing)
