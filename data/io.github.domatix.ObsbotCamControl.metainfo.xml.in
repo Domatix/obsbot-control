@@ -77,6 +77,23 @@
   </supports>
 
   <releases>
+    <release version="0.4.1" date="2026-06-11" type="development">
+      <description>
+        <p>
+          Preview and camera power-handling fixes, after reports that
+          the camera stayed on when nobody was using it:
+        </p>
+        <ul>
+          <li>The camera is now released and powered down when you stop
+            the preview, navigate back, or close the app, instead of
+            staying awake (LED on) in the background.</li>
+          <li>The live preview now wakes the camera reliably when you
+            re-open it.</li>
+          <li>The grayscale filter now works, and the noisy GStreamer
+            warnings it printed on every frame are gone.</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.4.0" date="2026-06-02" type="development">
       <description>
         <p>
