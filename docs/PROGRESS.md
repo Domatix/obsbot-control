@@ -12,6 +12,30 @@
 
 ## 2026-06-12 (PTZ-hang fix confirmed + release build)
 
+### [2026-06-12T10:00:00Z] [T-217] Done — Presets UX (clarify recall-only + toast on click)
+
+Colleague feedback: presets are confusing and "clicking does nothing".
+Diagnosed (Q7): presets are recall-only — positions are programmed in
+OBSBOT Center or via the on-camera gesture, our buttons can only recall.
+An unprogrammed slot recalls nothing, so on a Linux-only setup "nothing
+happens" is expected, not a bug; the firmware exposes no empty-slot
+signal to detect/warn on. User chose to clarify copy + acknowledge the
+click (keep the feature). Reworded the group description (recall-only;
+empty slots won't move the camera), simplified the row subtitle, and
+added `recall_with_feedback` that shows a "Recalling preset N…" toast on
+a successful send and still reports transport errors. fmt + clippy + test
+green.
+
+### [2026-06-12T09:30:00Z] [release] Built 0.4.1 release binaries + pushed main for the Arch packager
+
+After T-216 landed, built the release binaries with the live-preview
+feature (`cargo build --release --features obsbot-gui/live-preview`):
+`target/release/obsbot-cam-control` (GUI) + `obsbot-cli`, both 0.4.1,
+release profile clean. Pushed main (f161ec4..715a7f8) so the incoming
+Arch packager can run `build-aux/PKGBUILD` (pkgver 0.4.1, builds the
+working tree directly). 0.4.1 was never tagged, so T-210..T-217 roll
+into it — no version bump needed.
+
 ### [2026-06-12T09:00:00Z] [T-216] Done — PTZ snapshot-slam fix confirmed on hardware
 
 User reproduced with the instrumented build and reported the PTZ now

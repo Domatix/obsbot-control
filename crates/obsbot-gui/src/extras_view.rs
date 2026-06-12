@@ -74,9 +74,10 @@ pub fn build_extras_group(cam: &CameraInfo) -> Option<adw::PreferencesGroup> {
     let group = adw::PreferencesGroup::builder()
         .title(gettext("Presets"))
         .description(gettext(
-            "Preset positions are stored in the camera firmware. Use the OBSBOT Center \
-             app on Windows or macOS, or the gesture controls on the camera, to program \
-             a position into a slot before recalling it from here.",
+            "Recall a camera position saved in the camera's own memory. Positions are \
+             saved with the OBSBOT Center app (Windows or macOS) or the on-camera \
+             gesture — this app can only recall them, not save them. A slot that was \
+             never programmed will not move the camera.",
         ))
         .build();
 
@@ -95,7 +96,7 @@ fn preset_row(file: &Rc<File>, index: i8) -> adw::ActionRow {
 
     let row = adw::ActionRow::builder()
         .title(&title)
-        .subtitle(gettext("Move the camera to this preset position"))
+        .subtitle(gettext("Move the camera to this saved position"))
         .activatable(true)
         .build();
 
@@ -108,22 +109,30 @@ fn preset_row(file: &Rc<File>, index: i8) -> adw::ActionRow {
     row.add_suffix(&button);
 
     let file_for_button = Rc::clone(file);
-    button.connect_clicked(move |_| {
-        if let Err(err) = recall_preset(&file_for_button, index) {
-            report_xu_error("Preset recall", &err);
-        }
-    });
+    button.connect_clicked(move |_| recall_with_feedback(&file_for_button, index));
 
     // The whole row is `activatable` so clicking the body works too;
     // mirror the button's behaviour for that path.
     let file_for_row = Rc::clone(file);
-    row.connect_activated(move |_| {
-        if let Err(err) = recall_preset(&file_for_row, index) {
-            report_xu_error("Preset recall", &err);
-        }
-    });
+    row.connect_activated(move |_| recall_with_feedback(&file_for_row, index));
 
     row
+}
+
+/// Recall preset `index` and acknowledge the click with a toast. The
+/// firmware gives no "slot empty" signal, so a successful send only
+/// means the command was accepted — we surface "Recalling preset N…"
+/// so the user knows the click registered even when an unprogrammed
+/// slot leaves the camera still (the colleague-reported "nothing
+/// happens" confusion). A transport failure still reports as an error.
+fn recall_with_feedback(file: &File, index: i8) {
+    match recall_preset(file, index) {
+        Ok(()) => {
+            let msg = gettext("Recalling preset {n}…").replace("{n}", &(index + 1).to_string());
+            settings::surface_error(&msg);
+        }
+        Err(err) => report_xu_error("Preset recall", &err),
+    }
 }
 
 fn dump_status_row(file: &Rc<File>) -> adw::ActionRow {

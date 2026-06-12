@@ -3513,6 +3513,31 @@
 
 ---
 
+### T-217 — Presets UX: clarify recall-only + acknowledge the click
+
+- **State**: DONE (2026-06-12)
+- **Started/Completed**: 2026-06-12
+- **Trigger**: colleague feedback — "no sé qué son ni cómo se usan, al pulsar
+  no pasa nada".
+- **Diagnosis**: presets are **recall-only** (Q7 — no save opcode in any FOSS
+  source). Positions must be programmed via OBSBOT Center or the on-camera
+  gesture; our buttons can only recall. "Nothing happens" = the slot was
+  never programmed (most likely on a Linux-only setup) — expected, not a bug.
+  The firmware returns no "slot empty" signal, so we cannot detect an empty
+  slot to warn about it specifically.
+- **Decision (user)**: improve copy + acknowledge the click; keep the feature
+  (a programmed slot does recall fine). Do not hide it, do not gate on a
+  hardware test.
+- **Change**: reworded the group description to state plainly that this only
+  recalls positions saved elsewhere and that an unprogrammed slot won't move
+  the camera; simplified the per-row subtitle; added a `recall_with_feedback`
+  helper that shows a "Recalling preset N…" toast on a successful send (so the
+  click is always acknowledged) and still reports transport errors.
+- **Acceptance criteria** (met): clearer UI text; clicking a preset always
+  produces visible feedback; no behavioural regression; all cargo gates green.
+
+---
+
 ## Backlog (future milestones)
 
 The detailed task breakdown for v0.2 onwards will be filled in when the

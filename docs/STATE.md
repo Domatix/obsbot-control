@@ -9,14 +9,14 @@
 active_task: none  # T-216 DONE + confirmed on hardware. Releasing 0.4.1 binaries for the Arch packager.
 active_task_state: IDLE
 active_branch: main
-last_completed_task: T-216  # PTZ snapshot-slam fix, confirmed on hardware 2026-06-12. T-210..T-215 DONE.
+last_completed_task: T-217  # Presets UX (clarify recall-only + toast). T-216 PTZ fix confirmed on hardware. T-210..T-215 DONE.
 last_milestone: v0.4.0  # Live Preview milestone cut 2026-06-02 (Flatpak-validated); v0.3.2 same day (native rollup)
-last_commit_on_main: pending  # T-216 final commit (strip diagnostics) follows this STATE update. Prior: 46bf193 (T-216 interim), 30ca209 (T-215), be12854 (T-214), 445f16c (T-213), 1aa10ef docs, c6823c8 (T-212), b447901 (T-210), 0b028ff (T-211). PUSH PENDING.
-last_step: 2026-06-12 — T-216 fix confirmed by user ("va perfecto"): PTZ moves one smooth step under preview, no slam/hang. Stripped the `ptz(T-216):` eprintln diagnostics, kept a `warning: ptz:` on the read-failure skip path. fmt+clippy+test green.
-next_step: build release binaries + push main so the Arch packager (incoming dev) can build the PKGBUILD. Then address colleague feedback on Presets (recall-only per Q7: clicking an empty slot does nothing because the slot has no programmed position — clarify in UI/subtitle so users understand).
+last_commit_on_main: 715a7f8  # T-216 final (pushed). T-217 commit follows this STATE update. Prior pushed: 715a7f8, 46bf193, 30ca209, be12854, 445f16c, 1aa10ef, c6823c8, b447901, 0b028ff.
+last_step: 2026-06-12 — Built 0.4.1 release binaries (live-preview) + pushed main for the Arch packager. T-217: reworded Presets copy (recall-only; empty slots won't move) + added a "Recalling preset N…" toast so the click is acknowledged (colleague feedback). fmt+clippy+test green.
+next_step: none queued. Optional: cut/tag 0.4.1 once the Arch package is validated; user visual check of the Presets copy + toast. Q7 preset-save still deferred.
 blockers: none on main. T-017b Arch validation pending an Arch host (transferred to incoming dev, ADR-0023).
 working_tree:
-  status: ptz_pad.rs + docs (STATE/PLAN/PROGRESS) modified for the T-216 finalization, about to commit. Long-untracked stale obsbot-cam-control-0.4.0-1-x86_64.pkg.tar.zst stays untracked (superseded). dist/ artifacts gitignored.
+  status: extras_view.rs + docs (STATE/PLAN/PROGRESS) modified for T-217, about to commit. Long-untracked stale obsbot-cam-control-0.4.0-1-x86_64.pkg.tar.zst stays untracked (superseded). target/release binaries + dist/ gitignored.
 firmware_notes:
   - Tiny 2 Lite fw 5.10: XU Sleep frame IGNORED for ~3s after streaming stops (accepted at t≈3s); cold Sleep works immediately. set_sleep(Awake)/get_status reliable. Rapid open/close/sleep/wake churn can hang capture (0 buffers, no error) until USB replug. (ADR-0025)
 v0_4_0_gate:
