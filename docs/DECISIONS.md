@@ -1311,5 +1311,42 @@ AskUserQuestion (ViewSwitcher tabs + featured preview card + custom CSS).
 
 ---
 
+## ADR-0027 — Distribute the Arch `.pkg.tar.zst` via a GitHub Release asset, not the git tree
+
+**Status**: Accepted, 2026-06-12.
+
+**Context**: After the GUI session (T-210..T-217) the user built the Arch
+package `obsbot-cam-control-0.4.1-1-x86_64.pkg.tar.zst` and asked to "push
+everything" so a colleague could use it. The built package had been sitting
+untracked in the repo root (as the prior 0.4.0 one did — STATE always marked
+it "leave untracked; superseded"). The literal request would have committed a
+342 KB binary blob into git history permanently.
+
+**Decision**: Do **not** commit built packages to the git tree. Instead:
+
+- Tag the release commit `v0.4.1` (annotated) and push the tag.
+- Create a GitHub Release for `v0.4.1` and attach the `.pkg.tar.zst` as a
+  release asset (changelog derived from the conventional commits since
+  `v0.4.0`).
+- The `.pkg` files stay out of version control; they are reproducible build
+  artifacts (the `build-aux/PKGBUILD` builds the working tree directly).
+
+Confirmed with the user via AskUserQuestion (chose "GitHub Release (tag
+v0.4.1)" over committing the blob or keeping it local-only).
+
+**Consequences**:
+
+- Binary artifacts never bloat the git history; the repo stays source-only,
+  consistent with the long-standing "leave the `.pkg` untracked" convention.
+- The canonical place to fetch a prebuilt Arch package is now the GitHub
+  Releases page; the colleague can still rebuild from `build-aux/PKGBUILD`.
+- Future point releases follow the same flow: bump version → tag `vX.Y.Z` →
+  `gh release create` with the artifact attached.
+- The local `.pkg` files remain untracked working-tree artifacts (cleanup is
+  the user's call; the auto-mode classifier blocked deleting user-created
+  files and that is fine).
+
+---
+
 <!-- Append new ADRs above this line, never below. Newest ADRs go at the bottom
      of the list but new entries are added; do not edit old ones. -->

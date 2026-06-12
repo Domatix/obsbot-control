@@ -12,6 +12,19 @@
 
 ## 2026-06-12 (PTZ-hang fix confirmed + release build)
 
+### [2026-06-12T11:00:00Z] [release] Cut v0.4.1 — tag + GitHub Release with the Arch package asset
+
+User built the Arch package `obsbot-cam-control-0.4.1-1-x86_64.pkg.tar.zst`
+and asked to push everything. Rather than commit a 342 KB binary into git
+history (the prior convention was to leave `.pkg` files untracked), cut a
+proper release: annotated tag `v0.4.1` at dd7d6cf, pushed it, and created a
+GitHub Release with a changelog (derived from the conventional commits since
+v0.4.0) plus the `.pkg.tar.zst` attached as an asset
+(https://github.com/Domatix/obsbot-control/releases/tag/v0.4.1). Recorded the
+distribution choice as ADR-0027. The local `.pkg` files stay untracked
+(deleting user-created files was correctly blocked by the auto-mode
+classifier; cleanup left to the user). v0.4.1 is now the last milestone.
+
 ### [2026-06-12T10:00:00Z] [T-217] Done — Presets UX (clarify recall-only + toast on click)
 
 Colleague feedback: presets are confusing and "clicking does nothing".
