@@ -6,17 +6,17 @@
 
 ---
 
-active_task: none  # T-210/T-211/T-212 implemented + gated green this session; awaiting user visual/hardware validation
+active_task: none  # T-216 DONE + confirmed on hardware. Releasing 0.4.1 binaries for the Arch packager.
 active_task_state: IDLE
 active_branch: main
-last_completed_task: T-215  # appearance selector. T-210..T-214 DONE. T-216 (PTZ-hang) IN_PROGRESS — first-cut snapshot-slam guard + diagnostics shipped; awaiting user repro log.
+last_completed_task: T-216  # PTZ snapshot-slam fix, confirmed on hardware 2026-06-12. T-210..T-215 DONE.
 last_milestone: v0.4.0  # Live Preview milestone cut 2026-06-02 (Flatpak-validated); v0.3.2 same day (native rollup)
-last_commit_on_main: pending  # T-216 interim commit (ptz_pad guard + diagnostics) follows this STATE update. Prior: 30ca209 (T-215), be12854 (T-214), 445f16c (T-213), 1aa10ef docs, c6823c8 (T-212), b447901 (T-210), 0b028ff (T-211). Not pushed.
-last_step: 2026-06-11 — Colleague feedback session. T-210: added a `videoflip` (vf_flip) to the preview pipeline + `set_mirror` + a header mirror toggle (object-flip-horizontal). T-211: removed the non-functional "Camera awake" SwitchRow from extras_view (group renamed "Presets"; auto-sleep machinery untouched). T-212: redesigned the controls page into AdwViewStack tabs (Image/Move/AI/Extras) with an AdwViewSwitcher in the header, promoted the preview to a rounded shadowed card (gtk::Stack placeholder↔video), added resources/style.css (loaded via CssProvider in application::run) + a build.rs stage to pack it, and a hero on the camera-list landing. All cargo gates green; startup smoke clean.
-next_step: T-216 — user runs the instrumented build (`cargo run -p obsbot-gui --features live-preview 2>&1 | tee /tmp/obsbot.log`), reproduces the PTZ hang once, and shares the `ptz(T-216):` log lines. That confirms whether the JIT read fails under the preview (snapshot-slam hypothesis) or a deeper v4l2src-concurrency fix is needed. Then finalize + strip instrumentation. AI-tracking conflict already ruled out (camera was in No-tracking). Then: validate T-210..T-215 GUI; if approved, cut 0.4.2.
+last_commit_on_main: pending  # T-216 final commit (strip diagnostics) follows this STATE update. Prior: 46bf193 (T-216 interim), 30ca209 (T-215), be12854 (T-214), 445f16c (T-213), 1aa10ef docs, c6823c8 (T-212), b447901 (T-210), 0b028ff (T-211). PUSH PENDING.
+last_step: 2026-06-12 — T-216 fix confirmed by user ("va perfecto"): PTZ moves one smooth step under preview, no slam/hang. Stripped the `ptz(T-216):` eprintln diagnostics, kept a `warning: ptz:` on the read-failure skip path. fmt+clippy+test green.
+next_step: build release binaries + push main so the Arch packager (incoming dev) can build the PKGBUILD. Then address colleague feedback on Presets (recall-only per Q7: clicking an empty slot does nothing because the slot has no programmed position — clarify in UI/subtitle so users understand).
 blockers: none on main. T-017b Arch validation pending an Arch host (transferred to incoming dev, ADR-0023).
 working_tree:
-  status: clean except the long-untracked stale obsbot-cam-control-0.4.0-1-x86_64.pkg.tar.zst (leave untracked; superseded). dist/ artifacts gitignored. T-210/T-211/T-212 committed (0b028ff, b447901, c6823c8); not pushed.
+  status: ptz_pad.rs + docs (STATE/PLAN/PROGRESS) modified for the T-216 finalization, about to commit. Long-untracked stale obsbot-cam-control-0.4.0-1-x86_64.pkg.tar.zst stays untracked (superseded). dist/ artifacts gitignored.
 firmware_notes:
   - Tiny 2 Lite fw 5.10: XU Sleep frame IGNORED for ~3s after streaming stops (accepted at t≈3s); cold Sleep works immediately. set_sleep(Awake)/get_status reliable. Rapid open/close/sleep/wake churn can hang capture (0 buffers, no error) until USB replug. (ADR-0025)
 v0_4_0_gate:
@@ -33,4 +33,4 @@ follow_ups_queued:
   - T-400 (post-v1.0): add OBSBOT Meet (original) to the model matrix.
 known_issues:
   - Q9 (PROTOCOL.md): pan_speed/tilt_speed accept writes but no motion on Tiny 2 Lite firmware 5.10. PTZ moves via discrete pan_absolute/tilt_absolute single steps (T-101d).
-updated_at: 2026-06-11T12:00:00Z
+updated_at: 2026-06-12T09:00:00Z

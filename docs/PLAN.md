@@ -3467,9 +3467,11 @@
 
 ### T-216 — PTZ click hangs the camera while preview is on (investigation + robustness)
 
-- **State**: IN_PROGRESS (2026-06-11) — first-cut mitigation + diagnostic
-  instrumentation shipped; awaiting a user repro log to confirm root cause.
-- **Started**: 2026-06-11
+- **State**: DONE (2026-06-12) — user confirmed the fix: PTZ now moves
+  smoothly under the preview with no slam/hang. Root cause confirmed as the
+  snapshot-slam hypothesis below. Diagnostic instrumentation stripped; only
+  a warning on the read-failure skip path remains.
+- **Started**: 2026-06-11; **Completed**: 2026-06-12
 - **Depends on**: T-101 (PTZ pad), T-200/T-208 (preview + sleep).
 - **Symptom**: app open → start preview → Move tab → click a PTZ arrow →
   the camera slams down ("as if powering off but on"), goes haywire, and
@@ -3495,21 +3497,19 @@
   parked at an extreme). Writing `snapshot ± step` as an absolute target
   then slams the gimbal to the parked extreme — a big fast move that
   hangs the firmware. Matches "se va hacia abajo".
-- **First-cut fix (this build)**: `current_axis` returns `Option`; on a
-  failed/odd read the move is **skipped** (never write a stale absolute).
-  Plus `eprintln!` diagnostics logging every read value, written target,
-  and any skipped move, so the next user repro confirms whether the read
-  is failing under the preview.
-- **Acceptance criteria**:
-  - With the fix, a PTZ click while preview is on must NOT slam the
-    gimbal / hang the camera. **PENDING user repro.**
-  - The diagnostic log identifies whether the read fails under the
-    preview (decides whether the snapshot-slam hypothesis is right or a
-    deeper `v4l2src`-concurrency fix is needed).
-  - Once confirmed, remove the temporary `eprintln!` instrumentation and
-    land the final fix; all cargo gates green.
-  - Commit (interim) `fix(gui): stop PTZ writing a stale absolute that
-    slams the gimbal + diagnostics (T-216)`.
+- **Fix (landed)**: `current_axis` returns `Option`; on a failed/odd read
+  the move is **skipped** (never write a stale absolute). The page-build
+  snapshot is no longer used as a write source, so a click can never slam
+  the gimbal to the parked extreme — confirmed by the user on hardware.
+- **Acceptance criteria** (all met):
+  - With the fix, a PTZ click while preview is on does NOT slam the gimbal
+    / hang the camera. **VERIFIED on hardware 2026-06-12.**
+  - Root cause confirmed: the stale page-build snapshot was the write
+    source under preview; removing that path fixes it (no deeper
+    `v4l2src`-concurrency fix needed).
+  - Temporary `eprintln!` instrumentation removed; only a `warning:` on the
+    read-failure skip path remains. All cargo gates green.
+  - Interim commit `46bf193`; finalized in the follow-up commit.
 
 ---
 

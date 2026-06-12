@@ -281,14 +281,14 @@ fn wire_direction(builder: &gtk::Builder, button_id: &str, dx: i64, dy: i64, ctx
 /// Shared by the on-screen buttons and the keyboard handler.
 ///
 /// T-216 robustness: the step is computed **relative to a freshly-read
-/// current position**. If that read fails we now *skip the move*
-/// entirely rather than fall back to the page-open snapshot. The old
-/// fallback could slam the gimbal toward an extreme: the snapshot was
-/// taken at page-build time (camera possibly asleep, gimbal parked at
-/// the bottom), so writing `snapshot ± step` as an absolute target made
-/// the camera lurch to the parked position — a large fast move that
-/// hangs the firmware on the Tiny 2 (see PROGRESS T-216). A skipped move
-/// is always safe; the next click retries the read.
+/// current position**. If that read fails we *skip the move* entirely
+/// rather than fall back to the page-open snapshot. The old fallback
+/// could slam the gimbal toward an extreme: the snapshot was taken at
+/// page-build time (camera possibly asleep, gimbal parked at the
+/// bottom), so writing `snapshot ± step` as an absolute target made the
+/// camera lurch to the parked position — a large fast move that hangs
+/// the firmware on the Tiny 2 (see PROGRESS T-216). A skipped move is
+/// always safe; the next click retries the read.
 fn step_axes(
     dx: i64,
     dy: i64,
@@ -298,27 +298,15 @@ fn step_axes(
     serial: &Rc<Option<String>>,
 ) {
     if dx != 0 {
-        match current_axis(path, CID_PAN_ABSOLUTE) {
-            Some(current) => {
-                let new_pan = next_position(current, dx, PAN_TILT_STEP, pan.min, pan.max);
-                eprintln!("ptz(T-216): pan read={current} -> write={new_pan} (Δ={})", dx * PAN_TILT_STEP);
-                write(path, CID_PAN_ABSOLUTE, "pan_absolute", new_pan, serial);
-            }
-            None => eprintln!(
-                "ptz(T-216): SKIP pan move — could not read current pan_absolute (refusing to write a stale absolute)"
-            ),
+        if let Some(current) = current_axis(path, CID_PAN_ABSOLUTE) {
+            let new_pan = next_position(current, dx, PAN_TILT_STEP, pan.min, pan.max);
+            write(path, CID_PAN_ABSOLUTE, "pan_absolute", new_pan, serial);
         }
     }
     if dy != 0 {
-        match current_axis(path, CID_TILT_ABSOLUTE) {
-            Some(current) => {
-                let new_tilt = next_position(current, dy, PAN_TILT_STEP, tilt.min, tilt.max);
-                eprintln!("ptz(T-216): tilt read={current} -> write={new_tilt} (Δ={})", dy * PAN_TILT_STEP);
-                write(path, CID_TILT_ABSOLUTE, "tilt_absolute", new_tilt, serial);
-            }
-            None => eprintln!(
-                "ptz(T-216): SKIP tilt move — could not read current tilt_absolute (refusing to write a stale absolute)"
-            ),
+        if let Some(current) = current_axis(path, CID_TILT_ABSOLUTE) {
+            let new_tilt = next_position(current, dy, PAN_TILT_STEP, tilt.min, tilt.max);
+            write(path, CID_TILT_ABSOLUTE, "tilt_absolute", new_tilt, serial);
         }
     }
 }
@@ -331,18 +319,19 @@ fn next_position(current: i64, sign: i64, step: i64, min: i64, max: i64) -> i64 
 
 /// Just-in-time read of an integer axis from the kernel. Returns `None`
 /// on any read failure or unexpected value type (T-216) — callers then
-/// **skip** the move rather than write a stale absolute. The diagnostic
-/// log line names the failure so a user repro tells us whether the
-/// `GStreamer` preview is blocking the control read.
+/// **skip** the move rather than write a stale absolute. A warning names
+/// the failure so an unexpected skip is still traceable in logs.
 fn current_axis(path: &Path, id: u32) -> Option<i64> {
     match read_control(path, id) {
         Ok(ControlValue::Integer(v)) => Some(v),
         Ok(other) => {
-            eprintln!("ptz(T-216): read {id:#010x} returned non-integer {other:?}");
+            eprintln!(
+                "warning: ptz: read {id:#010x} returned non-integer {other:?}; skipping move"
+            );
             None
         }
         Err(err) => {
-            eprintln!("ptz(T-216): read {id:#010x} failed: {err}");
+            eprintln!("warning: ptz: read {id:#010x} failed: {err}; skipping move");
             None
         }
     }

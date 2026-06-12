@@ -10,6 +10,22 @@
 
 ---
 
+## 2026-06-12 (PTZ-hang fix confirmed + release build)
+
+### [2026-06-12T09:00:00Z] [T-216] Done — PTZ snapshot-slam fix confirmed on hardware
+
+User reproduced with the instrumented build and reported the PTZ now
+"va perfecto": clicking an arrow while the preview is on moves the gimbal
+one smooth step, no slam, no hang. This confirms the snapshot-slam
+hypothesis — under the preview the old `current_axis` fell back to the
+page-build snapshot (camera asleep, gimbal parked low) and wrote that
+stale absolute, lurching the camera to the extreme. The landed fix makes
+`current_axis` return `Option` and **skips** the move on any read
+failure, so a stale absolute can never be written. Stripped the temporary
+`eprintln!("ptz(T-216): …")` diagnostics; kept a single `warning: ptz:`
+line on the read-failure skip path. fmt + clippy (default + live-preview)
++ test green. T-216 → DONE.
+
 ## 2026-06-11 (appearance selector + PTZ-hang report)
 
 ### [2026-06-11T14:00:00Z] [T-215] Done (code + gates) — in-app appearance selector
