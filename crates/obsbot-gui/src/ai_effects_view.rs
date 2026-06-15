@@ -21,7 +21,12 @@
 //! * `AdwComboRow` — AI tracking mode (10 entries).
 //! * `AdwComboRow` — Tracking speed (Standard / Sport).
 //! * `AdwComboRow` — Field of view (Wide / Normal / Narrow).
-//! * `AdwSwitchRow` — HDR on/off.
+//!
+//! HDR is **not** part of this group: it is an image-quality control,
+//! not an auto-framing feature, so it lives in its own
+//! "Image enhancements" group built by [`build_hdr_group`] and mounted
+//! on the Image tab (T-218). The byte-level encoder
+//! (`obsbot_core::xu::commands::set_hdr`) is shared by both.
 //!
 //! Writes go through `obsbot_core::xu::commands::*` on the GTK main
 //! thread (the ioctls are sub-millisecond on the user's hardware;
@@ -151,8 +156,44 @@ pub fn build_ai_effects_group(cam: &CameraInfo) -> Option<adw::PreferencesGroup>
     group.add(&ai_mode_row(&file, baseline.as_ref()));
     group.add(&tracking_speed_row(&file, baseline.as_ref()));
     group.add(&fov_row(&file));
-    group.add(&hdr_row(&file, baseline.as_ref()));
 
+    Some(group)
+}
+
+/// Build the "Image enhancements" group holding the HDR switch, or
+/// `None` for cameras that are not Tiny 2 family or have no
+/// `/dev/videoN` path. Split out of the AI group in T-218 because HDR
+/// is an image-quality control, not an auto-framing feature — it
+/// belongs on the Image tab next to white balance and exposure, not
+/// under "AI".
+///
+/// Opens its own `Rc<File>` handle (a few sub-millisecond ioctls); the
+/// AI group keeps a separate handle. If the open fails the group is
+/// omitted and the rest of the page still renders.
+pub fn build_hdr_group(cam: &CameraInfo) -> Option<adw::PreferencesGroup> {
+    if !is_tiny_2_family(cam.vid, cam.pid) {
+        return None;
+    }
+    let path = cam.video_path.as_deref()?;
+    let file = match OpenOptions::new().read(true).write(true).open(path) {
+        Ok(f) => Rc::new(f),
+        Err(err) => {
+            eprintln!(
+                "warning: ai_effects_view: open {path:?} for HDR writes failed: {err}; \
+                 skipping image-enhancements group"
+            );
+            return None;
+        }
+    };
+    let baseline = get_status(&file).ok();
+
+    let group = adw::PreferencesGroup::builder()
+        .title(gettext("Image enhancements"))
+        .description(gettext(
+            "Vendor image controls for OBSBOT Tiny 2 family cameras.",
+        ))
+        .build();
+    group.add(&hdr_row(&file, baseline.as_ref()));
     Some(group)
 }
 

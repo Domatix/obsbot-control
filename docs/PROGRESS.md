@@ -10,6 +10,45 @@
 
 ---
 
+## 2026-06-15 (UX feedback round 2)
+
+### [2026-06-15T00:30:00Z] [T-218] Code complete — four GUI edits, gates green
+
+Implemented the four layout tweaks:
+1. HDR moved out of the AI group into a new `ai_effects_view::
+   build_hdr_group` ("Image enhancements"); `controls_view` mounts it
+   on the Image tab. AI group is now AI tracking + tracking speed + FOV.
+2. Reordered the `AdwViewStack` so the AI tab is added first → it is the
+   default visible page and leftmost switcher entry. New order: AI ·
+   Image · Move · Extras.
+3. Moved the four preview buttons (toggle/snapshot/mirror/grayscale) out
+   of the controls HeaderBar into a new centered `build_preview_controls
+   _bar` pinned under the preview card; the header keeps only the
+   ViewSwitcher. The camera-release wiring (T-207 connect_hidden +
+   register_active) stays in build_controls_page.
+4. `window::maybe_auto_enter_single` pushes the single camera's controls
+   page after each body (re)mount (startup + hot-plug rebuild); idempotent
+   via the visible-page-tag check, list stays as nav root so Back works.
+Gates: `cargo fmt --all --check`, `cargo clippy --workspace --all-targets
+--features obsbot-gui/live-preview -- -D warnings`, the same clippy with
+default features, and `cargo test --workspace` all green. T-218 stays
+IN_PROGRESS pending the user's on-hardware visual confirmation of the
+four points.
+
+### [2026-06-15T00:00:00Z] [T-218] Started — GUI layout feedback batch
+
+Colleague review of the v0.4.1 build raised four layout complaints:
+(1) HDR is shown inside the "AI" tab but it is not an AI feature;
+(2) the AI tracking tab should be the first/default tab (most-used);
+(3) the four preview buttons crammed into the controls HeaderBar need a
+better home; (4) with a single camera connected, skip the one-row list
+and open its config directly. Read the GUI surface (window.rs/.blp,
+controls_view.rs, ai_effects_view.rs, controls-view.blp). Plan recorded
+in PLAN.md T-218. Implementing as four GUI-only edits:
+ai_effects_view.rs (split HDR into build_hdr_group), controls_view.rs
+(reorder tabs AI-first + mount HDR on Image tab + move preview buttons to
+a bar under the preview card), window.rs (maybe_auto_enter_single).
+
 ## 2026-06-12 (PTZ-hang fix confirmed + release build)
 
 ### [2026-06-12T11:00:00Z] [release] Cut v0.4.1 — tag + GitHub Release with the Arch package asset

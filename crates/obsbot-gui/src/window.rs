@@ -101,10 +101,36 @@ pub fn build(app: &adw::Application) -> adw::ApplicationWindow {
 
     let initial = enumerate_cameras();
     body_slot.set_child(Some(&build_body(&initial, &nav_view)));
+    // T-218: a single connected camera lands straight on its controls
+    // page instead of a one-row list.
+    maybe_auto_enter_single(&nav_view, &initial);
 
     start_hotplug_poll(&body_slot, &nav_view, initial);
 
     window
+}
+
+/// T-218: with exactly one camera present, skip the one-row list and
+/// open its controls page directly. Called after each (re)mount of the
+/// body — at startup and on every hot-plug rebuild. Idempotent: it
+/// checks the visible page tag and does nothing when that camera's
+/// controls page is already on top, so it never double-pushes. The
+/// camera list stays as the navigation root, so Back is still an escape
+/// hatch and — because re-mounts only happen on an enumeration change —
+/// the user can sit on the list after pressing Back.
+fn maybe_auto_enter_single(nav_view: &adw::NavigationView, cameras: &[CameraInfo]) {
+    let [cam] = cameras else {
+        return;
+    };
+    let tag = format!("controls-{:04x}-{:04x}", cam.vid, cam.pid);
+    let already_there = nav_view
+        .visible_page()
+        .and_then(|page| page.tag())
+        .is_some_and(|t| t.as_str() == tag);
+    if already_there {
+        return;
+    }
+    nav_view.push(&build_controls_page(cam));
 }
 
 /// Install the polling source. The slot is captured weakly so the timer
@@ -135,6 +161,10 @@ fn start_hotplug_poll(
                     // lookup still sees the controls page.
                     handle_remove_events(&prev, &latest, &nav_view);
                     body_slot.set_child(Some(&build_body(&latest, &nav_view)));
+                    // T-218: re-evaluate single-camera auto-enter after
+                    // the enumeration changed (e.g. dropped from two
+                    // cameras to one).
+                    maybe_auto_enter_single(&nav_view, &latest);
                     *prev = latest;
                 }
                 glib::ControlFlow::Continue

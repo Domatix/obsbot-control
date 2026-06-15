@@ -3536,6 +3536,54 @@
 - **Acceptance criteria** (met): clearer UI text; clicking a preset always
   produces visible feedback; no behavioural regression; all cargo gates green.
 
+### T-218 — UX feedback round 2 (layout polish from colleague review)
+
+- **State**: IN_PROGRESS
+- **Started**: 2026-06-15
+- **Trigger**: colleague feedback batch on the v0.4.1 build — four
+  concrete layout complaints, all in the per-camera controls page and the
+  camera-list landing page.
+- **Description**: four cohesive GUI-only tweaks, no protocol/core changes:
+  1. **HDR is not AI.** The HDR switch lives in the "AI" tab's
+     `build_ai_effects_group`. HDR is an image-quality control, not an
+     auto-framing feature — move it out of the AI group into the "Image"
+     tab. New `ai_effects_view::build_hdr_group(cam)` returns a small
+     "Image enhancements" group with the HDR switch; `render_controls`
+     pushes it into the Image tab's group list.
+  2. **Tracking first.** AI tracking is the most-used feature. Reorder the
+     `AdwViewStack` tabs so "AI" is added first (it becomes the default
+     visible page and the leftmost switcher entry). New order: AI · Image ·
+     Move · Extras. `add_tab` is a no-op for cameras that don't advertise a
+     tab, so non-Tiny-2 units still default sensibly to Image.
+  3. **Relocate the top buttons.** The four preview buttons (toggle /
+     snapshot / mirror / grayscale) are crammed into the controls
+     `HeaderBar` next to the `ViewSwitcher`. Move them to a small centered
+     control bar pinned directly beneath the preview card, where they
+     belong with the preview they drive. The header keeps only the
+     ViewSwitcher (+ back button). `build_controls_page` no longer packs
+     them; `render_controls` builds the bar from the same `PreviewHandles`.
+  4. **Single camera → enter config directly.** When exactly one camera is
+     present, don't make the user tap through a one-row list — push its
+     controls page automatically. Implemented as `maybe_auto_enter_single`
+     called right after each (re)mount of the body (startup + hot-plug
+     rebuild). Idempotent (checks the visible page tag) so it never
+     double-pushes; the camera list stays as the nav root, so Back is still
+     an escape hatch and re-mounts only happen on enumeration change (the
+     user can sit on the list after pressing Back).
+- **Acceptance criteria**:
+  - HDR no longer appears in the AI tab; it appears in the Image tab.
+  - The controls page opens on the AI/tracking tab by default; AI is the
+    leftmost switcher entry.
+  - The preview buttons are no longer in the header bar; they sit in a bar
+    under the preview card and still drive preview/snapshot/mirror/grayscale.
+  - Launching with a single camera connected lands directly on that
+    camera's controls page (no list tap); Back returns to the list.
+  - All four cargo gates green (fmt, clippy -D warnings, test, build with
+    `--features obsbot-gui/live-preview`).
+  - **User validation pending**: visual confirmation of the four points on
+    hardware.
+  - Commit `feat(gui): UX layout feedback round 2 (T-218)`.
+
 ---
 
 ## Backlog (future milestones)

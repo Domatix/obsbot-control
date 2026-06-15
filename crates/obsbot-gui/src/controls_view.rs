@@ -38,7 +38,7 @@ use obsbot_core::{
     read_controls, CameraInfo, ControlClass, ControlDescriptor, ControlKind, ControlValue,
 };
 
-use crate::ai_effects_view::build_ai_effects_group;
+use crate::ai_effects_view::{build_ai_effects_group, build_hdr_group};
 use crate::exposure_group::{build_exposure_group, EXPOSURE_GROUP_IDS};
 use crate::extras_view::build_extras_group;
 use crate::i18n::gettext;
@@ -113,31 +113,22 @@ pub fn build_controls_page(cam: &CameraInfo) -> adw::NavigationPage {
         header_bar.set_title_widget(Some(&switcher));
     }
 
-    // T-200/T-210: pack the live-preview controls into the header bar.
-    // pack_end stacks right-to-left, so the first pack_end ends up
-    // rightmost. Final layout:
-    //   [<back]  <ViewSwitcher>  …  [toggle][snapshot][mirror][grayscale]
-    // Compiled only with the `live-preview` Cargo feature; a feature-off
-    // build keeps the header switcher-only.
+    // T-218: the live-preview buttons (toggle / snapshot / mirror /
+    // grayscale) used to live in this header bar next to the
+    // ViewSwitcher. They now sit in a control bar pinned directly under
+    // the preview card (built in `render_controls`), where they belong
+    // with the preview they drive. The header keeps only the
+    // ViewSwitcher title widget (+ the automatic back button).
+    //
+    // What stays here: the deterministic camera release wiring (T-207).
+    // `AdwNavigationPage::hidden` fires on pop (back button) and on the
+    // T-110 `pop_to_tag` after a hot-plug REMOVE — both cases where the
+    // preview must stop even though the page widget (and its `Drop`) may
+    // linger in the NavigationView's transition/cache for a while. We
+    // also register the pipeline so the window's close handler can stop
+    // it (see `window::build`).
     #[cfg(feature = "live-preview")]
-    if let Some(handles) = preview_slot {
-        let toggle = build_preview_toggle(&handles);
-        let snapshot = build_snapshot_button(&handles);
-        let mirror = build_mirror_toggle(&handles);
-        let grayscale = build_grayscale_toggle(&handles);
-        header_bar.pack_end(&toggle);
-        header_bar.pack_end(&snapshot);
-        header_bar.pack_end(&mirror);
-        header_bar.pack_end(&grayscale);
-
-        // T-207: release the camera deterministically when the user
-        // navigates away. `AdwNavigationPage::hidden` fires on pop
-        // (back button) and on the T-110 `pop_to_tag` after a hot-plug
-        // REMOVE — both cases where the preview must stop even though
-        // the page widget (and its `Drop`) may linger in the
-        // NavigationView's transition/cache for a while. Also register
-        // this slot so the window's close handler can stop it (see
-        // `window::build`).
+    if let Some(handles) = preview_slot.as_ref() {
         crate::preview::register_active(&handles.pipeline);
         let pipeline = handles.pipeline.clone();
         page.connect_hidden(move |_| {
@@ -274,6 +265,10 @@ fn render_controls(
     let preview_slot: PreviewSlot = {
         let (card, handles) = build_preview_widgets(path);
         outer.append(&card);
+        // T-218: the preview's own control bar lives right under the
+        // card (toggle / snapshot / mirror / grayscale), not in the
+        // page header bar.
+        outer.append(&build_preview_controls_bar(&handles));
         Some(handles)
     };
     #[cfg(not(feature = "live-preview"))]
@@ -314,9 +309,30 @@ fn render_controls(
     let stack = adw::ViewStack::new();
     stack.set_vexpand(true);
 
-    // Image — white balance, exposure, and the generic User-class
-    // sliders (brightness/contrast/saturation/hue/…).
+    // T-218: AI tracking is the most-used feature, so its tab is added
+    // FIRST — `AdwViewStack` makes the first-added page the default
+    // visible child and the leftmost `AdwViewSwitcher` entry. Cameras
+    // that don't advertise an AI group skip this tab (add_tab is a
+    // no-op when empty) and fall through to Image as the default.
+    let mut ai_groups: Vec<adw::PreferencesGroup> = Vec::new();
+    if let Some(ai) = build_ai_effects_group(cam) {
+        ai_groups.push(ai);
+    }
+    add_tab(
+        &stack,
+        "ai",
+        &gettext("AI"),
+        "applications-science-symbolic",
+        &ai_groups,
+    );
+
+    // Image — HDR (T-218: moved out of the AI group; it is an image
+    // control, not auto-framing), white balance, exposure, and the
+    // generic User-class sliders (brightness/contrast/saturation/hue/…).
     let mut image_groups: Vec<adw::PreferencesGroup> = Vec::new();
+    if let Some(hdr) = build_hdr_group(cam) {
+        image_groups.push(hdr);
+    }
     if let Some(wb) = build_wb_group(controls, path, serial) {
         image_groups.push(wb);
     }
@@ -345,19 +361,6 @@ fn render_controls(
         &gettext("Move"),
         "find-location-symbolic",
         &move_groups,
-    );
-
-    // AI — the marquee auto-framing / HDR / FOV vendor-XU group.
-    let mut ai_groups: Vec<adw::PreferencesGroup> = Vec::new();
-    if let Some(ai) = build_ai_effects_group(cam) {
-        ai_groups.push(ai);
-    }
-    add_tab(
-        &stack,
-        "ai",
-        &gettext("AI"),
-        "applications-science-symbolic",
-        &ai_groups,
     );
 
     // Extras — presets plus any remaining Camera / Other-class controls.
@@ -553,8 +556,36 @@ fn build_preview_widgets(path: &Path) -> (gtk::Widget, PreviewHandles) {
     (clamp.upcast(), handles)
 }
 
+/// Build the preview control bar (T-218): a small centered, linked row
+/// holding the preview toggle, snapshot, mirror, and grayscale buttons,
+/// pinned directly under the preview card. This replaces packing the
+/// same four buttons into the page header bar — they belong with the
+/// preview they drive, and the header now carries only the `ViewSwitcher`.
+/// All four builders take the shared `PreviewHandles`, so the wiring is
+/// identical to the old header-bar buttons.
+#[cfg(feature = "live-preview")]
+fn build_preview_controls_bar(handles: &PreviewHandles) -> gtk::Widget {
+    let toggle = build_preview_toggle(handles);
+    let snapshot = build_snapshot_button(handles);
+    let mirror = build_mirror_toggle(handles);
+    let grayscale = build_grayscale_toggle(handles);
+
+    let bar = gtk::Box::builder()
+        .orientation(gtk::Orientation::Horizontal)
+        .spacing(6)
+        .halign(gtk::Align::Center)
+        .margin_bottom(6)
+        .build();
+    bar.add_css_class("toolbar");
+    bar.append(&toggle);
+    bar.append(&snapshot);
+    bar.append(&mirror);
+    bar.append(&grayscale);
+    bar.upcast()
+}
+
 /// Wire a `gtk::ToggleButton` to the preview card stack + pipeline.
-/// The caller packs this into the header bar of the controls page.
+/// The caller packs this into the preview control bar under the card.
 /// Honours the `preview-default-on` `GSettings` key — when true,
 /// emits `toggled` once at construction so the pipeline starts and
 /// the card shows the video on first render.
