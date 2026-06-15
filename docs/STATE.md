@@ -6,16 +6,16 @@
 
 ---
 
-active_task: T-218  # UX feedback round 2: HDR out of AI, tracking-tab first, relocate preview buttons, single-cam auto-enter.
-active_task_state: IN_PROGRESS
+active_task: none  # T-218 DONE + verified on hardware (window capture). Code on main, not yet pushed.
+active_task_state: IDLE
 active_branch: main
-last_completed_task: T-217  # Presets UX (clarify recall-only + toast). T-216 PTZ fix confirmed on hardware. T-210..T-215 DONE.
+last_completed_task: T-218  # UX feedback round 2: HDR out of AI→Image tab, AI/tracking tab default, preview buttons under the card, single-cam auto-enter. Verified on the Tiny 2 Lite. Prior: T-217 (presets UX).
 last_milestone: v0.4.1  # tagged 2026-06-12 (dd7d6cf). GitHub Release published with the Arch .pkg.tar.zst asset (ADR-0027). Prior: v0.4.0 Live Preview 2026-06-02.
 last_commit_on_main: ad589ab  # T-218 GUI layout feedback (HDR→Image, AI tab first, preview buttons under card, single-cam auto-enter). NOT yet pushed. Prior: dd7d6cf (tagged v0.4.1), 8a6ac60 (T-217), 715a7f8 (T-216 final), 46bf193, 30ca209, be12854.
-last_step: 2026-06-15 — T-218 code complete + all cargo gates green (fmt, clippy with & without live-preview, test). Four GUI edits: HDR→Image tab (build_hdr_group), AI tab now first/default, preview buttons moved to a bar under the preview card, single-camera auto-enter in window.rs. Committed to main.
-next_step: user visual validation on hardware of the four points (HDR in Image tab, AI/tracking opens first, preview buttons under the card, single camera lands on config directly). Then mark T-218 DONE.
+last_step: 2026-06-15 — T-218 DONE. Code committed (ad589ab) + gates green, then self-verified all four points on the connected Tiny 2 Lite via the live-preview build + X11 window capture: HDR absent from AI group, AI/tracking is the default tab, the four preview buttons sit in a bar under the preview card, single camera opens its controls page directly. Test instance closed, temp capture files removed.
+next_step: none queued. Optional: push main for the Arch packager. Q7 preset-save still deferred.
 blockers: none on main. T-017b Arch validation pending an Arch host (transferred to incoming dev, ADR-0023).
-  status: T-218 code committed (ad589ab), gates green, pending user visual validation. `git status --short` shows one untracked artifact — obsbot-cam-control-0.4.1-1-x86_64.pkg.tar.zst (published as the v0.4.1 Release asset); stays untracked per ADR-0027 (cleanup is the user's call). target/release binaries + dist/ gitignored.
+  status: T-218 DONE, code committed (ad589ab), gates green, verified on hardware. `git status --short` shows one untracked artifact — obsbot-cam-control-0.4.1-1-x86_64.pkg.tar.zst (published as the v0.4.1 Release asset); stays untracked per ADR-0027 (cleanup is the user's call). target/release binaries + dist/ gitignored.
 firmware_notes:
   - Tiny 2 Lite fw 5.10: XU Sleep frame IGNORED for ~3s after streaming stops (accepted at t≈3s); cold Sleep works immediately. set_sleep(Awake)/get_status reliable. Rapid open/close/sleep/wake churn can hang capture (0 buffers, no error) until USB replug. (ADR-0025)
 v0_4_0_gate:

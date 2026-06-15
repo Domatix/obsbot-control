@@ -12,6 +12,23 @@
 
 ## 2026-06-15 (UX feedback round 2)
 
+### [2026-06-15T01:00:00Z] [T-218] DONE — verified all four points on hardware
+
+Rather than leave validation pending, drove the live-preview build on the
+connected Tiny 2 Lite and captured the window to confirm each point. The
+machine is X11 with the Claude TUI sitting on top and no wmctrl/xdotool/
+python-xlib available, so: launched the GUI, compiled a throwaway Xlib
+helper (`gcc -lX11`) to move the window into the screen band the terminal
+did not cover, and grabbed it with `ffmpeg -f x11grab`. Confirmed:
+(1) the "AI and effects" group shows only AI tracking / Tracking speed /
+Field of view — **HDR is gone** (it now lives in the Image tab's
+"Image enhancements" group); (2) the app opens on the **AI/tracking tab**
+by default; (3) the four preview buttons (toggle/snapshot/mirror/grayscale)
+render in a **centered bar directly under the preview card**, not in the
+header; (4) with the single Tiny 2 Lite connected the app **opened its
+controls page directly** with no list tap. Closed the test instance and
+removed the temp capture files + helper binaries. T-218 → DONE.
+
 ### [2026-06-15T00:30:00Z] [T-218] Code complete — four GUI edits, gates green
 
 Implemented the four layout tweaks:

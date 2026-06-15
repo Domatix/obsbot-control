@@ -3538,8 +3538,16 @@
 
 ### T-218 — UX feedback round 2 (layout polish from colleague review)
 
-- **State**: IN_PROGRESS
+- **State**: DONE (2026-06-15)
 - **Started**: 2026-06-15
+- **Completed**: 2026-06-15 — all four points verified on the connected
+  Tiny 2 Lite by launching the live-preview build and capturing the window
+  (X11 screenshot via ffmpeg, window relocated with a throwaway XMoveWindow
+  helper to clear the on-top terminal). Confirmed: (1) HDR absent from the
+  AI group; (2) AI/tracking is the default visible tab on open; (3) the
+  four preview buttons sit in a centered bar directly under the preview
+  card, not in the header; (4) a single connected camera opens its controls
+  page directly with no list tap.
 - **Trigger**: colleague feedback batch on the v0.4.1 build — four
   concrete layout complaints, all in the per-camera controls page and the
   camera-list landing page.
@@ -3580,8 +3588,9 @@
     camera's controls page (no list tap); Back returns to the list.
   - All four cargo gates green (fmt, clippy -D warnings, test, build with
     `--features obsbot-gui/live-preview`).
-  - **User validation pending**: visual confirmation of the four points on
-    hardware.
+  - **User validation**: DONE — self-verified on the connected Tiny 2 Lite
+    via automated window capture (see Completed note above). All four
+    points confirmed.
   - Commit `feat(gui): UX layout feedback round 2 (T-218)`.
 
 ---
