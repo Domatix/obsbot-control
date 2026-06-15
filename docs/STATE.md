@@ -11,11 +11,11 @@ active_task_state: IN_PROGRESS
 active_branch: main
 last_completed_task: T-217  # Presets UX (clarify recall-only + toast). T-216 PTZ fix confirmed on hardware. T-210..T-215 DONE.
 last_milestone: v0.4.1  # tagged 2026-06-12 (dd7d6cf). GitHub Release published with the Arch .pkg.tar.zst asset (ADR-0027). Prior: v0.4.0 Live Preview 2026-06-02.
-last_commit_on_main: dd7d6cf  # tagged v0.4.1. DECISIONS+STATE+PROGRESS doc commit for the release follows this update. Prior pushed: 8a6ac60 (T-217), 715a7f8 (T-216 final), 46bf193, 30ca209, be12854, 445f16c, 1aa10ef, c6823c8, b447901, 0b028ff.
+last_commit_on_main: ad589ab  # T-218 GUI layout feedback (HDR→Image, AI tab first, preview buttons under card, single-cam auto-enter). NOT yet pushed. Prior: dd7d6cf (tagged v0.4.1), 8a6ac60 (T-217), 715a7f8 (T-216 final), 46bf193, 30ca209, be12854.
 last_step: 2026-06-15 — T-218 code complete + all cargo gates green (fmt, clippy with & without live-preview, test). Four GUI edits: HDR→Image tab (build_hdr_group), AI tab now first/default, preview buttons moved to a bar under the preview card, single-camera auto-enter in window.rs. Committed to main.
 next_step: user visual validation on hardware of the four points (HDR in Image tab, AI/tracking opens first, preview buttons under the card, single camera lands on config directly). Then mark T-218 DONE.
 blockers: none on main. T-017b Arch validation pending an Arch host (transferred to incoming dev, ADR-0023).
-  status: T-218 in progress (GUI-only edits, not yet committed). `git status --short` shows two untracked artifacts — obsbot-cam-control-0.4.1-1-x86_64.pkg.tar.zst (now published as the v0.4.1 Release asset) and the superseded 0.4.0 one; both stay untracked per ADR-0027 (cleanup is the user's call). DECISIONS/STATE/PROGRESS doc edits for the release are uncommitted, about to commit. target/release binaries + dist/ gitignored.
+  status: T-218 code committed (ad589ab), gates green, pending user visual validation. `git status --short` shows one untracked artifact — obsbot-cam-control-0.4.1-1-x86_64.pkg.tar.zst (published as the v0.4.1 Release asset); stays untracked per ADR-0027 (cleanup is the user's call). target/release binaries + dist/ gitignored.
 firmware_notes:
   - Tiny 2 Lite fw 5.10: XU Sleep frame IGNORED for ~3s after streaming stops (accepted at t≈3s); cold Sleep works immediately. set_sleep(Awake)/get_status reliable. Rapid open/close/sleep/wake churn can hang capture (0 buffers, no error) until USB replug. (ADR-0025)
 v0_4_0_gate:
