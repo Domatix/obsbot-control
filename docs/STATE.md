@@ -11,7 +11,7 @@ active_task_state: IDLE
 active_branch: main
 last_completed_task: T-218  # UX feedback round 2: HDR out of AI→Image tab, AI/tracking tab default, preview buttons under the card, single-cam auto-enter. Verified on the Tiny 2 Lite. Prior: T-217 (presets UX).
 last_milestone: v0.4.1  # tagged 2026-06-12 (dd7d6cf). GitHub Release published with the Arch .pkg.tar.zst asset (ADR-0027). Prior: v0.4.0 Live Preview 2026-06-02.
-last_commit_on_main: ad589ab  # T-218 GUI layout feedback (HDR→Image, AI tab first, preview buttons under card, single-cam auto-enter). NOT yet pushed. Prior: dd7d6cf (tagged v0.4.1), 8a6ac60 (T-217), 715a7f8 (T-216 final), 46bf193, 30ca209, be12854.
+last_commit_on_main: 88d8296  # pushed to origin/main. T-218 GUI layout feedback (ad589ab code) + doc reconcile (a16869b) + DONE mark (88d8296). Prior: dd7d6cf (tagged v0.4.1), 8a6ac60 (T-217), 715a7f8 (T-216 final).
 last_step: 2026-06-15 — T-218 DONE. Code committed (ad589ab) + gates green, then self-verified all four points on the connected Tiny 2 Lite via the live-preview build + X11 window capture: HDR absent from AI group, AI/tracking is the default tab, the four preview buttons sit in a bar under the preview card, single camera opens its controls page directly. Test instance closed, temp capture files removed.
 next_step: none queued. Optional: push main for the Arch packager. Q7 preset-save still deferred.
 blockers: none on main. T-017b Arch validation pending an Arch host (transferred to incoming dev, ADR-0023).
