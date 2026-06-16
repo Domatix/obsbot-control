@@ -30,7 +30,7 @@
 use std::path::PathBuf;
 use std::process::Command;
 
-const TEMPLATES: &[&str] = &["window", "controls-view", "ptz-pad"];
+const TEMPLATES: &[&str] = &["window", "ptz-pad"];
 /// Static (non-generated) resource files staged into `OUT_DIR` so the
 /// `GResource` compiler — whose only source dir is `OUT_DIR` — can find
 /// them next to the Blueprint-generated `.ui` files.

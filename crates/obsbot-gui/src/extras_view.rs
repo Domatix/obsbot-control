@@ -13,14 +13,11 @@
 // GNU General Public License for more details.
 
 //! "Presets" group widget (T-302; the Sleep/Wake switch was dropped in
-//! T-211 as it did not reliably drive the firmware).
+//! T-211 as it did not reliably drive the firmware, and the diagnostic
+//! "Show XU status (hex dump)" row was removed in T-220).
 //!
 //! Hosts the Tiny4Linux-only XU surface: the three preset-position
-//! recall buttons. Also offers a "Show XU status
-//! (hex dump)" row that pops an [`adw::AlertDialog`] rendering the
-//! full 60-byte GET_CUR payload from selector `0x06` — the discovery
-//! frontier for the 55 still-undecoded bytes (see
-//! `PROTOCOL.md §3.2`).
+//! recall buttons.
 //!
 //! Preset recall is **recall-only** per quirk Q7: programming a
 //! preset position into the camera firmware requires the OBSBOT
@@ -41,7 +38,7 @@ use libadwaita as adw;
 
 use adw::prelude::*;
 use obsbot_core::xu::commands::recall_preset;
-use obsbot_core::xu::{get_status, Status, XuError, STATUS_LEN};
+use obsbot_core::xu::XuError;
 use obsbot_core::{CameraInfo, TINY2_FAMILY};
 
 use crate::i18n::gettext;
@@ -79,7 +76,6 @@ pub fn build_extras_group(cam: &CameraInfo) -> Option<adw::PreferencesGroup> {
     group.add(&preset_row(&file, 0));
     group.add(&preset_row(&file, 1));
     group.add(&preset_row(&file, 2));
-    group.add(&dump_status_row(&file));
 
     Some(group)
 }
@@ -127,107 +123,6 @@ fn recall_with_feedback(file: &File, index: i8) {
         }
         Err(err) => report_xu_error("Preset recall", &err),
     }
-}
-
-fn dump_status_row(file: &Rc<File>) -> adw::ActionRow {
-    let row = adw::ActionRow::builder()
-        .title(gettext("Show XU status (hex dump)"))
-        .subtitle(gettext("Diagnostic hex dump of the camera status."))
-        .activatable(true)
-        .build();
-
-    let view_button = gtk::Button::builder()
-        .icon_name("dialog-information-symbolic")
-        .valign(gtk::Align::Center)
-        .css_classes(vec!["flat"])
-        .tooltip_text(gettext("Show"))
-        .build();
-    row.add_suffix(&view_button);
-
-    let file_for_button = Rc::clone(file);
-    view_button.connect_clicked(move |btn| open_dump_dialog(&file_for_button, btn));
-
-    let file_for_row = Rc::clone(file);
-    row.connect_activated(move |r| open_dump_dialog(&file_for_row, r));
-
-    row
-}
-
-/// Pop an `AdwAlertDialog` showing the 60-byte status payload as a
-/// hex grid with offsets and decoded-field annotations, plus a "Copy"
-/// button that places the raw hex on the clipboard.
-fn open_dump_dialog(file: &Rc<File>, anchor: &impl IsA<gtk::Widget>) {
-    let status = match get_status(file) {
-        Ok(s) => s,
-        Err(err) => {
-            report_xu_error("XU status read", &err);
-            return;
-        }
-    };
-
-    let dialog = adw::AlertDialog::builder()
-        .heading(gettext("XU status dump"))
-        .body_use_markup(true)
-        .body(format_status_body(&status))
-        .build();
-    dialog.add_response("close", &gettext("Close"));
-    dialog.add_response("copy", &gettext("Copy hex"));
-    dialog.set_default_response(Some("close"));
-
-    // Capture the raw bytes for the clipboard handler.
-    let hex_payload = status
-        .raw
-        .iter()
-        .map(|b| format!("{b:02x}"))
-        .collect::<Vec<_>>()
-        .chunks(STATUS_LEN.div_ceil(4))
-        .map(|chunk| chunk.join(" "))
-        .collect::<Vec<_>>()
-        .join("\n");
-
-    let anchor_widget = anchor.clone().upcast::<gtk::Widget>();
-    dialog.connect_response(None, move |dlg, response| {
-        if response == "copy" {
-            let display = anchor_widget.display();
-            display.clipboard().set_text(&hex_payload);
-            settings::surface_error(&gettext("XU status hex copied to clipboard."));
-        }
-        dlg.close();
-    });
-
-    let parent = anchor
-        .clone()
-        .upcast::<gtk::Widget>()
-        .root()
-        .and_downcast::<gtk::Window>();
-    dialog.present(parent.as_ref());
-}
-
-/// Render the 60-byte payload as monospace hex with offset markers,
-/// plus the 5 decoded fields listed under it.
-fn format_status_body(status: &Status) -> String {
-    let mut out = String::new();
-    out.push_str("<tt>");
-    for (i, byte) in status.raw.iter().enumerate() {
-        if i % 16 == 0 {
-            if i != 0 {
-                out.push('\n');
-            }
-            out.push_str(&format!("{i:02x}: "));
-        } else if i % 8 == 0 {
-            out.push(' ');
-        }
-        out.push_str(&format!("{byte:02x} "));
-    }
-    out.push_str("</tt>\n\n<b>Decoded</b>:\n");
-    out.push_str(&format!("  Sleep state     (0x02): {:?}\n", status.sleep));
-    out.push_str(&format!("  HDR on          (0x06): {}\n", status.hdr_on));
-    out.push_str(&format!("  AI mode  (0x18/0x1c): {:?}\n", status.ai_mode));
-    out.push_str(&format!(
-        "  Tracking speed  (0x21): {:?}",
-        status.tracking_speed
-    ));
-    out
 }
 
 fn report_xu_error(control: &str, err: &XuError) {

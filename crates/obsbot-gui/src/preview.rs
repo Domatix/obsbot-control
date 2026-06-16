@@ -74,16 +74,16 @@ use obsbot_core::xu::SleepState;
 use crate::i18n::gettext;
 
 thread_local! {
-    /// Weak handle to the currently-visible controls page's pipeline
-    /// slot (T-207). Set by `controls_view::build_controls_page` when
-    /// it wires the preview, so a window-level handler
-    /// (`window::build`'s `connect_close_request`) can release the
-    /// V4L2 device on close without threading the `Rc` through the
-    /// window. Weak (not strong) so the page's own teardown — and the
-    /// `connect_hidden` stop wired alongside this — still owns the
-    /// pipeline lifetime; this is purely a back-reference for the
-    /// close path. A later page build supersedes the entry, and a
-    /// failed upgrade (page already gone) is a silent no-op.
+    /// Weak handle to the currently-mounted camera's pipeline slot
+    /// (T-207). Set by `controls_view::build_controls_body` when it
+    /// wires the preview, so window-level handlers can release the V4L2
+    /// device without threading the `Rc` through the window:
+    /// `window::build`'s `connect_close_request` stops it on close, and
+    /// `window::mount_current` calls `stop_active` before swapping in a
+    /// new camera's body (T-220). Weak (not strong) so the body widget's
+    /// own teardown still owns the pipeline lifetime; this is purely a
+    /// back-reference. A later body build supersedes the entry, and a
+    /// failed upgrade (body already gone) is a silent no-op.
     static ACTIVE_PREVIEW: RefCell<Option<Weak<RefCell<Option<PreviewPipeline>>>>> =
         const { RefCell::new(None) };
 

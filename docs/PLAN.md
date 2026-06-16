@@ -3635,6 +3635,81 @@
   - Commits `feat(gui): trim verbose descriptions and subtitles (T-219)`
     and `feat(gui): drop range/step/default subtitles, flatten focus rows (T-219)`.
 
+### T-220 — Single-page UX: drop the camera list, reorganize tabs
+- **State**: IN_PROGRESS
+- **Started**: 2026-06-16
+- **Depends on**: T-218 / T-219 (the tabbed layout this restructures).
+- **Description**: User-driven UX restructure (7 asks). The app no
+  longer opens on a camera *list*; it lands directly on the config
+  panel of the connected camera. The previous `AdwNavigationView`
+  drill-down (cameras root → pushed controls page) collapses to a
+  single page whose body is rebuilt in place. When more than one
+  camera is present a header **dropdown** (`Gtk.DropDown`) switches
+  between them (hidden when ≤1). With zero cameras the body is the
+  existing "No OBSBOT cameras detected" `StatusPage`. The hamburger
+  menu, previously on the (now-removed) list header, moves to the
+  single config header. Tabs reorganize: "AI" → **"Main"**, which now
+  also hosts **autofocus** (extracted from the Move/PTZ pad) and
+  **HDR** (moved off the Image tab); "Extras" → **"Presets"**; the
+  "Show XU status (hex dump)" diagnostic row is removed.
+- **Design decisions** (user-confirmed 2026-06-16 via AskUserQuestion):
+  - Multi-camera switch widget: **dropdown selector** in the header
+    (not a cycle button), listing all cameras by product name.
+  - Zero-camera state: reuse the **StatusPage** "no camera" view.
+- **Changes**:
+  - `resources/window.blp`: drop `Adw.NavigationView` + the "cameras"
+    `NavigationPage`; the window content is now
+    `ToolbarView → HeaderBar header_bar + Bin body_slot`. The
+    hamburger `MenuButton` (primary_menu) stays at `[end]` of this
+    single header. New `header_bar` id surfaced for code lookup.
+  - `resources/controls-view.blp`: deleted (the window now owns the
+    header + body slot). Removed from `build.rs` `TEMPLATES` and
+    `obsbot.gresource.xml`.
+  - `window.rs`: rewritten around `Rc<RefCell<{cameras, selected}>>`.
+    Builds the camera `Gtk.DropDown` (packed `[start]`, visible only
+    when `cameras.len() > 1`), mounts the selected camera's controls
+    body (or the StatusPage), and rebuilds on dropdown change. The
+    hot-plug poll refreshes the dropdown + remounts and keeps the
+    disconnect toast; the `pop_to_tag` / `maybe_auto_enter_single` /
+    `camera_row` / list builders are gone.
+  - `controls_view.rs`: `build_controls_page` → `build_controls_body
+    (cam, &header_bar)` returning the body `gtk::Widget` and setting
+    the passed header's title widget to the `AdwViewSwitcher` (or
+    clearing it). Preview release now rides `preview::stop_active()`
+    (window close + camera switch) instead of `page.connect_hidden`.
+    `CONTROLS_UI` resource lookup removed.
+    Tab rework in `render_controls`: `ai` group renamed to `main`
+    ("Main"), and `build_hdr_group` + the new `build_focus_group` are
+    appended to the Main tab; HDR removed from `image_groups`; the
+    extras tab title becomes "Presets".
+  - `ptz_pad.rs`: new `pub fn build_focus_group(controls, path,
+    serial) -> Option<adw::PreferencesGroup>` that builds a "Focus"
+    group (Auto-focus switch + Manual focus slider, reusing the
+    existing row builders). The focus block is removed from
+    `build_ptz_pad`; `PTZ_PAD_IDS` keeps the focus IDs so they stay
+    filtered out of the generic render.
+  - `extras_view.rs`: remove `dump_status_row`, `open_dump_dialog`,
+    `format_status_body`, the "Show XU status (hex dump)" row, and the
+    now-dead `get_status` / `Status` / `STATUS_LEN` imports.
+- **Acceptance criteria**:
+  - App opens directly on the config panel of the connected camera (no
+    intermediate list); hamburger menu reachable from that view.
+  - With 0 cameras the StatusPage shows; with >1 the header dropdown
+    appears and switches cameras; with exactly 1 the dropdown is hidden.
+  - "Main" tab is first/leftmost and contains AI tracking, Focus
+    (autofocus), and HDR. Move tab no longer shows focus. Image tab no
+    longer shows HDR. "Presets" tab replaces "Extras". No hex-dump row.
+  - All four cargo gates green (fmt, clippy -D warnings, test, build).
+    **DONE** — fmt clean; clippy `-D warnings` green for both the
+    default and `live-preview` feature sets (needed an
+    `#[allow(too_many_lines)]` with reason on `render_controls`, which
+    grew with the tab reorg); `cargo test --workspace` 7 unit + 1 doc
+    pass; `cargo build -p obsbot-gui` green for both feature sets.
+  - **User validation pending** (not machine-verifiable): launch the
+    app and visually confirm the above layout + that camera switching,
+    hot-plug, and preview start/stop still work.
+  - Commit on `feat/T-220-single-page-ux`, merged to `main`.
+
 ---
 
 ## Backlog (future milestones)

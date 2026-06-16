@@ -44,14 +44,9 @@ use crate::extras_view::build_extras_group;
 use crate::i18n::gettext;
 #[cfg(feature = "live-preview")]
 use crate::preview::{toggle_tooltip, PreviewPipeline};
-use crate::ptz_pad::{build_ptz_pad, wire_keyboard_arrows, PTZ_PAD_IDS};
+use crate::ptz_pad::{build_focus_group, build_ptz_pad, wire_keyboard_arrows, PTZ_PAD_IDS};
 use crate::settings;
 use crate::wb_group::{build_wb_group, WB_GROUP_IDS};
-
-/// Path to the controls-view shell inside the embedded `GResource`
-/// (see `build.rs` + `resources/controls-view.blp` +
-/// `resources/obsbot.gresource.xml`'s prefix).
-const CONTROLS_UI: &str = "/io/github/domatix/ObsbotCamControl/controls-view.ui";
 
 /// Fixed display size of the live-preview card (T-214). Chosen at the
 /// Tiny 2's 4:3 feed ratio (400 × 300) so the `Contain` fit fills the
@@ -74,36 +69,26 @@ type PreviewSlot = Option<PreviewHandles>;
 #[cfg(not(feature = "live-preview"))]
 type PreviewSlot = ();
 
-/// Build the detail `AdwNavigationPage` for one camera.
-pub fn build_controls_page(cam: &CameraInfo) -> adw::NavigationPage {
-    let builder = gtk::Builder::from_resource(CONTROLS_UI);
-    let page: adw::NavigationPage = builder
-        .object("page")
-        .expect("controls-view.ui missing object 'page'");
-    let body_slot: adw::Bin = builder
-        .object("body_slot")
-        .expect("controls-view.ui missing object 'body_slot'");
-
-    page.set_title(&cam.product);
-    page.set_tag(Some(&format!("controls-{:04x}-{:04x}", cam.vid, cam.pid)));
-
+/// Build the per-camera controls body and install its tab switcher into
+/// the supplied window header bar (T-220).
+///
+/// Returns the body `gtk::Widget` for the caller (`window::mount_current`)
+/// to mount into the window's `body_slot`. The page's tabs are reachable
+/// via an `AdwViewSwitcher` set as `header_bar`'s title widget; when the
+/// camera advertises nothing groupable (error bodies: no video node,
+/// empty control list) the title widget is cleared so a stale switcher
+/// from a previously-mounted camera does not linger.
+pub fn build_controls_body(cam: &CameraInfo, header_bar: &adw::HeaderBar) -> gtk::Widget {
     // T-111: reset the sensitivity-refresh row registry before
     // building. Each row builder downstream calls
     // `settings::register_row` so the post-write refresh path can
     // find them.
     settings::reset_row_registry(cam.video_path.clone());
 
-    // T-212: the body is a tabbed `AdwViewStack` (Image · Move · AI ·
-    // Extras) with the live-preview card pinned above it. Mount it,
-    // then pin an `AdwViewSwitcher` in the header bar as the title
-    // widget so the tabs are reachable. Error bodies (no video node,
-    // empty control list) carry no stack and leave the header plain.
+    // The body is a tabbed `AdwViewStack` (Main · Image · Move · Presets)
+    // with the live-preview card pinned above it. Error bodies carry no
+    // stack and leave the header plain.
     let (body, preview_slot, view_stack) = build_body(cam);
-    body_slot.set_child(Some(&body));
-
-    let header_bar: adw::HeaderBar = builder
-        .object("header_bar")
-        .expect("controls-view.ui missing object 'header_bar'");
 
     if let Some(stack) = view_stack.as_ref() {
         let switcher = adw::ViewSwitcher::builder()
@@ -111,43 +96,29 @@ pub fn build_controls_page(cam: &CameraInfo) -> adw::NavigationPage {
             .policy(adw::ViewSwitcherPolicy::Wide)
             .build();
         header_bar.set_title_widget(Some(&switcher));
+    } else {
+        // Reused header: clear any switcher left by an earlier camera.
+        header_bar.set_title_widget(None::<&gtk::Widget>);
     }
 
-    // T-218: the live-preview buttons (toggle / snapshot / mirror /
-    // grayscale) used to live in this header bar next to the
-    // ViewSwitcher. They now sit in a control bar pinned directly under
-    // the preview card (built in `render_controls`), where they belong
-    // with the preview they drive. The header keeps only the
-    // ViewSwitcher title widget (+ the automatic back button).
-    //
-    // What stays here: the deterministic camera release wiring (T-207).
-    // `AdwNavigationPage::hidden` fires on pop (back button) and on the
-    // T-110 `pop_to_tag` after a hot-plug REMOVE — both cases where the
-    // preview must stop even though the page widget (and its `Drop`) may
-    // linger in the NavigationView's transition/cache for a while. We
-    // also register the pipeline so the window's close handler can stop
-    // it (see `window::build`).
+    // T-207 / T-220: register this camera's pipeline as the active
+    // preview so the window's close handler — and `window::mount_current`
+    // on the next camera switch — can stop it deterministically via
+    // `preview::stop_active`. With the old NavigationView gone there is
+    // no page `hidden` signal; release rides the window close + the
+    // explicit `stop_active` before each re-mount instead.
     #[cfg(feature = "live-preview")]
     if let Some(handles) = preview_slot.as_ref() {
         crate::preview::register_active(&handles.pipeline);
-        let pipeline = handles.pipeline.clone();
-        page.connect_hidden(move |_| {
-            if let Some(p) = pipeline.borrow_mut().as_mut() {
-                p.stop();
-            }
-        });
     }
     #[cfg(not(feature = "live-preview"))]
     let () = preview_slot;
 
     // T-108 / T-110: the toast surface that backs
-    // `settings::surface_error` is a window-level
-    // `Adw.ToastOverlay` declared in `window.blp` and bound once in
-    // `window::build`. We do NOT bind a fresh per-page overlay here
-    // — that would scope toasts to the controls page and lose them
-    // on a hot-plug REMOVE that pops the page out from under them.
+    // `settings::surface_error` is a window-level `Adw.ToastOverlay`
+    // declared in `window.blp` and bound once in `window::build`.
 
-    page
+    body
 }
 
 fn build_body(cam: &CameraInfo) -> (gtk::Widget, PreviewSlot, Option<adw::ViewStack>) {
@@ -245,14 +216,20 @@ fn restore_saved_values(
 
 /// Build the controls body: the live-preview card (when the
 /// `live-preview` feature is on) pinned above an `AdwViewStack` whose
-/// pages group the controls into tabs — Image · Move · AI · Extras
-/// (T-212). Returns the outer widget, the preview handles the
-/// header-bar buttons bind to, and the `AdwViewStack` so
-/// `build_controls_page` can drive an `AdwViewSwitcher` from the
+/// pages group the controls into tabs — Main · Image · Move · Presets
+/// (T-220). Returns the outer widget, the preview handles the
+/// preview control bar binds to, and the `AdwViewStack` so
+/// `build_controls_body` can drive an `AdwViewSwitcher` from the
 /// header. Empty tabs (groups the camera does not advertise) are never
 /// added. No control loses its wiring: the exact same group / row
 /// builders run as before — they are merely distributed across tabs
 /// instead of one long scrolling page.
+#[allow(
+    clippy::too_many_lines,
+    reason = "linear, order-sensitive assembly of the preview card + the \
+              four tabs; splitting it would scatter the tab-ordering logic \
+              that AdwViewStack's first-added-is-default relies on"
+)]
 fn render_controls(
     cam: &CameraInfo,
     controls: &[ControlDescriptor],
@@ -309,30 +286,35 @@ fn render_controls(
     let stack = adw::ViewStack::new();
     stack.set_vexpand(true);
 
-    // T-218: AI tracking is the most-used feature, so its tab is added
-    // FIRST — `AdwViewStack` makes the first-added page the default
-    // visible child and the leftmost `AdwViewSwitcher` entry. Cameras
-    // that don't advertise an AI group skip this tab (add_tab is a
+    // Main (T-220) — the landing tab, added FIRST so `AdwViewStack`
+    // makes it the default visible child and the leftmost
+    // `AdwViewSwitcher` entry. Hosts the AI & effects group plus the two
+    // controls the user asked to surface here: Focus (autofocus, lifted
+    // out of the Move/PTZ pad) and HDR (moved off the Image tab).
+    // Cameras that advertise none of these skip the tab (add_tab is a
     // no-op when empty) and fall through to Image as the default.
-    let mut ai_groups: Vec<adw::PreferencesGroup> = Vec::new();
+    let mut main_groups: Vec<adw::PreferencesGroup> = Vec::new();
     if let Some(ai) = build_ai_effects_group(cam) {
-        ai_groups.push(ai);
+        main_groups.push(ai);
+    }
+    if let Some(focus) = build_focus_group(controls, path, serial) {
+        main_groups.push(focus);
+    }
+    if let Some(hdr) = build_hdr_group(cam) {
+        main_groups.push(hdr);
     }
     add_tab(
         &stack,
-        "ai",
-        &gettext("AI"),
-        "applications-science-symbolic",
-        &ai_groups,
+        "main",
+        &gettext("Main"),
+        "go-home-symbolic",
+        &main_groups,
     );
 
-    // Image — HDR (T-218: moved out of the AI group; it is an image
-    // control, not auto-framing), white balance, exposure, and the
-    // generic User-class sliders (brightness/contrast/saturation/hue/…).
+    // Image — white balance, exposure, and the generic User-class
+    // sliders (brightness/contrast/saturation/hue/…). HDR moved to the
+    // Main tab in T-220.
     let mut image_groups: Vec<adw::PreferencesGroup> = Vec::new();
-    if let Some(hdr) = build_hdr_group(cam) {
-        image_groups.push(hdr);
-    }
     if let Some(wb) = build_wb_group(controls, path, serial) {
         image_groups.push(wb);
     }
@@ -350,7 +332,8 @@ fn render_controls(
         &image_groups,
     );
 
-    // Move — the PTZ pad (pan/tilt/zoom/focus).
+    // Move — the PTZ pad (pan/tilt/zoom). Focus moved to the Main tab
+    // in T-220.
     let mut move_groups: Vec<adw::PreferencesGroup> = Vec::new();
     if let Some(ptz) = build_ptz_pad(controls, path, serial) {
         move_groups.push(ptz);
@@ -363,23 +346,24 @@ fn render_controls(
         &move_groups,
     );
 
-    // Extras — presets plus any remaining Camera / Other-class controls.
-    let mut extras_groups: Vec<adw::PreferencesGroup> = Vec::new();
+    // Presets (T-220, renamed from "Extras") — preset recall plus any
+    // remaining Camera / Other-class controls.
+    let mut presets_groups: Vec<adw::PreferencesGroup> = Vec::new();
     if let Some(extras) = build_extras_group(cam) {
-        extras_groups.push(extras);
+        presets_groups.push(extras);
     }
     if let Some(g) = camera_group {
-        extras_groups.push(g);
+        presets_groups.push(g);
     }
     if let Some(g) = other_group {
-        extras_groups.push(g);
+        presets_groups.push(g);
     }
     add_tab(
         &stack,
-        "extras",
-        &gettext("Extras"),
+        "presets",
+        &gettext("Presets"),
         "preferences-other-symbolic",
-        &extras_groups,
+        &presets_groups,
     );
 
     outer.append(&stack);

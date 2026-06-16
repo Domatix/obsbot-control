@@ -15,25 +15,32 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-//! Main `AdwApplicationWindow`: an `AdwNavigationView` rooting on the
-//! camera list. T-013a builds the list once at startup; T-013b adds a
-//! polling hot-plug listener that re-mounts the list body when the
-//! enumeration changes; T-013c makes each row activatable and pushes
-//! the V4L2 control sub-page built by `controls_view::build_controls_
-//! page` on activation.
+//! Main `AdwApplicationWindow`.
+//!
+//! T-220 restructured the window from an `AdwNavigationView` drill-down
+//! (a camera *list* root → a pushed per-camera controls page) into a
+//! single page that lands directly on the connected camera's config
+//! panel. The window owns one `AdwHeaderBar` (`header_bar`) and one body
+//! slot (`body_slot`); `controls_view::build_controls_body` builds the
+//! per-camera controls widget and installs the tab `AdwViewSwitcher` into
+//! that header. When more than one camera is present a `Gtk.DropDown`
+//! packed at the header start switches between them (hidden with ≤1). A
+//! polling hot-plug listener keeps the dropdown and the mounted body in
+//! sync with the live enumeration and surfaces a disconnect toast.
 
 // gtk-rs idiom: alias the canonical crate names to their conventional
 // short forms at the module level.
 use gtk4 as gtk;
 use libadwaita as adw;
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
+use std::rc::Rc;
 use std::time::Duration;
 
 use adw::prelude::*;
 use obsbot_core::{enumerate_cameras, CameraInfo};
 
-use crate::controls_view::build_controls_page;
+use crate::controls_view::build_controls_body;
 use crate::i18n::gettext;
 use crate::settings;
 
@@ -46,6 +53,17 @@ const POLL_INTERVAL: Duration = Duration::from_secs(2);
 /// in `resources/obsbot.gresource.xml`).
 const WINDOW_UI: &str = "/io/github/domatix/ObsbotCamControl/window.ui";
 
+/// Shared state driving the single-page view: the live camera
+/// enumeration, the index of the camera currently mounted, and a guard
+/// that suppresses the dropdown's `selected_notify` while we update its
+/// model/selection programmatically (so a hot-plug refresh does not
+/// re-trigger a body re-mount).
+struct ViewState {
+    cameras: RefCell<Vec<CameraInfo>>,
+    selected: Cell<usize>,
+    suppress_dropdown: Cell<bool>,
+}
+
 /// Build the top-level window. Mounts the initial body and starts the
 /// hot-plug polling source bound to the window's lifetime.
 pub fn build(app: &adw::Application) -> adw::ApplicationWindow {
@@ -56,9 +74,9 @@ pub fn build(app: &adw::Application) -> adw::ApplicationWindow {
     let toast_overlay: adw::ToastOverlay = builder
         .object("toast_overlay")
         .expect("window.ui missing object 'toast_overlay'");
-    let nav_view: adw::NavigationView = builder
-        .object("nav_view")
-        .expect("window.ui missing object 'nav_view'");
+    let header_bar: adw::HeaderBar = builder
+        .object("header_bar")
+        .expect("window.ui missing object 'header_bar'");
     let body_slot: adw::Bin = builder
         .object("body_slot")
         .expect("window.ui missing object 'body_slot'");
@@ -95,82 +113,172 @@ pub fn build(app: &adw::Application) -> adw::ApplicationWindow {
 
     // Window-level toast surface (T-108 / T-110): bound once and
     // reused for V4L2 write failures *and* hot-plug REMOVE notices.
-    // Lives as long as the window so toasts dispatched right around
-    // a page navigation never end up orphaned.
+    // Lives as long as the window so toasts dispatched right around a
+    // body re-mount (e.g. a camera switch) are never orphaned.
     settings::bind_toast_overlay(&toast_overlay);
 
-    let initial = enumerate_cameras();
-    body_slot.set_child(Some(&build_body(&initial, &nav_view)));
-    // T-218: a single connected camera lands straight on its controls
-    // page instead of a one-row list.
-    maybe_auto_enter_single(&nav_view, &initial);
+    let state = Rc::new(ViewState {
+        cameras: RefCell::new(enumerate_cameras()),
+        selected: Cell::new(0),
+        suppress_dropdown: Cell::new(false),
+    });
 
-    start_hotplug_poll(&body_slot, &nav_view, initial);
+    // Camera selector (T-220): packed at the header start, visible only
+    // when more than one camera is connected. Selecting an entry mounts
+    // that camera's config panel.
+    let dropdown = gtk::DropDown::builder()
+        .tooltip_text(gettext("Select camera"))
+        .build();
+    header_bar.pack_start(&dropdown);
+
+    {
+        let cams = state.cameras.borrow();
+        refresh_dropdown(&dropdown, &cams, 0, &state.suppress_dropdown);
+        mount_current(&header_bar, &body_slot, &cams, 0);
+    }
+
+    dropdown.connect_selected_notify(glib::clone!(
+        #[weak]
+        header_bar,
+        #[weak]
+        body_slot,
+        #[strong]
+        state,
+        move |dd| {
+            if state.suppress_dropdown.get() {
+                return;
+            }
+            let Ok(idx) = usize::try_from(dd.selected()) else {
+                return;
+            };
+            let cams = state.cameras.borrow();
+            if idx >= cams.len() {
+                return;
+            }
+            state.selected.set(idx);
+            mount_current(&header_bar, &body_slot, &cams, idx);
+        }
+    ));
+
+    start_hotplug_poll(&header_bar, &body_slot, &dropdown, &state);
 
     window
 }
 
-/// T-218: with exactly one camera present, skip the one-row list and
-/// open its controls page directly. Called after each (re)mount of the
-/// body — at startup and on every hot-plug rebuild. Idempotent: it
-/// checks the visible page tag and does nothing when that camera's
-/// controls page is already on top, so it never double-pushes. The
-/// camera list stays as the navigation root, so Back is still an escape
-/// hatch and — because re-mounts only happen on an enumeration change —
-/// the user can sit on the list after pressing Back.
-fn maybe_auto_enter_single(nav_view: &adw::NavigationView, cameras: &[CameraInfo]) {
-    let [cam] = cameras else {
-        return;
-    };
-    let tag = format!("controls-{:04x}-{:04x}", cam.vid, cam.pid);
-    let already_there = nav_view
-        .visible_page()
-        .and_then(|page| page.tag())
-        .is_some_and(|t| t.as_str() == tag);
-    if already_there {
-        return;
-    }
-    nav_view.push(&build_controls_page(cam));
-}
-
-/// Install the polling source. The slot is captured weakly so the timer
-/// auto-removes itself when the window (and therefore the slot) dies.
+/// Install the polling source. Widgets are captured weakly so the timer
+/// auto-removes itself (and drops the shared `state`) when the window
+/// dies.
 fn start_hotplug_poll(
+    header_bar: &adw::HeaderBar,
     body_slot: &adw::Bin,
-    nav_view: &adw::NavigationView,
-    initial: Vec<CameraInfo>,
+    dropdown: &gtk::DropDown,
+    state: &Rc<ViewState>,
 ) {
-    let snapshot = RefCell::new(initial);
     glib::timeout_add_local(
         POLL_INTERVAL,
         glib::clone!(
             #[weak]
+            header_bar,
+            #[weak]
             body_slot,
             #[weak]
-            nav_view,
+            dropdown,
+            #[strong]
+            state,
             #[upgrade_or]
             glib::ControlFlow::Break,
             move || {
                 let latest = enumerate_cameras();
-                let mut prev = snapshot.borrow_mut();
-                if *prev != latest {
-                    // T-110: detect REMOVE events for the camera the
-                    // user is currently looking at, pop the controls
-                    // page, and surface a toast. Has to happen before
-                    // the body re-mount so the visible_page_tag()
-                    // lookup still sees the controls page.
-                    handle_remove_events(&prev, &latest, &nav_view);
-                    body_slot.set_child(Some(&build_body(&latest, &nav_view)));
-                    // T-218: re-evaluate single-camera auto-enter after
-                    // the enumeration changed (e.g. dropped from two
-                    // cameras to one).
-                    maybe_auto_enter_single(&nav_view, &latest);
-                    *prev = latest;
+                let mut cams = state.cameras.borrow_mut();
+                if *cams != latest {
+                    // T-110: surface a toast for any camera that left the
+                    // enumeration since the previous tick.
+                    notify_disconnects(&cams, &latest);
+
+                    // Keep the mounted camera stable across the change:
+                    // re-find the previously-selected camera by identity;
+                    // fall back to the first if it is gone (or the list
+                    // is now empty, in which case mount_current shows the
+                    // "no cameras" StatusPage).
+                    let prev_key = cams.get(state.selected.get()).map(camera_key);
+                    *cams = latest;
+                    let new_selected = prev_key
+                        .and_then(|k| cams.iter().position(|c| camera_key(c) == k))
+                        .unwrap_or(0);
+                    state.selected.set(new_selected);
+
+                    refresh_dropdown(&dropdown, &cams, new_selected, &state.suppress_dropdown);
+                    mount_current(&header_bar, &body_slot, &cams, new_selected);
                 }
                 glib::ControlFlow::Continue
             }
         ),
     );
+}
+
+/// Repopulate the camera `Gtk.DropDown` from the current enumeration and
+/// select `selected`, with the `suppress` guard held so the resulting
+/// `selected_notify` does not re-mount the body. The dropdown is hidden
+/// unless there is more than one camera to choose between (T-220).
+fn refresh_dropdown(
+    dropdown: &gtk::DropDown,
+    cameras: &[CameraInfo],
+    selected: usize,
+    suppress: &Cell<bool>,
+) {
+    suppress.set(true);
+    let labels: Vec<String> = cameras.iter().map(camera_label).collect();
+    let label_refs: Vec<&str> = labels.iter().map(String::as_str).collect();
+    let model = gtk::StringList::new(&label_refs);
+    dropdown.set_model(Some(&model));
+    if let Ok(sel) = u32::try_from(selected) {
+        dropdown.set_selected(sel);
+    }
+    suppress.set(false);
+
+    dropdown.set_visible(cameras.len() > 1);
+}
+
+/// Display label for a camera in the selector — its product name. Two
+/// identical-model units would share a label; acceptable for now (the
+/// supported hardware is a single Tiny 2 family unit, and selection is
+/// by list position, not label).
+fn camera_label(cam: &CameraInfo) -> String {
+    cam.product.clone()
+}
+
+/// Mount the config panel for `cameras[selected]` (or the "no cameras"
+/// `StatusPage` when the index is out of range, i.e. an empty
+/// enumeration). Stops any active preview from the previously-mounted
+/// camera first so its V4L2 capture node is released deterministically
+/// before its body widget is dropped (T-207 / T-220).
+fn mount_current(
+    header_bar: &adw::HeaderBar,
+    body_slot: &adw::Bin,
+    cameras: &[CameraInfo],
+    selected: usize,
+) {
+    #[cfg(feature = "live-preview")]
+    crate::preview::stop_active();
+
+    if let Some(cam) = cameras.get(selected) {
+        let body = build_controls_body(cam, header_bar);
+        body_slot.set_child(Some(&body));
+    } else {
+        header_bar.set_title_widget(None::<&gtk::Widget>);
+        body_slot.set_child(Some(&empty_status()));
+    }
+}
+
+/// The "no OBSBOT cameras detected" placeholder shown when the
+/// enumeration is empty.
+fn empty_status() -> gtk::Widget {
+    adw::StatusPage::builder()
+        .icon_name("camera-web-symbolic")
+        .title(gettext("No OBSBOT cameras detected"))
+        .description(gettext("Connect an OBSBOT Tiny 2 family camera via USB."))
+        .build()
+        .upcast()
 }
 
 /// Stable identity for hot-plug REMOVE matching (T-110). Pair the
@@ -181,21 +289,11 @@ fn camera_key(cam: &CameraInfo) -> (u16, u16, Option<String>) {
     (cam.vid, cam.pid, cam.serial.clone())
 }
 
-/// Surface a "Camera disconnected" toast and pop the
-/// `Adw.NavigationView` back to the cameras list whenever a camera
-/// that was previously in the enumeration is no longer present AND
-/// the currently-visible page corresponds to that camera.
-///
-/// The page tag is `controls-{vid:04x}-{pid:04x}` (set by
-/// `controls_view::build_controls_page`); two identical-model cameras
-/// would push to the same tag, so the per-page disambiguation is
-/// approximate. For v0.2 the assumption holds: the OBSBOT Tiny 2
-/// family ships with one camera at a time on a given USB port.
-fn handle_remove_events(
-    prev: &[CameraInfo],
-    latest: &[CameraInfo],
-    nav_view: &adw::NavigationView,
-) {
+/// Surface a "Camera disconnected" toast for every camera that was in
+/// the previous enumeration but is no longer present. The window-level
+/// overlay (bound in [`build`]) keeps the toast visible across the body
+/// re-mount that follows.
+fn notify_disconnects(prev: &[CameraInfo], latest: &[CameraInfo]) {
     let latest_keys: Vec<_> = latest.iter().map(camera_key).collect();
     let removed: Vec<&CameraInfo> = prev
         .iter()
@@ -206,27 +304,6 @@ fn handle_remove_events(
         return;
     }
 
-    // Pop the controls page if it belongs to a removed camera. The
-    // `Adw.NavigationView` API exposes the visible page; we check
-    // its tag against each removed camera's `controls-` tag.
-    let visible_tag: Option<String> = nav_view
-        .visible_page()
-        .and_then(|page| page.tag().map(|s| s.to_string()));
-
-    if let Some(tag) = visible_tag.as_deref() {
-        for cam in &removed {
-            let cam_tag = format!("controls-{:04x}-{:04x}", cam.vid, cam.pid);
-            if tag == cam_tag {
-                nav_view.pop_to_tag("cameras");
-                break;
-            }
-        }
-    }
-
-    // Always surface a toast regardless of which page is visible —
-    // even if the user is on the camera list, they want to know the
-    // camera just vanished. The window-level overlay survives
-    // navigation (T-108 / T-110 wiring in `window::build`).
     let products: Vec<String> = removed.iter().map(|c| c.product.clone()).collect();
     let msg = if products.len() == 1 {
         gettext("Camera disconnected: {product}").replace("{product}", &products[0])
@@ -234,79 +311,4 @@ fn handle_remove_events(
         gettext("Cameras disconnected: {products}").replace("{products}", &products.join(", "))
     };
     settings::surface_error(&msg);
-}
-
-/// Decide which body widget to mount based on the current enumeration.
-fn build_body(cameras: &[CameraInfo], nav_view: &adw::NavigationView) -> gtk::Widget {
-    if cameras.is_empty() {
-        return adw::StatusPage::builder()
-            .icon_name("camera-web-symbolic")
-            .title(gettext("No OBSBOT cameras detected"))
-            .description(gettext("Connect an OBSBOT Tiny 2 family camera via USB."))
-            .build()
-            .upcast();
-    }
-
-    let page = adw::PreferencesPage::new();
-
-    // T-212: a compact welcome hero above the camera list — the app
-    // glyph plus a one-line greeting — so the landing page feels
-    // crafted rather than a bare list. Cosmetic only.
-    let hero = adw::PreferencesGroup::new();
-    let hero_box = gtk::Box::builder()
-        .orientation(gtk::Orientation::Vertical)
-        .spacing(8)
-        .halign(gtk::Align::Center)
-        .margin_top(12)
-        .margin_bottom(6)
-        .build();
-    let hero_icon = gtk::Image::from_icon_name("io.github.domatix.ObsbotCamControl");
-    hero_icon.set_pixel_size(72);
-    hero_icon.add_css_class("app-hero-icon");
-    let hero_title = gtk::Label::builder()
-        .label(gettext("Your OBSBOT cameras"))
-        .build();
-    hero_title.add_css_class("title-2");
-    hero_box.append(&hero_icon);
-    hero_box.append(&hero_title);
-    hero.add(&hero_box);
-    page.add(&hero);
-
-    let group = adw::PreferencesGroup::builder()
-        .title(gettext("Connected cameras"))
-        .build();
-    for cam in cameras {
-        group.add(&camera_row(cam, nav_view));
-    }
-    page.add(&group);
-    page.upcast()
-}
-
-/// Render a single camera entry as an activatable `AdwActionRow` that
-/// pushes the V4L2 detail page when tapped.
-fn camera_row(cam: &CameraInfo, nav_view: &adw::NavigationView) -> adw::ActionRow {
-    let video = cam
-        .video_path
-        .as_ref()
-        .map_or_else(|| gettext("(no video node)"), |p| p.display().to_string());
-    let subtitle = format!("{:04x}:{:04x} · {video}", cam.vid, cam.pid);
-
-    let row = adw::ActionRow::builder()
-        .title(&cam.product)
-        .subtitle(&subtitle)
-        .activatable(true)
-        .build();
-    row.add_prefix(&gtk::Image::from_icon_name("camera-web-symbolic"));
-    row.add_suffix(&gtk::Image::from_icon_name("go-next-symbolic"));
-
-    let cam_owned = cam.clone();
-    row.connect_activated(glib::clone!(
-        #[weak]
-        nav_view,
-        move |_| {
-            nav_view.push(&build_controls_page(&cam_owned));
-        }
-    ));
-
-    row
 }

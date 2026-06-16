@@ -1,34 +1,36 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
-// Static shell of the main window (T-099).
+// Static shell of the main window (T-099; restructured to a single
+// page in T-220).
 //
-// Only the constant tree is described here — the dynamic body
-// (camera list or "no cameras" StatusPage) is mounted at runtime
-// from `window.rs` into the `body_slot` Adw.Bin below.
+// T-220 collapsed the old Adw.NavigationView drill-down (a camera
+// *list* root → a pushed controls page) into one page: the window now
+// lands directly on the connected camera's config panel. The dynamic
+// body (the per-camera controls built by `controls_view`, or the
+// "no cameras" StatusPage) is mounted at runtime from `window.rs` into
+// the `body_slot` Adw.Bin below; the per-camera AdwViewSwitcher and the
+// optional camera-selector Gtk.DropDown are added to `header_bar` from
+// code.
 //
 // IDs surfaced for `gtk::Builder::object(...)` lookups in code:
 //   * window         — root Adw.ApplicationWindow (binds to the
 //                      Adw.Application at startup).
-//   * toast_overlay  — Adw.ToastOverlay wrapping the entire
-//                      Adw.NavigationView (T-108 / T-110). Both
-//                      V4L2-write-failure toasts (T-108) and
-//                      hot-plug REMOVE notifications (T-110) land
-//                      here. A window-level overlay (vs the
-//                      per-page surface T-108 originally shipped)
-//                      means toasts survive navigation: a write
-//                      failure dispatched right before the user
-//                      pops the controls page still renders, and
-//                      a disconnect toast surfaces correctly when
-//                      the controls page is the one being popped.
-//   * nav_view       — Adw.NavigationView used as the window
-//                      content so each camera drill-down pushes
-//                      a fresh page on top of the "cameras" root.
+//   * toast_overlay  — Adw.ToastOverlay wrapping the whole window
+//                      (T-108 / T-110). Both V4L2-write-failure
+//                      toasts (T-108) and hot-plug REMOVE
+//                      notifications (T-110) land here; the
+//                      window-level placement means toasts survive a
+//                      body re-mount (e.g. a camera switch).
+//   * header_bar     — Adw.HeaderBar of the single page. Carries the
+//                      hamburger MenuButton at [end]; code packs the
+//                      camera Gtk.DropDown at [start] (visible only
+//                      with >1 camera) and sets the AdwViewSwitcher as
+//                      its title widget (T-220).
 //   * body_slot      — Adw.Bin filled with the dynamic body
-//                      (PreferencesPage with rows, or StatusPage
-//                      if the enumeration is empty). T-013b's
-//                      hot-plug poll replaces the bin's child
-//                      every interval when the enumeration
-//                      changes.
+//                      (the per-camera controls widget, or a
+//                      StatusPage if the enumeration is empty). The
+//                      hot-plug poll replaces the bin's child when the
+//                      enumeration changes.
 
 using Gtk 4.0;
 using Adw 1;
@@ -82,28 +84,21 @@ Adw.ApplicationWindow window {
   height-request: 480;
 
   content: Adw.ToastOverlay toast_overlay {
-    Adw.NavigationView nav_view {
-      Adw.NavigationPage {
-        title: "Obsbot Cam Control";
-        tag: "cameras";
-
-        child: Adw.ToolbarView {
-          [top]
-          Adw.HeaderBar {
-            [end]
-            Gtk.MenuButton {
-              icon-name: "open-menu-symbolic";
-              menu-model: primary_menu;
-              tooltip-text: _("Main Menu");
-              primary: true;
-            }
-          }
-
-          content: Adw.Bin body_slot {
-            vexpand: true;
-          };
-        };
+    Adw.ToolbarView {
+      [top]
+      Adw.HeaderBar header_bar {
+        [end]
+        Gtk.MenuButton {
+          icon-name: "open-menu-symbolic";
+          menu-model: primary_menu;
+          tooltip-text: _("Main Menu");
+          primary: true;
+        }
       }
+
+      content: Adw.Bin body_slot {
+        vexpand: true;
+      };
     }
   };
 }

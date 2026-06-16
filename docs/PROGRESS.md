@@ -10,7 +10,76 @@
 
 ---
 
-## 2026-06-16 (UX text trim)
+## 2026-06-16 (T-220 single-page UX restructure)
+
+### [2026-06-16T04:00:00Z] [T-220] Implemented — single-page UX, gates green
+
+Landed all seven asks on `feat/T-220-single-page-ux`:
+
+- **window.blp**: dropped `Adw.NavigationView` + the "cameras"
+  `NavigationPage`; content is now `ToolbarView → HeaderBar header_bar +
+  Bin body_slot`. Hamburger `MenuButton` stays at `[end]` of this single
+  header (ask 7).
+- **controls-view.blp**: deleted; removed from `build.rs` `TEMPLATES`
+  and `obsbot.gresource.xml`.
+- **window.rs**: rewritten around `Rc<ViewState{cameras, selected,
+  suppress_dropdown}>`. Builds a camera `Gtk.DropDown` packed `[start]`,
+  visible only when `cameras.len() > 1` (ask 5); selecting an entry
+  remounts that camera's body. Lands directly on the connected camera's
+  config panel (ask 4); zero cameras → the StatusPage. Hot-plug poll
+  refreshes the dropdown + remounts, preserves the mounted camera by
+  identity across changes, and keeps the disconnect toast. Removed
+  `camera_row` / list builder / `maybe_auto_enter_single` /
+  `pop_to_tag`.
+- **controls_view.rs**: `build_controls_page` → `build_controls_body
+  (cam, &header_bar)` — returns the body widget and sets/clears the
+  header's `AdwViewSwitcher` title widget. Preview release now rides
+  `preview::stop_active()` (window close + the `mount_current` swap)
+  instead of the gone `page.connect_hidden`. Tab reorg: `ai` group →
+  "Main" (ask 1) now also carrying Focus + HDR (ask 2); HDR dropped from
+  the Image tab; Extras tab → "Presets" (ask 6).
+- **ptz_pad.rs**: new `build_focus_group` (Auto-focus + Manual focus),
+  focus block removed from `build_ptz_pad`; focus IDs stay in
+  `PTZ_PAD_IDS` so they remain filtered from the generic render.
+- **extras_view.rs**: removed `dump_status_row` / `open_dump_dialog` /
+  `format_status_body` and the "Show XU status (hex dump)" row +
+  dead imports (ask 3).
+- **preview.rs**: refreshed the `ACTIVE_PREVIEW` doc to the new release
+  model.
+
+Gates: `cargo fmt --all --check` clean; `cargo clippy --workspace
+--all-targets -- -D warnings` green for default **and** `live-preview`
+(added an `#[allow(too_many_lines)]` w/ reason on `render_controls`);
+`cargo test --workspace` 7 unit + 1 doc pass; `cargo build -p
+obsbot-gui` green for both feature sets. Next: commit, then user visual
+validation before merge to main.
+
+### [2026-06-16T03:00:00Z] [T-220] Started — plan + design confirmed
+
+User request (7 asks): rename the "AI" tab to "Main" and put autofocus +
+HDR there; remove the "Show XU status (hex dump)" row; make the main view
+the config panel directly (no camera list); when >1 camera show a switcher
+(else hidden); rename "Extras" → "Presets"; move the hamburger menu to the
+config view.
+
+Mapped the current GUI via an Explore pass: `AdwNavigationView` rooting on
+a camera **list** ("cameras" page, hamburger lives on its header) →
+activating a row pushes a controls `NavigationPage` (`controls-view.blp`)
+carrying an `AdwViewStack` with tabs AI · Image · Move · Extras
+(`controls_view.rs::render_controls`). Autofocus is in the Move/PTZ pad
+(`ptz_pad.rs::add_focus_rows`); HDR is on the Image tab
+(`ai_effects_view.rs::build_hdr_group`); the hex dump is
+`extras_view.rs::dump_status_row`.
+
+Confirmed two open design points with the user (AskUserQuestion): the
+multi-camera switch is a **dropdown selector** in the header (not a cycle
+button), and the zero-camera state reuses the existing **StatusPage**.
+
+Recorded the full change list as **T-220** in PLAN.md (IN_PROGRESS).
+Next: implement on `feat/T-220-single-page-ux` — rewrite window.blp/window.rs
+to single-page + camera dropdown, `build_controls_page` → `build_controls_body`,
+extract `build_focus_group`, move HDR/focus to Main, rename Extras→Presets,
+remove the hex-dump row, delete controls-view.blp. Then the four cargo gates.
 
 ### [2026-06-16T02:00:00Z] [T-219] pushed to origin/main
 

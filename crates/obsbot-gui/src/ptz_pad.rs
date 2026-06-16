@@ -18,12 +18,12 @@
 //! PTZ pad widget (T-101; simplified to pure single-step by T-101d).
 //!
 //! A dedicated [`adw::PreferencesGroup`] hosting a 3×3 directional
-//! button grid (writing `pan_absolute` / `tilt_absolute` deltas), a
-//! zoom slider (`zoom_absolute`), and a focus row pairing
-//! `focus_automatic_continuous` with `focus_absolute`. Camera-class
-//! PTZ-related controls are filtered out of the generic
-//! `controls_view::render_controls` path; the IDs we consume are in
-//! [`PTZ_PAD_IDS`].
+//! button grid (writing `pan_absolute` / `tilt_absolute` deltas) and a
+//! zoom slider (`zoom_absolute`). Focus (`focus_automatic_continuous` +
+//! `focus_absolute`) was lifted into its own [`build_focus_group`] on
+//! the Main tab in T-220, but its IDs stay in [`PTZ_PAD_IDS`] so they
+//! remain filtered out of the generic `controls_view::render_controls`
+//! path along with the pan/tilt/zoom IDs.
 //!
 //! ## Input model — one action, one move
 //!
@@ -195,18 +195,40 @@ pub fn build_ptz_pad(
         });
     }
 
-    // Focus row(s) — append below the pad if the camera advertises focus.
-    if let Some(focus_abs) = find_int(controls, CID_FOCUS_ABSOLUTE) {
-        let focus_auto = find_bool(controls, CID_FOCUS_AUTOMATIC_CONTINUOUS);
-        add_focus_rows(
-            &group,
-            focus_abs,
-            focus_auto.as_ref(),
-            &owned_path,
-            &owned_serial,
-        );
-    }
+    // Focus moved to its own group on the Main tab (T-220); see
+    // `build_focus_group`. The pad here is pan/tilt/zoom only.
 
+    Some(group)
+}
+
+/// Build the standalone "Focus" group (T-220): an `AdwSwitchRow` for
+/// `focus_automatic_continuous` (Auto-focus) plus an `AdwActionRow` with
+/// a slider for `focus_absolute` (Manual focus). Returns `None` when the
+/// camera does not advertise `focus_absolute`. Lifted out of the PTZ pad
+/// so autofocus sits on the Main tab next to the AI controls instead of
+/// under Move; the focus V4L2 IDs stay in [`PTZ_PAD_IDS`] so they remain
+/// filtered out of the generic per-class render.
+pub fn build_focus_group(
+    controls: &[ControlDescriptor],
+    path: &Path,
+    serial: Option<&str>,
+) -> Option<adw::PreferencesGroup> {
+    let focus_abs = find_int(controls, CID_FOCUS_ABSOLUTE)?;
+    let focus_auto = find_bool(controls, CID_FOCUS_AUTOMATIC_CONTINUOUS);
+
+    let owned_path: Rc<PathBuf> = Rc::new(path.to_path_buf());
+    let owned_serial: Rc<Option<String>> = Rc::new(serial.map(str::to_owned));
+
+    let group = adw::PreferencesGroup::builder()
+        .title(gettext("Focus"))
+        .build();
+    add_focus_rows(
+        &group,
+        focus_abs,
+        focus_auto.as_ref(),
+        &owned_path,
+        &owned_serial,
+    );
     Some(group)
 }
 
