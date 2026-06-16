@@ -6,16 +6,16 @@
 
 ---
 
-active_task: T-219  # DONE in working tree, not yet committed. UX text trim.
+active_task: none  # T-219 DONE + committed (ab17a46). Not yet pushed.
 active_task_state: IDLE
 active_branch: main
-last_completed_task: T-219  # UX text trim: removed decorative group descriptions + redundant row subtitles, shortened the 3 essential ones (dropped the PROTOCOL §3.2 Q8 ref from the FOV subtitle). Gates green. Prior: T-218 (UX layout round 2).
+last_completed_task: T-219  # UX text trim: removed decorative group descriptions + redundant row subtitles, shortened the 3 essential ones (dropped the PROTOCOL §3.2 Q8 ref from the FOV subtitle). Gates green, committed. Prior: T-218 (UX layout round 2).
 last_milestone: v0.4.1  # tagged 2026-06-12 (dd7d6cf). GitHub Release published with the Arch .pkg.tar.zst asset (ADR-0027). Prior: v0.4.0 Live Preview 2026-06-02.
-last_commit_on_main: 88d8296  # pushed to origin/main. T-219 code sits uncommitted in the working tree (see working_tree). Prior on main: T-218 (ad589ab code + 88d8296 DONE mark), dd7d6cf (tagged v0.4.1).
-last_step: 2026-06-16 — T-219 DONE in working tree. Trimmed verbose UI text across ai_effects_view.rs, wb_group.rs, exposure_group.rs, extras_view.rs, ptz_pad.rs, resources/ptz-pad.blp + doc updates. All four cargo gates green. Awaiting commit (no hardware verification needed — pure text change).
-next_step: commit T-219 (`feat(gui): trim verbose descriptions and subtitles (T-219)`); optionally push main.
+last_commit_on_main: ab17a46  # T-219 UX text trim (committed locally, not pushed). Prior pushed: 88d8296 (T-218 DONE mark), ad589ab (T-218 code), dd7d6cf (tagged v0.4.1).
+last_step: 2026-06-16 — T-219 DONE + committed (ab17a46). Trimmed verbose UI text across ai_effects_view.rs, wb_group.rs, exposure_group.rs, extras_view.rs, ptz_pad.rs, resources/ptz-pad.blp + doc updates. All four cargo gates green. No hardware verification needed (pure text change).
+next_step: none queued. Optional: push main (origin is behind by ab17a46). Q7 preset-save still deferred.
 blockers: none on main. T-017b Arch validation pending an Arch host (transferred to incoming dev, ADR-0023).
-  status: T-219 DONE in working tree, gates green, NOT committed. `git status --short` shows the 6 source files + 3 doc files (PLAN/PROGRESS/STATE) for T-219, plus one untracked artifact — obsbot-cam-control-0.4.1-1-x86_64.pkg.tar.zst (v0.4.1 Release asset, stays untracked per ADR-0027). target/release binaries + dist/ gitignored.
+  status: T-219 DONE + committed (ab17a46), gates green. `git status --short` shows only one untracked artifact — obsbot-cam-control-0.4.1-1-x86_64.pkg.tar.zst (v0.4.1 Release asset, stays untracked per ADR-0027). target/release binaries + dist/ gitignored.
 firmware_notes:
   - Tiny 2 Lite fw 5.10: XU Sleep frame IGNORED for ~3s after streaming stops (accepted at t≈3s); cold Sleep works immediately. set_sleep(Awake)/get_status reliable. Rapid open/close/sleep/wake churn can hang capture (0 buffers, no error) until USB replug. (ADR-0025)
 v0_4_0_gate:
