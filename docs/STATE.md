@@ -11,9 +11,9 @@ active_task_state: IDLE
 active_branch: main
 last_completed_task: T-219  # UX text trim (2 rounds): removed decorative group descriptions + redundant row subtitles incl. all range/step/default metadata; flattened Focus from an expander to inline Auto-focus + Manual focus rows. Gates green, committed. Prior: T-218 (UX layout round 2).
 last_milestone: v0.4.1  # tagged 2026-06-12 (dd7d6cf). GitHub Release published with the Arch .pkg.tar.zst asset (ADR-0027). Prior: v0.4.0 Live Preview 2026-06-02.
-last_commit_on_main: 4517005  # T-219 round 2 (range/step/default subtitles dropped, focus flattened). Local, not pushed. Prior local: b5af8a5 (STATE reconcile), ab17a46 (T-219 round 1). Last pushed: 88d8296 (T-218).
-last_step: 2026-06-16 — T-219 round 2 DONE + committed (4517005). Dropped all range/step/default subtitles (controls_view.rs, ptz_pad.rs), removed dead IntRange.default + boolean_switch_row default param, flattened Focus expander to inline rows. All four cargo gates green. No hardware verification needed (UI text + layout).
-next_step: none queued. Optional: push main (origin behind by ab17a46, b5af8a5, 4517005). Q7 preset-save still deferred.
+last_commit_on_main: f95ffeb  # pushed to origin/main 2026-06-16 (c8b2be8..f95ffeb). T-219 both rounds + STATE reconciles. Prior pushed: 88d8296 (T-218).
+last_step: 2026-06-16 — T-219 pushed to origin/main (user reviewed and approved). Both rounds shipped: verbose descriptions/subtitles trimmed, all range/step/default metadata dropped, Focus flattened from expander to inline rows. All four cargo gates green.
+next_step: none queued. Q7 preset-save still deferred.
 blockers: none on main. T-017b Arch validation pending an Arch host (transferred to incoming dev, ADR-0023).
   status: T-219 DONE + committed (4517005), gates green. `git status --short` shows only one untracked artifact — obsbot-cam-control-0.4.1-1-x86_64.pkg.tar.zst (v0.4.1 Release asset, stays untracked per ADR-0027). target/release binaries + dist/ gitignored.
 firmware_notes:
