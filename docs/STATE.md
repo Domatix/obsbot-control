@@ -6,16 +6,16 @@
 
 ---
 
-active_task: none  # T-219 DONE + committed (ab17a46). Not yet pushed.
+active_task: none  # T-219 DONE + committed (4517005). Not yet pushed.
 active_task_state: IDLE
 active_branch: main
-last_completed_task: T-219  # UX text trim: removed decorative group descriptions + redundant row subtitles, shortened the 3 essential ones (dropped the PROTOCOL §3.2 Q8 ref from the FOV subtitle). Gates green, committed. Prior: T-218 (UX layout round 2).
+last_completed_task: T-219  # UX text trim (2 rounds): removed decorative group descriptions + redundant row subtitles incl. all range/step/default metadata; flattened Focus from an expander to inline Auto-focus + Manual focus rows. Gates green, committed. Prior: T-218 (UX layout round 2).
 last_milestone: v0.4.1  # tagged 2026-06-12 (dd7d6cf). GitHub Release published with the Arch .pkg.tar.zst asset (ADR-0027). Prior: v0.4.0 Live Preview 2026-06-02.
-last_commit_on_main: ab17a46  # T-219 UX text trim (committed locally, not pushed). Prior pushed: 88d8296 (T-218 DONE mark), ad589ab (T-218 code), dd7d6cf (tagged v0.4.1).
-last_step: 2026-06-16 — T-219 DONE + committed (ab17a46). Trimmed verbose UI text across ai_effects_view.rs, wb_group.rs, exposure_group.rs, extras_view.rs, ptz_pad.rs, resources/ptz-pad.blp + doc updates. All four cargo gates green. No hardware verification needed (pure text change).
-next_step: none queued. Optional: push main (origin is behind by ab17a46). Q7 preset-save still deferred.
+last_commit_on_main: 4517005  # T-219 round 2 (range/step/default subtitles dropped, focus flattened). Local, not pushed. Prior local: b5af8a5 (STATE reconcile), ab17a46 (T-219 round 1). Last pushed: 88d8296 (T-218).
+last_step: 2026-06-16 — T-219 round 2 DONE + committed (4517005). Dropped all range/step/default subtitles (controls_view.rs, ptz_pad.rs), removed dead IntRange.default + boolean_switch_row default param, flattened Focus expander to inline rows. All four cargo gates green. No hardware verification needed (UI text + layout).
+next_step: none queued. Optional: push main (origin behind by ab17a46, b5af8a5, 4517005). Q7 preset-save still deferred.
 blockers: none on main. T-017b Arch validation pending an Arch host (transferred to incoming dev, ADR-0023).
-  status: T-219 DONE + committed (ab17a46), gates green. `git status --short` shows only one untracked artifact — obsbot-cam-control-0.4.1-1-x86_64.pkg.tar.zst (v0.4.1 Release asset, stays untracked per ADR-0027). target/release binaries + dist/ gitignored.
+  status: T-219 DONE + committed (4517005), gates green. `git status --short` shows only one untracked artifact — obsbot-cam-control-0.4.1-1-x86_64.pkg.tar.zst (v0.4.1 Release asset, stays untracked per ADR-0027). target/release binaries + dist/ gitignored.
 firmware_notes:
   - Tiny 2 Lite fw 5.10: XU Sleep frame IGNORED for ~3s after streaming stops (accepted at t≈3s); cold Sleep works immediately. set_sleep(Awake)/get_status reliable. Rapid open/close/sleep/wake churn can hang capture (0 buffers, no error) until USB replug. (ADR-0025)
 v0_4_0_gate:
