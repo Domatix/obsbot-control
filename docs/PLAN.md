@@ -3710,6 +3710,38 @@
     hot-plug, and preview start/stop still work.
   - Commit on `feat/T-220-single-page-ux`, merged to `main`.
 
+### T-221 — Hide the preview grayscale + mirror toggles
+- **State**: DONE
+- **Started**: 2026-06-16
+- **Completed**: 2026-06-16
+- **Depends on**: T-202 (grayscale), T-210 (mirror), T-218 (the
+  preview control bar these sit in).
+- **Description**: User feedback during T-220 validation. The grayscale
+  and mirror toggles are preview-only post-processing (a `videobalance`
+  saturation / `videoflip` method write inside our GStreamer pipeline);
+  they never change what other apps capture from the camera, so toggling
+  them while watching GNOME Cámara or Google Meet "does nothing", which
+  reads as broken. Until a virtual-camera output path (SPEC §5, out of
+  scope for v1.0) can make the effect visible to other apps, hide both
+  buttons. Kept fully wired-up for a trivial re-enable.
+- **Changes**:
+  - `controls_view.rs::build_preview_controls_bar`: drop the
+    `build_mirror_toggle` / `build_grayscale_toggle` calls and their
+    `bar.append(...)`; the bar now holds only the preview toggle and
+    snapshot. Doc note explains the hide + re-enable path.
+  - `build_grayscale_toggle` / `build_mirror_toggle` kept with
+    `#[allow(dead_code, reason = …)]` (live-preview feature only); the
+    `PreviewPipeline::set_grayscale` / `set_mirror` pipeline filters are
+    untouched.
+- **Acceptance criteria**:
+  - Preview control bar shows only the start/stop toggle and snapshot;
+    no grayscale or mirror button.
+  - All four cargo gates green (fmt, clippy -D warnings for default and
+    `live-preview`, test, build). **DONE**.
+  - **User validation pending**: launch the app, start the preview,
+    confirm only the toggle + snapshot buttons appear.
+  - Commit on `feat/T-220-single-page-ux`.
+
 ---
 
 ## Backlog (future milestones)

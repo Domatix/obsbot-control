@@ -6,16 +6,16 @@
 
 ---
 
-active_task: T-220  # Single-page UX: drop camera list, reorganize tabs (AI→Main w/ autofocus+HDR, Extras→Presets, remove hex dump, hamburger to config view, camera dropdown).
+active_task: T-220  # Single-page UX restructure (+ T-221 follow-up: hid preview grayscale/mirror toggles). On feat/T-220-single-page-ux, awaiting user visual validation before merge.
 active_task_state: IN_PROGRESS
 active_branch: feat/T-220-single-page-ux
-last_completed_task: T-219  # UX text trim (2 rounds): removed decorative group descriptions + redundant row subtitles incl. all range/step/default metadata; flattened Focus from an expander to inline Auto-focus + Manual focus rows. Gates green, committed. Prior: T-218 (UX layout round 2).
+last_completed_task: T-221  # Hid the preview-only grayscale + mirror toggles (kept wired for re-enable); user feedback from T-220 validation. Prior: T-219.  # UX text trim (2 rounds): removed decorative group descriptions + redundant row subtitles incl. all range/step/default metadata; flattened Focus from an expander to inline Auto-focus + Manual focus rows. Gates green, committed. Prior: T-218 (UX layout round 2).
 last_milestone: v0.4.1  # tagged 2026-06-12 (dd7d6cf). GitHub Release published with the Arch .pkg.tar.zst asset (ADR-0027). Prior: v0.4.0 Live Preview 2026-06-02.
 last_commit_on_main: f95ffeb  # pushed to origin/main 2026-06-16 (c8b2be8..f95ffeb). T-219 both rounds + STATE reconciles. Prior pushed: 88d8296 (T-218).
 last_step: 2026-06-16 — T-220 implemented on feat/T-220-single-page-ux. window.blp dropped NavigationView (single ToolbarView+header_bar+body_slot); window.rs rewritten for single-page + camera Gtk.DropDown (visible only >1) + adapted hot-plug poll; build_controls_page→build_controls_body sets ViewSwitcher into the window header; build_focus_group extracted from ptz_pad (autofocus moved to Main); HDR moved to Main; AI tab→Main, Extras tab→Presets; hex-dump row removed; controls-view.blp deleted (+ build.rs/gresource). All four cargo gates green (fmt, clippy default+live-preview, test, build). NOT yet committed.
 next_step: commit T-220 on feat branch, then user does visual validation (layout, camera switch, hot-plug, preview start/stop) before merge to main.
 blockers: none on main. T-017b Arch validation pending an Arch host (transferred to incoming dev, ADR-0023).
-  status: T-220 IN_PROGRESS on feat/T-220-single-page-ux, gates green, NOT yet committed. working_tree (vs git status --short): M build.rs, M obsbot.gresource.xml, M window.blp, D controls-view.blp, M controls_view.rs, M extras_view.rs, M preview.rs, M ptz_pad.rs, M window.rs, M docs/PLAN.md, M docs/PROGRESS.md, M docs/STATE.md; untracked obsbot-cam-control-0.4.1-1-x86_64.pkg.tar.zst (Release asset, stays untracked per ADR-0027). T-219 last on main (4517005).
+  status: T-220 (75810ae) + T-221 committed on feat/T-220-single-page-ux, gates green; awaiting user visual validation before merge to main. working_tree clean except untracked obsbot-cam-control-0.4.1-1-x86_64.pkg.tar.zst (Release asset, stays untracked per ADR-0027). T-219 last on main (4517005).
 firmware_notes:
   - Tiny 2 Lite fw 5.10: XU Sleep frame IGNORED for ~3s after streaming stops (accepted at t≈3s); cold Sleep works immediately. set_sleep(Awake)/get_status reliable. Rapid open/close/sleep/wake churn can hang capture (0 buffers, no error) until USB replug. (ADR-0025)
 v0_4_0_gate:

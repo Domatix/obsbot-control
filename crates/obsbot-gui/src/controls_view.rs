@@ -541,18 +541,21 @@ fn build_preview_widgets(path: &Path) -> (gtk::Widget, PreviewHandles) {
 }
 
 /// Build the preview control bar (T-218): a small centered, linked row
-/// holding the preview toggle, snapshot, mirror, and grayscale buttons,
-/// pinned directly under the preview card. This replaces packing the
-/// same four buttons into the page header bar — they belong with the
-/// preview they drive, and the header now carries only the `ViewSwitcher`.
-/// All four builders take the shared `PreviewHandles`, so the wiring is
-/// identical to the old header-bar buttons.
+/// pinned directly under the preview card. Holds the preview toggle and
+/// the snapshot button.
+///
+/// T-221 hid the grayscale and mirror toggles: as preview-only
+/// post-processing they never change what other apps capture from the
+/// camera, which users read as "I toggle it and nothing happens". Their
+/// builders ([`build_grayscale_toggle`] / [`build_mirror_toggle`]) and
+/// the underlying pipeline filters (`PreviewPipeline::set_grayscale` /
+/// `set_mirror`) are kept intact so re-enabling is a two-line change
+/// here — most likely once a virtual-camera output path (SPEC §5,
+/// currently out of scope) makes the effect visible to other apps.
 #[cfg(feature = "live-preview")]
 fn build_preview_controls_bar(handles: &PreviewHandles) -> gtk::Widget {
     let toggle = build_preview_toggle(handles);
     let snapshot = build_snapshot_button(handles);
-    let mirror = build_mirror_toggle(handles);
-    let grayscale = build_grayscale_toggle(handles);
 
     let bar = gtk::Box::builder()
         .orientation(gtk::Orientation::Horizontal)
@@ -563,8 +566,6 @@ fn build_preview_controls_bar(handles: &PreviewHandles) -> gtk::Widget {
     bar.add_css_class("toolbar");
     bar.append(&toggle);
     bar.append(&snapshot);
-    bar.append(&mirror);
-    bar.append(&grayscale);
     bar.upcast()
 }
 
@@ -664,7 +665,14 @@ fn build_preview_toggle(handles: &PreviewHandles) -> gtk::ToggleButton {
 /// and 0.0 (grayscale). Cheap — no pipeline state change, no
 /// relink. State persists per page lifetime; closing and reopening
 /// the page resets the toggle to off.
+///
+/// Currently unwired (T-221): kept intact for quick re-enable in
+/// `build_preview_controls_bar`. See that function's note.
 #[cfg(feature = "live-preview")]
+#[allow(
+    dead_code,
+    reason = "grayscale toggle hidden in T-221; kept for quick re-enable"
+)]
 fn build_grayscale_toggle(handles: &PreviewHandles) -> gtk::ToggleButton {
     let btn = gtk::ToggleButton::builder()
         .icon_name("view-reveal-symbolic")
@@ -686,7 +694,14 @@ fn build_grayscale_toggle(handles: &PreviewHandles) -> gtk::ToggleButton {
 /// a natural self-view (right hand on the right). Cheap — no pipeline
 /// state change, no relink. Preview-only; resets to off on page
 /// reopen, like the grayscale toggle.
+///
+/// Currently unwired (T-221): kept intact for quick re-enable in
+/// `build_preview_controls_bar`. See that function's note.
 #[cfg(feature = "live-preview")]
+#[allow(
+    dead_code,
+    reason = "mirror toggle hidden in T-221; kept for quick re-enable"
+)]
 fn build_mirror_toggle(handles: &PreviewHandles) -> gtk::ToggleButton {
     let btn = gtk::ToggleButton::builder()
         .icon_name("object-flip-horizontal-symbolic")

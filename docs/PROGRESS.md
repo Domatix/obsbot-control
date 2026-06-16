@@ -12,6 +12,21 @@
 
 ## 2026-06-16 (T-220 single-page UX restructure)
 
+### [2026-06-16T05:00:00Z] [T-221] DONE — hide preview grayscale + mirror toggles
+
+User feedback during T-220 validation: the grayscale and mirror toggles
+are preview-only (videobalance/videoflip in our pipeline) and never
+change what other apps capture, so they read as "I toggle and nothing
+happens" in Cámara/Meet. Explained that affecting other apps needs a
+virtual-camera path (SPEC §5, out of scope); user asked to hide both for
+now. Removed the two buttons from
+`controls_view::build_preview_controls_bar` (bar now = toggle +
+snapshot); kept `build_grayscale_toggle`/`build_mirror_toggle` with
+`#[allow(dead_code)]` and the `PreviewPipeline::set_grayscale`/`set_mirror`
+filters intact for a two-line re-enable. Gates green (fmt, clippy
+default + live-preview, test, build). Committed on
+feat/T-220-single-page-ux.
+
 ### [2026-06-16T04:00:00Z] [T-220] Implemented — single-page UX, gates green
 
 Landed all seven asks on `feat/T-220-single-page-ux`:
