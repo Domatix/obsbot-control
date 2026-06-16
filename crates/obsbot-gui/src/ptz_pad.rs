@@ -98,7 +98,6 @@ struct IntRange {
     min: i64,
     max: i64,
     step: u64,
-    default: i64,
     is_active: bool,
 }
 
@@ -199,8 +198,13 @@ pub fn build_ptz_pad(
     // Focus row(s) — append below the pad if the camera advertises focus.
     if let Some(focus_abs) = find_int(controls, CID_FOCUS_ABSOLUTE) {
         let focus_auto = find_bool(controls, CID_FOCUS_AUTOMATIC_CONTINUOUS);
-        let focus_row = build_focus_row(focus_abs, focus_auto.as_ref(), &owned_path, &owned_serial);
-        group.add(&focus_row);
+        add_focus_rows(
+            &group,
+            focus_abs,
+            focus_auto.as_ref(),
+            &owned_path,
+            &owned_serial,
+        );
     }
 
     Some(group)
@@ -214,7 +218,7 @@ fn find_int(controls: &[ControlDescriptor], id: u32) -> Option<IntRange> {
         min,
         max,
         step,
-        default,
+        ..
     } = ctrl.kind
     {
         Some(IntRange {
@@ -222,7 +226,6 @@ fn find_int(controls: &[ControlDescriptor], id: u32) -> Option<IntRange> {
             min,
             max,
             step,
-            default,
             is_active: ctrl.is_active,
         })
     } else {
@@ -414,17 +417,17 @@ pub fn wire_keyboard_arrows<W>(
     target.add_controller(controller);
 }
 
-/// Build a single `AdwExpanderRow`-style pair: an `AdwSwitchRow` for
+/// Add the two focus rows directly to `group`: an `AdwSwitchRow` for
 /// `focus_automatic_continuous` plus an `AdwActionRow` with a slider
-/// for `focus_absolute`. The slider greys out while auto is on.
-fn build_focus_row(
+/// for `focus_absolute`. The slider greys out while auto is on. Shown
+/// flat (no `AdwExpanderRow`) so both rows are visible without a tap.
+fn add_focus_rows(
+    group: &adw::PreferencesGroup,
     focus_abs: IntRange,
     focus_auto: Option<&BoolValue>,
     path: &Rc<PathBuf>,
     serial: &Rc<Option<String>>,
-) -> adw::ExpanderRow {
-    let expander = adw::ExpanderRow::builder().title(gettext("Focus")).build();
-
+) {
     let auto_row = adw::SwitchRow::builder()
         .title(gettext("Auto-focus"))
         .active(focus_auto.is_some_and(|b| b.current))
@@ -433,7 +436,7 @@ fn build_focus_row(
     if focus_auto.is_some() {
         settings::register_row(CID_FOCUS_AUTOMATIC_CONTINUOUS, &auto_row);
     }
-    expander.add_row(&auto_row);
+    group.add(&auto_row);
 
     let abs_row = build_focus_abs_row(focus_abs, path, serial);
     // Grey out the manual slider while auto is on (matches what the
@@ -442,7 +445,7 @@ fn build_focus_row(
     // gate-write but the toggle here is fast-path local UX).
     abs_row.set_sensitive(focus_abs.is_active && !focus_auto.is_some_and(|b| b.current));
     settings::register_row(CID_FOCUS_ABSOLUTE, &abs_row);
-    expander.add_row(&abs_row);
+    group.add(&abs_row);
 
     {
         let abs_row = abs_row.clone();
@@ -460,8 +463,6 @@ fn build_focus_row(
             abs_row.set_sensitive(!value);
         });
     }
-
-    expander
 }
 
 fn build_focus_abs_row(
@@ -495,10 +496,6 @@ fn build_focus_abs_row(
 
     let row = adw::ActionRow::builder()
         .title(gettext("Manual focus"))
-        .subtitle(format!(
-            "range {}..={} default {}",
-            focus_abs.min, focus_abs.max, focus_abs.default
-        ))
         .activatable(false)
         .build();
     row.add_suffix(&scale);

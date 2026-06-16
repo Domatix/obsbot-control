@@ -836,8 +836,8 @@ pub(crate) fn control_row(
                 return integer_scale_row(ctrl, *current, *min, *max, *step, *default, path, serial)
                     .upcast()
             }
-            ControlKind::Boolean { current, default } => {
-                return boolean_switch_row(ctrl, *current, *default, path, serial).upcast();
+            ControlKind::Boolean { current, .. } => {
+                return boolean_switch_row(ctrl, *current, path, serial).upcast();
             }
             ControlKind::Menu {
                 current, options, ..
@@ -927,9 +927,6 @@ fn integer_scale_row(
 
     let row = adw::ActionRow::builder()
         .title(&ctrl.name)
-        .subtitle(format!(
-            "range {min}..={max} step {step} · default {default_i32}"
-        ))
         .activatable(false)
         .build();
     row.add_suffix(&scale);
@@ -986,13 +983,11 @@ fn f64_to_i32_saturating(v: f64) -> i32 {
 fn boolean_switch_row(
     ctrl: &ControlDescriptor,
     current: bool,
-    default: bool,
     path: &Path,
     serial: Option<&str>,
 ) -> adw::SwitchRow {
     let row = adw::SwitchRow::builder()
         .title(&ctrl.name)
-        .subtitle(if default { "default On" } else { "default Off" })
         .active(current)
         .build();
 
@@ -1015,13 +1010,7 @@ fn boolean_switch_row(
 
 fn readonly_action_row(ctrl: &ControlDescriptor) -> adw::ActionRow {
     let subtitle = match &ctrl.kind {
-        ControlKind::Integer {
-            current,
-            min,
-            max,
-            step,
-            ..
-        } => format!("{current} · range {min}..={max} step {step}"),
+        ControlKind::Integer { current, .. } => current.to_string(),
         ControlKind::Boolean { current, .. } => {
             if *current {
                 gettext("Yes")
@@ -1031,13 +1020,10 @@ fn readonly_action_row(ctrl: &ControlDescriptor) -> adw::ActionRow {
         }
         ControlKind::Menu {
             current, options, ..
-        } => {
-            let label = options
-                .iter()
-                .find(|(id, _)| *id == *current)
-                .map_or("(unknown)", |(_, l)| l.as_str());
-            format!("{label} · {} options", options.len())
-        }
+        } => options
+            .iter()
+            .find(|(id, _)| *id == *current)
+            .map_or_else(|| String::from("(unknown)"), |(_, l)| l.clone()),
         ControlKind::Other(type_name) => format!("({type_name})"),
         _ => String::from("(unsupported)"),
     };

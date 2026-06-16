@@ -12,6 +12,17 @@
 
 ## 2026-06-16 (UX text trim)
 
+### [2026-06-16T01:00:00Z] [T-219] round 2 — dropped range/step/default subtitles + flattened focus
+
+Follow-up from the same user: remove all "range X..=Y step Z · default D"
+metadata subtitles (writable + read-only Integer rows in controls_view.rs,
+Manual focus row in ptz_pad.rs), the Boolean "default On/Off" subtitle, and
+the read-only Menu "· N options" tail (kept just the current value/label).
+Removed the now-dead carriers: `IntRange.default` and the `default` param of
+`boolean_switch_row`. Also flattened Focus from an AdwExpanderRow to two
+inline rows (`add_focus_rows`) so Auto-focus + Manual focus show without a
+tap. All four cargo gates green. Committed.
+
 ### [2026-06-16T00:00:00Z] [T-219] DONE — trimmed verbose descriptions/subtitles
 
 User feedback: too much descriptive text on the controls page; keep only

@@ -3618,9 +3618,22 @@
     reference); "Presets" group description → "This app can only
     recall presets, not save them."; "Show XU status" subtitle →
     "Diagnostic hex dump of the camera status."
+- **Round 2 (same user, follow-up)**:
+  - Removed every `range X..=Y step Z · default D` metadata subtitle:
+    the writable Integer slider row and the read-only Integer row
+    (`controls_view.rs`) and the Manual focus row (`ptz_pad.rs`). The
+    read-only Integer row keeps just its current value; the read-only
+    Menu row keeps just its current label (dropped `· N options`).
+    Removed the Boolean "default On/Off" subtitle. Dropped the now-dead
+    `default` carriers: `IntRange.default` field (`ptz_pad.rs`) and the
+    `default` param of `boolean_switch_row` (`controls_view.rs`).
+  - Focus is no longer an `AdwExpanderRow`: `build_focus_row` →
+    `add_focus_rows`, which adds the Auto-focus switch and Manual focus
+    slider directly to the PTZ group so both are visible without a tap.
 - **Acceptance criteria**:
   - All four cargo gates green (fmt, clippy -D warnings, test, build). **DONE**.
-  - Commit `feat(gui): trim verbose descriptions and subtitles (T-219)`.
+  - Commits `feat(gui): trim verbose descriptions and subtitles (T-219)`
+    and `feat(gui): drop range/step/default subtitles, flatten focus rows (T-219)`.
 
 ---
 
