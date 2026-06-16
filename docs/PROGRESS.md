@@ -10,6 +10,23 @@
 
 ---
 
+## 2026-06-16 (UX text trim)
+
+### [2026-06-16T00:00:00Z] [T-219] DONE — trimmed verbose descriptions/subtitles
+
+User feedback: too much descriptive text on the controls page; keep only
+the essential. Picked the proposed trim (over max/conservative). Removed
+group descriptions ("AI and effects", "Image enhancements", "White balance",
+"Exposure", PTZ pad) and row subtitles ("AI tracking", "HDR", "Tracking
+speed", "Focus", "Preset N"). Shortened the three essentials: Field-of-view
+subtitle (dropped the user-facing `PROTOCOL §3.2 Q8` reference), Presets
+group description, and the XU-status dump subtitle. Files: `ai_effects_view.rs`,
+`wb_group.rs`, `exposure_group.rs`, `extras_view.rs`, `ptz_pad.rs`,
+`resources/ptz-pad.blp`. All four cargo gates green (fmt fix-up: Focus
+ExpanderRow builder collapsed to one line). Not yet committed.
+
+---
+
 ## 2026-06-15 (UX feedback round 2)
 
 ### [2026-06-15T01:00:00Z] [T-218] DONE — verified all four points on hardware

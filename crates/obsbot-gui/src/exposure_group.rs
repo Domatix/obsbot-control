@@ -62,10 +62,6 @@ pub fn build_exposure_group(
 
     let group = adw::PreferencesGroup::builder()
         .title(gettext("Exposure"))
-        .description(gettext(
-            "Choose Manual to drive the exposure time yourself; in Auto / Aperture Priority \
-             the camera firmware picks it and freezes the slider.",
-        ))
         .build();
 
     for ctrl in present {

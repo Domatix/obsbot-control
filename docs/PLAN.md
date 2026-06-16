@@ -3593,6 +3593,35 @@
     points confirmed.
   - Commit `feat(gui): UX layout feedback round 2 (T-218)`.
 
+### T-219 — Trim verbose descriptions and subtitles in the controls UI
+- **State**: DONE
+- **Started**: 2026-06-16
+- **Completed**: 2026-06-16
+- **Depends on**: T-218 (the layout this text sits in).
+- **Description**: User feedback — too much descriptive text on the
+  controls page. Per the agreed "remove decorative/redundant text,
+  keep only the truly essential" rule (user picked the proposed trim
+  over max/conservative), strip group descriptions and row subtitles
+  that merely restate the title, and shorten the three that carry
+  non-obvious, error-preventing information. Also removes a user-facing
+  internal reference (`PROTOCOL §3.2 Q8`) that should never have been
+  in the UI.
+- **Changes**:
+  - Removed group descriptions: "AI and effects", "Image enhancements"
+    (both "Vendor controls…"), "White balance", "Exposure", and the
+    PTZ pad `description` in `ptz-pad.blp`.
+  - Removed row subtitles: "AI tracking", "HDR", "Tracking speed"
+    (`ai_effects_view.rs`), "Focus" (`ptz_pad.rs`), and "Preset N"
+    (`extras_view.rs`).
+  - Shortened (kept, essential): "Field of view" subtitle →
+    "Narrow does not apply on Tiny 2 Lite." (dropped the PROTOCOL
+    reference); "Presets" group description → "This app can only
+    recall presets, not save them."; "Show XU status" subtitle →
+    "Diagnostic hex dump of the camera status."
+- **Acceptance criteria**:
+  - All four cargo gates green (fmt, clippy -D warnings, test, build). **DONE**.
+  - Commit `feat(gui): trim verbose descriptions and subtitles (T-219)`.
+
 ---
 
 ## Backlog (future milestones)

@@ -84,11 +84,6 @@ pub fn build_wb_group(
 
     let group = adw::PreferencesGroup::builder()
         .title(gettext("White balance"))
-        .description(gettext(
-            "When automatic mode is on, the camera firmware picks the colour temperature, \
-             red/blue balance, and freezes the manual controls. Turn it off to set them \
-             yourself.",
-        ))
         .build();
 
     for ctrl in present {

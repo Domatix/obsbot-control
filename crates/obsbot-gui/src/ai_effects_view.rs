@@ -150,7 +150,6 @@ pub fn build_ai_effects_group(cam: &CameraInfo) -> Option<adw::PreferencesGroup>
         // the title as Pango markup so a literal "&" would break the
         // entity parser ("entity does not end with a semicolon").
         .title(gettext("AI and effects"))
-        .description(gettext("Vendor controls for OBSBOT Tiny 2 family cameras."))
         .build();
 
     group.add(&ai_mode_row(&file, baseline.as_ref()));
@@ -189,9 +188,6 @@ pub fn build_hdr_group(cam: &CameraInfo) -> Option<adw::PreferencesGroup> {
 
     let group = adw::PreferencesGroup::builder()
         .title(gettext("Image enhancements"))
-        .description(gettext(
-            "Vendor image controls for OBSBOT Tiny 2 family cameras.",
-        ))
         .build();
     group.add(&hdr_row(&file, baseline.as_ref()));
     Some(group)
@@ -213,7 +209,6 @@ fn ai_mode_row(file: &Rc<File>, baseline: Option<&Status>) -> adw::ComboRow {
 
     let row = adw::ComboRow::builder()
         .title(gettext("AI tracking"))
-        .subtitle(gettext("Auto-frames a face, group, hand, or other subject"))
         .model(&model)
         .selected(selected_idx)
         .build();
@@ -260,10 +255,7 @@ fn fov_row(file: &Rc<File>) -> adw::ComboRow {
 
     let row = adw::ComboRow::builder()
         .title(gettext("Field of view"))
-        .subtitle(gettext(
-            "Lens angle of view (digital crop). Narrow (65°) does not apply on \
-             Tiny 2 Lite — see PROTOCOL §3.2 Q8.",
-        ))
+        .subtitle(gettext("Narrow does not apply on Tiny 2 Lite."))
         .model(&model)
         .selected(0)
         .build();
@@ -286,9 +278,6 @@ fn fov_row(file: &Rc<File>) -> adw::ComboRow {
 fn hdr_row(file: &Rc<File>, baseline: Option<&Status>) -> adw::SwitchRow {
     let row = adw::SwitchRow::builder()
         .title(gettext("HDR"))
-        .subtitle(gettext(
-            "High Dynamic Range — improves contrast in mixed-lighting scenes",
-        ))
         .active(baseline.is_some_and(|s| s.hdr_on))
         .build();
 
@@ -340,9 +329,6 @@ fn tracking_speed_row(file: &Rc<File>, baseline: Option<&Status>) -> adw::ComboR
 
     let row = adw::ComboRow::builder()
         .title(gettext("Tracking speed"))
-        .subtitle(gettext(
-            "Standard is smooth and low-acceleration; Sport reacts faster.",
-        ))
         .model(&model)
         .selected(selected_idx)
         .build();

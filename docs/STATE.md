@@ -6,16 +6,16 @@
 
 ---
 
-active_task: none  # T-218 DONE + verified on hardware (window capture). Code on main, not yet pushed.
+active_task: T-219  # DONE in working tree, not yet committed. UX text trim.
 active_task_state: IDLE
 active_branch: main
-last_completed_task: T-218  # UX feedback round 2: HDR out of AI→Image tab, AI/tracking tab default, preview buttons under the card, single-cam auto-enter. Verified on the Tiny 2 Lite. Prior: T-217 (presets UX).
+last_completed_task: T-219  # UX text trim: removed decorative group descriptions + redundant row subtitles, shortened the 3 essential ones (dropped the PROTOCOL §3.2 Q8 ref from the FOV subtitle). Gates green. Prior: T-218 (UX layout round 2).
 last_milestone: v0.4.1  # tagged 2026-06-12 (dd7d6cf). GitHub Release published with the Arch .pkg.tar.zst asset (ADR-0027). Prior: v0.4.0 Live Preview 2026-06-02.
-last_commit_on_main: 88d8296  # pushed to origin/main. T-218 GUI layout feedback (ad589ab code) + doc reconcile (a16869b) + DONE mark (88d8296). Prior: dd7d6cf (tagged v0.4.1), 8a6ac60 (T-217), 715a7f8 (T-216 final).
-last_step: 2026-06-15 — T-218 DONE. Code committed (ad589ab) + gates green, then self-verified all four points on the connected Tiny 2 Lite via the live-preview build + X11 window capture: HDR absent from AI group, AI/tracking is the default tab, the four preview buttons sit in a bar under the preview card, single camera opens its controls page directly. Test instance closed, temp capture files removed.
-next_step: none queued. Optional: push main for the Arch packager. Q7 preset-save still deferred.
+last_commit_on_main: 88d8296  # pushed to origin/main. T-219 code sits uncommitted in the working tree (see working_tree). Prior on main: T-218 (ad589ab code + 88d8296 DONE mark), dd7d6cf (tagged v0.4.1).
+last_step: 2026-06-16 — T-219 DONE in working tree. Trimmed verbose UI text across ai_effects_view.rs, wb_group.rs, exposure_group.rs, extras_view.rs, ptz_pad.rs, resources/ptz-pad.blp + doc updates. All four cargo gates green. Awaiting commit (no hardware verification needed — pure text change).
+next_step: commit T-219 (`feat(gui): trim verbose descriptions and subtitles (T-219)`); optionally push main.
 blockers: none on main. T-017b Arch validation pending an Arch host (transferred to incoming dev, ADR-0023).
-  status: T-218 DONE, code committed (ad589ab), gates green, verified on hardware. `git status --short` shows one untracked artifact — obsbot-cam-control-0.4.1-1-x86_64.pkg.tar.zst (published as the v0.4.1 Release asset); stays untracked per ADR-0027 (cleanup is the user's call). target/release binaries + dist/ gitignored.
+  status: T-219 DONE in working tree, gates green, NOT committed. `git status --short` shows the 6 source files + 3 doc files (PLAN/PROGRESS/STATE) for T-219, plus one untracked artifact — obsbot-cam-control-0.4.1-1-x86_64.pkg.tar.zst (v0.4.1 Release asset, stays untracked per ADR-0027). target/release binaries + dist/ gitignored.
 firmware_notes:
   - Tiny 2 Lite fw 5.10: XU Sleep frame IGNORED for ~3s after streaming stops (accepted at t≈3s); cold Sleep works immediately. set_sleep(Awake)/get_status reliable. Rapid open/close/sleep/wake churn can hang capture (0 buffers, no error) until USB replug. (ADR-0025)
 v0_4_0_gate:
@@ -32,4 +32,4 @@ follow_ups_queued:
   - T-400 (post-v1.0): add OBSBOT Meet (original) to the model matrix.
 known_issues:
   - Q9 (PROTOCOL.md): pan_speed/tilt_speed accept writes but no motion on Tiny 2 Lite firmware 5.10. PTZ moves via discrete pan_absolute/tilt_absolute single steps (T-101d).
-updated_at: 2026-06-15T00:00:00Z
+updated_at: 2026-06-16T00:00:00Z

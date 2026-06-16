@@ -423,10 +423,7 @@ fn build_focus_row(
     path: &Rc<PathBuf>,
     serial: &Rc<Option<String>>,
 ) -> adw::ExpanderRow {
-    let expander = adw::ExpanderRow::builder()
-        .title(gettext("Focus"))
-        .subtitle(gettext("Auto-focus + manual focus distance (0–100)"))
-        .build();
+    let expander = adw::ExpanderRow::builder().title(gettext("Focus")).build();
 
     let auto_row = adw::SwitchRow::builder()
         .title(gettext("Auto-focus"))

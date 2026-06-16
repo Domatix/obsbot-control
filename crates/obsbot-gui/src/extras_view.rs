@@ -73,12 +73,7 @@ pub fn build_extras_group(cam: &CameraInfo) -> Option<adw::PreferencesGroup> {
 
     let group = adw::PreferencesGroup::builder()
         .title(gettext("Presets"))
-        .description(gettext(
-            "Recall a camera position saved in the camera's own memory. Positions are \
-             saved with the OBSBOT Center app (Windows or macOS) or the on-camera \
-             gesture — this app can only recall them, not save them. A slot that was \
-             never programmed will not move the camera.",
-        ))
+        .description(gettext("This app can only recall presets, not save them."))
         .build();
 
     group.add(&preset_row(&file, 0));
@@ -96,7 +91,6 @@ fn preset_row(file: &Rc<File>, index: i8) -> adw::ActionRow {
 
     let row = adw::ActionRow::builder()
         .title(&title)
-        .subtitle(gettext("Move the camera to this saved position"))
         .activatable(true)
         .build();
 
@@ -138,10 +132,7 @@ fn recall_with_feedback(file: &File, index: i8) {
 fn dump_status_row(file: &Rc<File>) -> adw::ActionRow {
     let row = adw::ActionRow::builder()
         .title(gettext("Show XU status (hex dump)"))
-        .subtitle(gettext(
-            "Open a diagnostic view of the 60-byte status the camera returns. \
-             Useful for community discovery of still-undecoded bytes.",
-        ))
+        .subtitle(gettext("Diagnostic hex dump of the camera status."))
         .activatable(true)
         .build();
 
