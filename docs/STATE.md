@@ -11,11 +11,11 @@ active_task_state: IDLE
 active_branch: main
 last_completed_task: T-220  # Single-page UX (drop camera list, reorg tabs, Main/Presets, focus+HDR moved). User-validated on hardware 2026-06-18. Bundled with T-221 (hid preview grayscale/mirror toggles), T-219, T-218 into v0.4.2.
 last_milestone: v0.4.2  # bumped 2026-06-18 (ADR-0028): Cargo+meson reconciled to 0.4.2 (meson was stale at 0.4.0), AppStream 0.4.2 notes. Prior: v0.4.1 tagged 2026-06-12.
-last_commit_on_main: d2465ba  # chore(release): bump to 0.4.2. ff-merged feat/T-220-single-page-ux into main, then docs-close commit. Prior pushed: b9df04b (T-219).
-last_step: 2026-06-18 — bumped 0.4.1→0.4.2 (Cargo.toml/lock + meson.build + metainfo), gates green, ff-merged feat/T-220 into main, closed PLAN/PROGRESS/DECISIONS(ADR-0028).
-next_step: tag v0.4.2; build native (meson release) + Flatpak; install both to refresh user's 0.4.0 installs; push main + tag. Incoming dev then builds the Arch .pkg from the tag (ADR-0023/0027).
-blockers: T-017b Arch validation pending an Arch host (incoming dev, ADR-0023).
-  status: v0.4.2 docs being closed on main. working_tree: docs/PLAN.md, docs/PROGRESS.md, docs/DECISIONS.md, docs/STATE.md pending the docs-close commit; untracked obsbot-cam-control-0.4.1-1-x86_64.pkg.tar.zst (stale Release asset, untracked per ADR-0027).
+last_commit_on_main: 852a379  # docs: close T-220, cut v0.4.2. PUSHED to origin/main 2026-06-18 (b9df04b..852a379) + tag v0.4.2 pushed. Prior: d2465ba (version bump).
+last_step: 2026-06-18 — released v0.4.2: bumped+merged+tagged+pushed (main+tag). Flatpak rebuilt & installed (now 0.4.2). Native binary recompiled in builddir (0.4.2, release+live-preview) but NOT yet installed — `sudo meson install -C builddir` needs the user's password.
+next_step: user runs `sudo meson install -C builddir` to refresh /usr/local native binary 0.4.0→0.4.2. Incoming dev builds the Arch .pkg from tag v0.4.2 (ADR-0023/0027); optionally `gh release create v0.4.2` once that .pkg exists.
+blockers: native /usr/local install pending user sudo. T-017b Arch validation pending an Arch host (incoming dev, ADR-0023).
+  status: v0.4.2 released — main + tag pushed to origin. Flatpak io.github.domatix.ObsbotCamControl installed at 0.4.2. Native binary built (builddir/obsbot-cam-control) awaiting sudo install. working_tree clean except untracked obsbot-cam-control-0.4.1-1-x86_64.pkg.tar.zst (stale 0.4.1 Release asset, untracked per ADR-0027).
 firmware_notes:
   - Tiny 2 Lite fw 5.10: XU Sleep frame IGNORED for ~3s after streaming stops (accepted at t≈3s); cold Sleep works immediately. set_sleep(Awake)/get_status reliable. Rapid open/close/sleep/wake churn can hang capture (0 buffers, no error) until USB replug. (ADR-0025)
 still_open_non_hardware:
@@ -28,4 +28,4 @@ follow_ups_queued:
   - T-400 (post-v1.0): add OBSBOT Meet (original) to the model matrix.
 known_issues:
   - Q9 (PROTOCOL.md): pan_speed/tilt_speed accept writes but no motion on Tiny 2 Lite firmware 5.10. PTZ moves via discrete pan_absolute/tilt_absolute single steps (T-101d).
-updated_at: 2026-06-18T00:00:00Z
+updated_at: 2026-06-18T00:30:00Z
