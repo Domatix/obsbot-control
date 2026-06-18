@@ -1060,7 +1060,7 @@ dependencies = [
 
 [[package]]
 name = "obsbot-cli"
-version = "0.4.1"
+version = "0.4.2"
 dependencies = [
  "clap",
  "obsbot-core",
@@ -1068,7 +1068,7 @@ dependencies = [
 
 [[package]]
 name = "obsbot-core"
-version = "0.4.1"
+version = "0.4.2"
 dependencies = [
  "nix",
  "tempfile",
@@ -1079,7 +1079,7 @@ dependencies = [
 
 [[package]]
 name = "obsbot-gui"
-version = "0.4.1"
+version = "0.4.2"
 dependencies = [
  "gettext-rs",
  "gio",

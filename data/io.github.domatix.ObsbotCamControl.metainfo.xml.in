@@ -77,6 +77,26 @@
   </supports>
 
   <releases>
+    <release version="0.4.2" date="2026-06-18" type="development">
+      <description>
+        <p>
+          User-interface streamlining, bundling several rounds of
+          layout feedback:
+        </p>
+        <ul>
+          <li>The app now opens directly on the connected camera's
+            controls instead of an intermediate camera list; a header
+            dropdown appears only when more than one camera is present.</li>
+          <li>Tabs were reorganized: a new "Main" tab gathers AI
+            tracking, autofocus, and HDR, and "Presets" replaces the
+            old "Extras" tab.</li>
+          <li>Verbose group descriptions and redundant row subtitles
+            were trimmed for a cleaner, denser layout.</li>
+          <li>The preview-only grayscale and mirror toggles were hidden,
+            since they never affected what other apps capture.</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.4.1" date="2026-06-11" type="development">
       <description>
         <p>
