@@ -10,6 +10,23 @@
 
 ---
 
+## 2026-06-18 (v0.4.2 release — T-220/T-221 shipped)
+
+### [2026-06-18T00:00:00Z] [T-220] DONE — user-validated, cut v0.4.2
+
+User confirmed T-220 + T-221 tested and working on hardware ("esta
+testeado y todo bien"). Investigation found both of the user's installs
+(native `/usr/local` binary and the `io.github.domatix.ObsbotCamControl`
+Flatpak) still on 0.4.0 — older than the v0.4.1 tag — and a version
+drift (`Cargo.toml` 0.4.1 vs `meson.build` 0.4.0). Per [[ADR-0028]]:
+bumped the workspace + meson to **0.4.2**, refreshed `Cargo.lock`, added
+the 0.4.2 AppStream `<release>` notes. Gates green (fmt, clippy default +
+live-preview, `cargo test --workspace` 7 unit + 1 doc). Committed
+`chore(release): bump version to 0.4.2 (T-220)` on the feat branch, then
+**fast-forwarded** `feat/T-220-single-page-ux` into `main` (strictly
+ahead; conventional commits preserved). PLAN T-220 → DONE; T-221 already
+DONE. Next: tag v0.4.2, build native + Flatpak, install both, push.
+
 ## 2026-06-16 (T-220 single-page UX restructure)
 
 ### [2026-06-16T05:00:00Z] [T-221] DONE — hide preview grayscale + mirror toggles

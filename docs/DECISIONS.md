@@ -1348,5 +1348,40 @@ v0.4.1)" over committing the blob or keeping it local-only).
 
 ---
 
+## ADR-0028 — Cut v0.4.2 bundling T-218..T-221; reconcile the meson version
+
+**Status**: Accepted, 2026-06-18.
+
+**Context**: After v0.4.1 (tag `dd7d6cf`, T-217) `main` accumulated three
+rounds of UX work that never got their own release: T-218 (layout polish),
+T-219 (text trimming), and the `feat/T-220-single-page-ux` branch (T-220
+single-page restructure + T-221 hiding the preview-only filter toggles). The
+user reported their installed apps (both the `/usr/local` native binary and
+the Flatpak) were still on 0.4.0 — older than even v0.4.1 — and asked to
+update them. Investigation also surfaced a version drift: `Cargo.toml` was
+already `0.4.1` but `meson.build` still declared `0.4.0`.
+
+**Decision**: Ship the accumulated work as **v0.4.2** rather than refreshing
+the installs off an untagged mid-stream `main`:
+
+- Bump the workspace version `0.4.1 → 0.4.2` and reconcile `meson.build`
+  (was `0.4.0`) to match; add an AppStream `<release>` entry for 0.4.2.
+- Fast-forward `feat/T-220-single-page-ux` into `main` (it was strictly
+  ahead — clean ff, conventional commits preserved).
+- Tag `v0.4.2` and follow the ADR-0027 release flow.
+
+Confirmed with the user via AskUserQuestion (chose "Bump to v0.4.2 + tag"
+over a meson-only fix or no version change; chose to update **both** the
+native and Flatpak installs).
+
+**Consequences**:
+
+- The meson/Cargo version drift is closed; both report 0.4.2.
+- The incoming dev rebuilds the Arch `.pkg` from a clean, tagged commit
+  (ADR-0023 / ADR-0027) instead of an arbitrary `main` SHA.
+- T-218..T-221 are now a coherent published increment for any packager.
+
+---
+
 <!-- Append new ADRs above this line, never below. Newest ADRs go at the bottom
      of the list but new entries are added; do not edit old ones. -->

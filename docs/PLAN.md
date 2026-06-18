@@ -3636,8 +3636,9 @@
     and `feat(gui): drop range/step/default subtitles, flatten focus rows (T-219)`.
 
 ### T-220 — Single-page UX: drop the camera list, reorganize tabs
-- **State**: IN_PROGRESS
+- **State**: DONE
 - **Started**: 2026-06-16
+- **Completed**: 2026-06-18 (user-validated on hardware; shipped in v0.4.2).
 - **Depends on**: T-218 / T-219 (the tabbed layout this restructures).
 - **Description**: User-driven UX restructure (7 asks). The app no
   longer opens on a camera *list*; it lands directly on the config
@@ -3705,10 +3706,11 @@
     `#[allow(too_many_lines)]` with reason on `render_controls`, which
     grew with the tab reorg); `cargo test --workspace` 7 unit + 1 doc
     pass; `cargo build -p obsbot-gui` green for both feature sets.
-  - **User validation pending** (not machine-verifiable): launch the
-    app and visually confirm the above layout + that camera switching,
-    hot-plug, and preview start/stop still work.
-  - Commit on `feat/T-220-single-page-ux`, merged to `main`.
+  - **User validation DONE** (2026-06-18): user confirmed the layout,
+    camera switching, hot-plug, and preview start/stop all work on
+    hardware.
+  - Commit on `feat/T-220-single-page-ux`, merged to `main` (ff) and
+    shipped in v0.4.2.
 
 ### T-221 — Hide the preview grayscale + mirror toggles
 - **State**: DONE
@@ -3738,9 +3740,9 @@
     no grayscale or mirror button.
   - All four cargo gates green (fmt, clippy -D warnings for default and
     `live-preview`, test, build). **DONE**.
-  - **User validation pending**: launch the app, start the preview,
-    confirm only the toggle + snapshot buttons appear.
-  - Commit on `feat/T-220-single-page-ux`.
+  - **User validation DONE** (2026-06-18): user confirmed only the
+    toggle + snapshot buttons appear.
+  - Commit on `feat/T-220-single-page-ux`; shipped in v0.4.2.
 
 ---
 
