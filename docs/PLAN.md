@@ -7,12 +7,54 @@
 
 ---
 
-## Current milestone: v0.2 — V4L2 Standard Controls
+## Current milestone: v0.6 — Polish for GNOME Circle
 
-> v0.1.0 shipped 2026-05-13 (tag `v0.1.0`, commit `5e005fd`). The
-> milestone definition lives in [[ROADMAP.md v0.2]]. PLAN tasks
+> Shipped so far: `v0.1.0` (2026-05-13), `v0.2.0` (2026-05-14),
+> `v0.3.0`/`v0.3.1`/`v0.3.2` (2026-05-14..2026-06-02),
+> `v0.4.0` (2026-06-02), `v0.4.1` (2026-06-11), `v0.4.2` (2026-06-18).
+> The milestone definitions live in [[ROADMAP.md]]. PLAN tasks
 > below are filled in as they become active (per the project's
 > "no stale plans" rule in the Backlog section).
+
+### T-222 — Pre-publication documentation reconciliation
+
+- **State**: IN_PROGRESS
+- **Started**: 2026-07-31T00:00:00Z
+- **Depends on**: none (docs-only task; bundles with T-015 for the
+  public flip).
+- **Description**: Full audit of the repository before making it
+  public, fixing every doc that contradicts the shipped v0.4.2
+  reality. Two explore agents cross-checked every doc against the
+  code; findings: README status stuck at v0.4.0 (missing 0.4.1/0.4.2,
+  wrong GNOME runtime 48→50, grayscale toggle described as visible,
+  Arch artifact example at 0.1.0); metainfo describing shipped
+  features as "planned", promising continuous PTZ (removed in v0.4)
+  and "direct USB requests" (never implemented); PLAN/ROADMAP
+  milestone states stale; ARCHITECTURE describing never-built modules
+  (`models/`, `widgets/`, async worker) and wrong pipeline; SKILLS
+  claiming `nusb`/`anyhow`/`tracing-subscriber` usage, a phantom
+  pre-commit hook, wrong GSettings key format, and wrong XU citation
+  sources; PROTOCOL status header + T-10x notes stale, referencing
+  the T-302 dump page removed in T-220; HANDOFF build paths wrong and
+  PKGBUILD version stale; CREDITS canonical EUPL list missing
+  `xu/command02.rs`; AI_WORKFLOW referencing nonexistent
+  `INIT_PROMPT.txt` and `QA_CHECKLIST.md`. Also: `.gitignore` did not
+  cover `*.pkg.tar.zst`; the Flatpak manifest lacked
+  `--filesystem=xdg-pictures` for snapshot saves; SPEC/README
+  over-promised a Spanish translation that is still empty (deferred
+  per [[ADR-0029]]).
+- **Acceptance criteria**:
+  - Every finding above fixed in the relevant file.
+  - ARCHITECTURE.md rewritten to describe the shipped code.
+  - `.gitignore` covers `*.pkg.tar.zst`; stale blob removed from the
+    repo root.
+  - Flatpak manifest grants `--filesystem=xdg-pictures`.
+  - SPEC/README no longer promise a maintained Spanish translation.
+  - ADR-0029 (Spanish deferral) and ADR-0030 (reconciliation itself)
+    recorded.
+  - All cargo gates green; `meson test -C builddir` green.
+  - Commit series on `main`, then STATE/PROGRESS updated.
+- **Outcome**: pending.
 
 ### T-099 — Blueprint pipeline (absorbs deferred T-013d)
 - **State**: DONE
@@ -3748,21 +3790,17 @@
 
 ## Backlog (future milestones)
 
-The detailed task breakdown for v0.2 onwards will be filled in when the
-current milestone is near completion. This avoids stale plans.
+The detailed task breakdown for a milestone is filled in when the
+previous one is near completion. This avoids stale plans.
 
-Hints of what will come:
+Hints of what will come (per [[ROADMAP.md]]):
 
-**v0.2 hints** (T-099 now active above):
-- T-100 Implement V4L2 brightness/contrast/saturation/hue.
-- T-101 PTZ pad widget in GUI.
-- T-102 Zoom slider.
-- T-103 White balance widget.
-- T-104 Exposure widget.
-- T-105 Per-camera GSettings persistence.
-- T-106 About dialog.
+**v0.6 hints** (T-500 series, Polish for GNOME Circle):
+- AppStream screenshots (HiDPI) + branding colors.
+- Spanish translation (`po/es.po` currently a header-only stub).
+- Keyboard-shortcuts window and additional shortcuts.
+- First-run onboarding / help.
+- Performance and accessibility audits.
+- Flathub submission.
 
-**v0.3 hints**: T-200 series (GStreamer preview).
-**v0.4 hints**: T-300 series (XU vendor features).
-**v0.5 hints**: T-400 series (Auto-framing).
-**v0.6 hints**: T-500 series (Polish).
+**Post-v1.0 hints**: T-400 OBSBOT Meet (original) support.

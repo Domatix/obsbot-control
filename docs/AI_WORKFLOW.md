@@ -44,13 +44,12 @@ the right files automatically.
    claude
    ```
 
-5. At the prompt, paste the contents of `INIT_PROMPT.txt` (provided in the
-   scaffolding tarball, only relevant the very first time):
+5. At the prompt, say something like:
 
-   > "This is a fresh project. Read CLAUDE.md, then docs/STATE.md, then
-   > docs/SPEC.md, docs/ROADMAP.md, docs/PLAN.md, and the last 3 entries of
-   > docs/PROGRESS.md. Then summarize where we are and propose T-001 as the
-   > first task."
+   > "Read CLAUDE.md, then docs/STATE.md, docs/SPEC.md,
+   > docs/ROADMAP.md, docs/PLAN.md, and the last 3 entries of
+   > docs/PROGRESS.md. Then summarize where we are and propose the
+   > next task."
 
    After that first session, you can simply say "continue" or "let's work
    on the next task" and Claude follows the procedure documented in
@@ -63,7 +62,7 @@ the right files automatically.
 ### 3.1 Starting a session
 
 ```bash
-cd ~/proyectos/obsbot-control
+cd obsbot-control
 claude
 ```
 
@@ -230,7 +229,8 @@ Before approving a tag `vX.Y.0`:
 
 - Read the milestone section in `ROADMAP.md`.
 - Verify each `ROADMAP.md` checkbox is true.
-- Run the smoke-test checklist (will be in `docs/QA_CHECKLIST.md` from v0.3).
+- Run the app against the real camera and smoke-test the controls the
+  milestone touched.
 
 ---
 

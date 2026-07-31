@@ -110,6 +110,7 @@ crates/obsbot-core/src/xu/commands/*.rs
 crates/obsbot-core/src/xu/transport.rs
 crates/obsbot-core/src/xu/status.rs
 crates/obsbot-core/src/xu/enums.rs
+crates/obsbot-core/src/xu/command02.rs
 ```
 
 See `docs/DECISIONS.md` ADR-0020 for the full rationale.

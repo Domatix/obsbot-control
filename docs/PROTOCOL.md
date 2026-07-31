@@ -13,9 +13,9 @@
 - **Hardware identifiers**: filled for Tiny 2 Lite from a direct capture
   (T-003, 2026-05-13). Tiny 2 (regular) entry stays speculative until
   a community lsusb capture lands.
-- **V4L2 standard controls**: pending — needs `v4l2-ctl --all`
-  + `--list-ctrls-menus` on `/dev/video0` and `/dev/video1`. Requires
-  the `video` group membership / sudo (see §1.1 below).
+- **V4L2 standard controls**: captured 2026-05-13 (`v4l2-ctl --all`
+  + `--list-ctrls-menus` on `/dev/video0` and `/dev/video1`); full
+  tables in §2 below.
 - **Vendor XU**: descriptor metadata captured (Unit ID, GUID, bmControls
   mask). Per-selector semantics: **the majority of the surface is now
   known from free-software sources** (`cgevans/tiny2` and
@@ -214,8 +214,8 @@ Note: the PROCESSING_UNIT bmControls (§1.1) advertises a "White Balance
 Component" pair (red_balance / blue_balance) **and** a "White Balance
 Temperature" control simultaneously. Most consumer UVC devices only
 expose one or the other; OBSBOT exposes both, gated by the same
-`white_balance_automatic` switch. The GUI (T-103 in v0.2) should group
-them under a single "White balance" section with a sub-toggle.
+`white_balance_automatic` switch. The GUI groups them under a single
+"White balance" section with an auto toggle (shipped in v0.2, T-103).
 
 ### 2.2 Camera Controls (`V4L2_CID_CAMERA_CLASS_BASE`)
 
@@ -252,9 +252,9 @@ them under a single "White balance" section with a sub-toggle.
   *speed* in the device's native units, with the V4L2 mapping rolling
   through saturation rather than clamping (the OBSBOT firmware
   accepts the wider range and reports it back); (b) a uvcvideo
-  conversion bug for this specific selector. The GUI clamps display
-  to `0..100` and writes via `zoom_absolute` for static targets;
-  whether to surface `zoom_continuous` at all is a T-102 decision.
+  conversion bug for this specific selector. Decision (T-102, shipped):
+  `zoom_continuous` is **not surfaced** in the GUI; zoom writes go
+  through `zoom_absolute` only.
 - **Q3 — gamma is not advertised** despite SPEC.md §4.1 listing it.
   The PROCESSING_UNIT bmControls in §1.1 has no gamma bit. Treat
   gamma as XU-only on this family until disproven; if a vendor XU
@@ -262,10 +262,12 @@ them under a single "White balance" section with a sub-toggle.
 
 ### 2.4 Streaming formats and frame sizes
 
-Default at capture time: `MJPG 1920×1080 @ 30 fps`. A separate
-`v4l2-ctl --list-formats-ext` capture is recommended before
-implementing the preview pipeline (v0.3 / T-200+), so the full
-{MJPG, YUYV} × {sizes} × {framerates} matrix is locked down. Pending.
+Default at capture time: `MJPG 1920×1080 @ 30 fps`. The preview
+pipeline (shipped in v0.3.1/v0.4.0, T-200) negotiates through
+GStreamer's `v4l2src`, so the full {MJPG, YUYV} × {sizes} ×
+{framerates} matrix was never locked down manually. A
+`v4l2-ctl --list-formats-ext` capture remains useful reference data
+for future resolution-switching work. Pending.
 
 ---
 
@@ -273,7 +275,7 @@ implementing the preview pipeline (v0.3 / T-200+), so the full
 
 The Linux uvcvideo driver enumerates XUs at probe time; they appear in
 `lsusb -v` output and can be queried/written via `UVCIOC_CTRL_QUERY`
-ioctl (see [[ARCHITECTURE §3.3]] for the wrapper).
+ioctl (see [[ARCHITECTURE §3.3]] for the shipped wrapper).
 
 ### 3.1 Tiny 2 Lite XU table
 
@@ -399,9 +401,11 @@ Copy verbatim.
 Bytes `0x00`, `0x01`, `0x03`-`0x05`, `0x07`-`0x17`, `0x19`-`0x1b`,
 `0x1d`-`0x20`, `0x22`-`0x3b` are returned by the camera but
 **undecoded** by either FOSS project. They are the discovery
-frontier. The v0.3 GUI (T-302) ships a "Dump status" debug page so
-the user can capture a hex dump of any non-default state for future
-contributions.
+frontier. The v0.3 GUI (T-302) shipped a "Dump status" debug dialog
+for capturing hex dumps of non-default states; it was removed in the
+v0.4.2 UI streamlining (T-220). The 60-byte `raw` payload remains
+available programmatically via `obsbot_core::xu::Status::raw` for
+anyone who wants to resume the discovery work.
 
 #### Known quirks (Q-series, this XU)
 
@@ -505,14 +509,13 @@ To be filled if needed.
   hardware-revision number unrelated to user-visible firmware.
 - **No iSerial string**: the Lite exposes `iSerial=0`. This means the
   device cannot be uniquely identified across reboots / re-plugs using
-  the USB serial-number descriptor alone. Per-device settings
-  persistence ([[ROADMAP v0.2]], T-105) must fall back to:
-  1. USB bus/port path (stable as long as the cable stays in the same
-     port — fragile across re-plugs to a different port).
-  2. A user-assigned name kept in GSettings, applied to the first
-     detected device matching the family PIDs.
-  This is a deviation from the SPEC.md §4.1 expectation that settings
-  key off serial; flagged here, formal decision deferred to T-105.
+  the USB serial-number descriptor alone. Decision (T-105 + T-105fix,
+  shipped): per-camera settings are keyed by serial in the
+  `control-values` GSettings map; on the Lite (no serial) the GUI
+  simply does not persist values. The two heavier fallbacks considered
+  (USB bus/port path, user-assigned names) were rejected as fragile /
+  not worth the UX cost for a single-camera user. This is a deviation
+  from the SPEC.md §4.1 expectation that settings key off serial.
 
 ---
 

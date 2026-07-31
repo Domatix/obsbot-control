@@ -68,7 +68,9 @@ the GNOME desktop, distributable through Flathub.
 - Desktop file with proper categories.
 - GSettings schema for all persistent settings.
 - Symbolic and regular icons.
-- Full localization via gettext (English source, Spanish at minimum).
+- Localization-ready via gettext (English source; community
+  translations welcome — none is maintained by the project itself yet,
+  see [[ADR-0029]]).
 - Keyboard shortcuts following GNOME conventions.
 - Adwaita styling, light/dark mode automatic via system.
 
@@ -134,7 +136,10 @@ The project must satisfy the GNOME Circle criteria
 ### 6.5 Internationalization
 - All user-facing strings externalized.
 - English as source language.
-- Spanish translation maintained by the project; others by community.
+- Translations are community-maintained via standard gettext. A Spanish
+  translation was originally planned to be project-maintained; deferred
+  in [[ADR-0029]] until a contributor steps up (the scaffolding and a
+  stub `po/es.po` are in place).
 
 ### 6.6 Accessibility
 - Keyboard navigability of all functions.

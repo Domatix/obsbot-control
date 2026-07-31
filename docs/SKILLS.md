@@ -23,27 +23,30 @@
   proving infallibility (rare). Use `?` and `Result` everywhere.
 - **No `panic!()`** in library code. Binaries may panic only on
   truly-fatal-startup conditions; prefer logging + clean exit.
-- **No `unsafe`** unless wrapping a C API. Required for `nix` ioctls and
-  `nusb` raw transfers; isolate `unsafe` to a single function with a comment
-  proving its safety invariants.
+- **No `unsafe`** unless wrapping a C API or kernel ioctl. Required for
+  the `nix` ioctl macros in `obsbot-core::xu::transport` (the only
+  `unsafe` in the workspace); isolate `unsafe` to a single function with
+  a comment proving its safety invariants.
 
 ### 1.2 Errors
 
 - **Libraries** (`obsbot-core`): use `thiserror` to define typed errors.
   Errors must be `Send + Sync + 'static` to cross thread boundaries cleanly.
-- **Binaries** (`obsbot-cli`, `obsbot-gui`): use `anyhow` at the boundary;
-  convert from library errors with `?` and `.context(...)`.
+- **Binaries** (`obsbot-cli`, `obsbot-gui`): propagate library errors with
+  `?` and convert at the boundary (the GUI surfaces user-facing failures
+  as `adw::Toast`s; the CLI prints and exits non-zero). No `anyhow`
+  dependency is currently used.
 - **User-facing errors** in the GUI: never display raw `Debug` output. Always
   provide a localizable, user-friendly message.
 
 ### 1.3 Logging
 
-- **Crate**: `tracing` + `tracing-subscriber`.
+- **Crate**: `tracing` (spans/events in `obsbot-core` only). No
+  subscriber is installed by the binaries; output goes to stderr /
+  the journal by default.
 - **Levels**: `error` for actionable failures, `warn` for degraded state,
   `info` for major lifecycle events, `debug` for diagnostics, `trace` for
   hot paths.
-- **Default level**: `info` in release builds, `debug` in dev.
-- **Override**: `RUST_LOG` env var, standard `tracing-subscriber` filter.
 - **Never log secrets, device serial numbers, or PII** at info level.
 
 ### 1.4 Documentation
@@ -57,8 +60,9 @@
 
 - Unit tests live alongside the code in a `#[cfg(test)] mod tests` block.
 - Integration tests in `crates/<name>/tests/`.
-- Hardware-dependent tests: `#[ignore]`d. Documented in
-  `docs/QA_CHECKLIST.md` (to be created).
+- Hardware-dependent tests: `#[ignore]`d. Run them with
+  `cargo test --workspace -- --ignored` on a machine with the camera
+  plugged in.
 - Mock the `Camera` trait for unit-testing GUI logic.
 - Coverage is not enforced via threshold; reviewer judgment.
 
@@ -84,17 +88,20 @@ existing GNOME Circle apps (Pika Backup, Amberol, Fractal) for examples.
 
 - All persistent settings go through `gio::Settings` with a schema in
   `data/io.github.domatix.ObsbotCamControl.gschema.xml`.
-- One key per atomic setting.
-- For complex structures (presets list), serialize JSON in a single string
-  key. Document the schema in the GSettings `<description>`.
-- Per-camera state is keyed by camera serial number: prefix `cameras.<serial>.`.
+- One key per atomic setting (e.g. `color-scheme`, `preview-default-on`).
+- Per-camera control values live in the single `control-values` key
+  (`a{si}`), keyed by the composite string `"<serial>\x1f<control-name>"`
+  (unit-separator delimited). Cameras without a USB serial are not
+  persisted.
 
 ### 2.4 i18n
 
 - All user-facing strings wrapped in `gettext()` (re-exported as `i18n!`
   macro for convenience).
-- Source language: English. Project-maintained translation: Spanish.
-- `po/POTFILES` lists every file with translatable strings.
+- Source language: English. Community translations via standard gettext
+  (the project keeps the scaffolding; no translation is maintained by
+  the project itself yet — see [[ADR-0029]]).
+- `po/POTFILES.in` lists every file with translatable strings.
 - New translatable strings: run `xgettext` / `meson compile -C builddir
   io.github.domatix.ObsbotCamControl-pot` to update `.pot`, then update
   `.po`s.
@@ -136,16 +143,18 @@ Format (from `CLAUDE.md` §2.2):
 
 **Footer examples**: `BREAKING CHANGE: ...`, `Co-authored-by: ...`.
 
-### 3.3 Pre-commit hooks
+### 3.3 Pre-commit checks
 
-Configured in `build-aux/git-hooks/pre-commit`:
+No git hooks are installed by the repo. The checks in `CLAUDE.md` §2.3
+are a mandatory convention the contributor (human or AI) runs before
+any commit touching code:
 
-1. `cargo fmt --check`.
+1. `cargo fmt --all --check`.
 2. `cargo clippy --workspace --all-targets -- -D warnings`.
 3. `cargo test --workspace`.
-4. (Docs commit) markdown lint if `mdformat` or similar present.
 
-If any step fails, the commit is rejected. No `--no-verify` allowed.
+CI re-runs the same gates on every push, so a skipped local check is
+caught on `main`.
 
 ### 3.4 Releases
 
@@ -165,9 +174,10 @@ The user has a real device. Treat it carefully:
   `PROTOCOL.md`.
 - **Never** write to firmware update endpoints. We do not support firmware
   updates.
-- **Always** cross-reference XU selectors against existing open projects
-  (`taxfromdk/obsbot_tiny_reversing`, `samliddicott/meet4k`,
-  `aaronsb/obsbot-camera-control` reference) before implementing.
+- **Always** cross-reference XU selectors against the primary open
+  projects we port from (`cgevans/tiny2`, `OpenFoxes/Tiny4Linux` — see
+  `CREDITS.md`) before implementing. Background references:
+  `taxfromdk/obsbot_tiny_reversing`, `samliddicott/meet4k`.
 - **When in doubt**, stop and ask the user to confirm a test plan.
 - **Reverse engineering** captures must be sanitized of any personal data
   (serial numbers OK; broader USB context might include other devices)

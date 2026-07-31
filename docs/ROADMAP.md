@@ -150,8 +150,12 @@ AI tracking.
 | Tag        | Milestone                  | Status   |
 |------------|----------------------------|----------|
 | `v0.1.0`   | Scaffolding & Detection    | shipped (2026-05-13) |
-| `v0.2.0`   | V4L2 Standard Controls     | active   |
-| `v0.3.0`   | Vendor XU & AI tracking    | shipped (2026-05-15) |
-| `v0.4.0`   | Live Preview               | shipped (2026-06-02) |
-| `v0.6.0`   | Polish                     | planned  |
+| `v0.2.0`   | V4L2 Standard Controls     | shipped (2026-05-14) |
+| `v0.3.0`   | Vendor XU & AI tracking    | shipped (2026-05-14) |
+| `v0.3.1`   | Live preview (native)      | shipped (2026-05-19) |
+| `v0.3.2`   | Snapshot + PTZ speed       | shipped (2026-06-02) |
+| `v0.4.0`   | Live Preview (Flatpak)     | shipped (2026-06-02) |
+| `v0.4.1`   | Preview power handling     | shipped (2026-06-11) |
+| `v0.4.2`   | Single-page UX             | shipped (2026-06-18) |
+| `v0.6.0`   | Polish                     | active   |
 | `v1.0.0`   | GNOME Circle               | goal     |

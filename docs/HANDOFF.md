@@ -16,7 +16,7 @@ proprietary SDK. The end goal is GNOME Circle + Flathub.
 - **App ID**: `io.github.domatix.ObsbotCamControl`
 - **License**: GPL-3.0-or-later (metadata CC0-1.0)
 - **Platform**: Linux x86_64 only
-- **Repo**: `github.com/Domatix/obsbot-control` (currently private)
+- **Repo**: `github.com/Domatix/obsbot-control` (public)
 
 Three crates:
 
@@ -59,13 +59,14 @@ trust them.
 Native dev build (needs the GNOME 4 / GStreamer dev stack + Rust):
 
 ```sh
-meson setup build              # add -Dlive-preview=true for the camera preview
-meson compile -C build
-./build/crates/obsbot-gui/obsbot-cam-control   # the GUI
-./build/crates/obsbot-cli/obsbot-cli --help    # the CLI
+meson setup builddir          # add -Dlive-preview=true for the camera preview
+meson compile -C builddir
+./builddir/obsbot-cam-control            # the GUI
+cargo run -p obsbot-cli -- --help        # the CLI (cargo-only; meson does not build it)
 ```
 
-Pure-cargo also works for core/cli (`cargo build`, `cargo test`).
+Pure-cargo also works for core/cli/gui (`cargo build`, `cargo test`;
+the GUI needs `--features live-preview` for the preview pipeline).
 
 **Pre-commit gates (mandatory, any commit touching code — see
 `CLAUDE.md` §2.3):**
@@ -92,8 +93,9 @@ Packaging artifacts (all in `build-aux/`, outputs land in
 In rough priority order:
 
 1. **T-017b — Arch validation (first task; the boss asked for an
-   Arch build).** The `PKGBUILD` is refreshed and correct (0.4.0,
-   live-preview on, all deps incl. `blueprint-compiler`). What is
+   Arch build).** The `PKGBUILD` is refreshed for live-preview with
+   all deps incl. `blueprint-compiler` (currently `pkgver=0.4.1`;
+   bump to the tag being packaged — v0.4.2 — when cut). What is
    *not* done is running it: on an Arch host run
    `./build-aux/build-arch.sh`; on a non-Arch host run the
    `docker … archlinux:latest` recipe that same script prints when

@@ -1,5 +1,7 @@
 # Obsbot Cam Control
 
+[![CI](https://github.com/Domatix/obsbot-control/actions/workflows/ci.yml/badge.svg)](https://github.com/Domatix/obsbot-control/actions/workflows/ci.yml)
+
 A native GNOME application to control OBSBOT cameras on Linux. Built with
 GTK 4, libadwaita, and Rust. Targets GNOME Circle inclusion.
 
@@ -8,9 +10,10 @@ GTK 4, libadwaita, and Rust. Targets GNOME Circle inclusion.
 - **Repo**: hosted under the [`Domatix`](https://github.com/Domatix)
   GitHub organization.
 
-> ⚠️ **Status**: alpha. Functional on the native build (V4L2 standard
-> controls, vendor XU / AI tracking, live preview, PTZ); the Flatpak
-> channel lags the native build. Not yet submitted to Flathub.
+> ⚠️ **Status**: alpha. Fully functional on both the native build and
+> the Flatpak (V4L2 standard controls, vendor XU / AI tracking, live
+> preview with snapshot, PTZ, per-camera persistence). Not yet
+> submitted to Flathub.
 
 ## Goals
 
@@ -24,56 +27,33 @@ GTK 4, libadwaita, and Rust. Targets GNOME Circle inclusion.
 
 ## Status
 
-**v0.4.0 — Live Preview milestone (Flatpak-ready)** (released
-2026-06-02). Completes the Live Preview milestone and is the
-first build that runs the in-app preview from a **Flatpak**: the
-manifest builds and bundles the `gtk4paintablesink` GStreamer
-plugin (plus `blueprint-compiler`) that the GNOME runtime does
-not ship. The PTZ pad was simplified to reliable single-step
-control — one button click or arrow-key press = one 5° move
-(the press-and-hold / continuous mode was removed after it
-proved unreliable on hardware). Includes the full v0.4 first
-slice: live preview, snapshot to PNG, and a grayscale filter.
-Validated against the Tiny 2 Lite. Targets the GNOME 48 runtime;
-a Flathub submission will move to a current runtime.
+**Current release: v0.4.2** (2026-06-18). What works today, validated
+against the Tiny 2 Lite:
 
-**v0.3.2 — Snapshot, grayscale, PTZ speed** (released 2026-06-02).
-Completes the first slice of v0.4 work on the native build,
-validated against the Tiny 2 Lite: a header-bar **snapshot**
-button saves the current frame as PNG to your Pictures folder
-(T-201); a **grayscale** toggle switches the live feed between
-colour and black-and-white (T-202); the PTZ hold gains a tunable
-**speed** (`ptz-speed-fast`) and a **Shift+Arrow** accelerator,
-and now drives from a local position accumulator so fast pans no
-longer stall (T-101c). The embedded preview pane is 20% shorter
-so it no longer dominates the window (T-204). The Flatpak
-artifact still tracks v0.3.0 until the GStreamer plugin module is
-validated end-to-end in the manifest.
+- **AI tracking** with ten framing modes (Normal, Upper body, Close-up,
+  Headless, Lower body, Group, Desk mode, Whiteboard, Hand, or off),
+  plus tracking speed (Standard / Sport) — via the reverse-engineered
+  vendor XU protocol.
+- **HDR**, **Field of View** (Wide / Normal / Narrow), face
+  auto-exposure, and auto/manual exposure mode.
+- **Live preview** inside the app (GStreamer `gtk4paintablesink`) with
+  **snapshot to PNG** saved to your Pictures folder.
+- **PTZ pad** with 8 directional buttons and a zoom slider (single-step
+  moves; press-and-hold was removed after proving unreliable on
+  hardware). Arrow keys + Home also drive the camera.
+- **Image controls**: brightness, contrast, saturation, hue, sharpness,
+  white balance, exposure time, anti-flicker — every V4L2 control the
+  kernel advertises, with reset-to-default.
+- **Preset recall** for the three firmware slots (programming slots is
+  done via OBSBOT Center or on-device gestures).
+- **Per-camera settings persistence** (GSettings), hot-plug handling
+  with toasts, and automatic camera sleep when the app stops using it.
+- Single-window UI in English; gettext scaffolding is in place and
+  translations are welcome.
 
-**v0.3.1 — Live preview + smooth PTZ** (released 2026-05-19).
-Native build adds the v0.4 Live Preview pipeline behind a
-`live-preview` Cargo feature flag (`gstreamer1.0-gtk4` system
-package required) — a `v4l2src ! videoconvert !
-gtk4paintablesink` chain renders the camera feed inside a sticky
-revealer above the controls page, with a header-bar toggle and
-an `AdwBanner` discoverability hint. The PTZ pad gains
-press-and-hold smooth motion (≈ 20°/s, 1° per 50 ms tick after a
-200 ms long-press threshold) plus keyboard arrow navigation
-(Left / Right / Up / Down + Home recenter) that respects focused
-sliders. Also rolls up the `T-105fix` schema/runtime alignment
-so per-camera settings persistence works end-to-end. Flatpak
-artifact still tracks v0.3.0 until the GStreamer plugin module
-lands in the manifest.
-
-**v0.3.0 — Vendor XU & AI tracking** (released 2026-05-15). The
-GUI surfaces OBSBOT-specific controls via reverse-engineered USB
-Extension Units: 10 AI auto-framing modes, HDR, Field of View
-(Wide / Normal / Narrow), Tracking speed (Standard / Sport),
-Sleep / Wake power state, 3 preset-recall slots, and a "Show XU
-status" diagnostic dialog. See
-[`docs/ROADMAP.md`](docs/ROADMAP.md) for what's already shipped
-and what's queued for v0.4 (Live Preview milestone wrap-up:
-snapshot, filters, Flatpak GStreamer module) and beyond.
+Full release notes for every version live in the [AppStream
+metainfo](data/io.github.domatix.ObsbotCamControl.metainfo.xml.in);
+the milestone roadmap in [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
 ## Supported cameras
 
@@ -128,9 +108,8 @@ sudo apt install flatpak flatpak-builder
 flatpak remote-add --user --if-not-exists \
     flathub https://dl.flathub.org/repo/flathub.flatpakrepo
 flatpak install --user flathub \
-    org.gnome.Platform//48 \
-    org.gnome.Sdk//48 \
-    org.freedesktop.Sdk.Extension.rust-stable//24.08
+    org.gnome.Platform//50 \
+    org.gnome.Sdk//50
 flatpak-builder --user --install --force-clean \
     build-flatpak build-aux/io.github.domatix.ObsbotCamControl.json
 flatpak run io.github.domatix.ObsbotCamControl
@@ -138,10 +117,11 @@ flatpak run io.github.domatix.ObsbotCamControl
 
 The manifest at
 [`build-aux/io.github.domatix.ObsbotCamControl.json`](build-aux/io.github.domatix.ObsbotCamControl.json)
-targets the GNOME 48 runtime with the rust-stable SDK extension.
-Flathub submission is a v1.0 goal — for v0.1 the manifest exists for
-local-build verification and to seed T-015 CI (when the repository
-goes public).
+targets the GNOME 50 runtime and pulls the rust-stable and llvm20 SDK
+extensions automatically on first build. It also compiles the
+`gtk4paintablesink` GStreamer plugin and `blueprint-compiler`, which
+the GNOME runtime does not ship. Flathub submission is a v0.6/v1.0
+goal; CI builds the Flatpak on every push (T-015).
 
 ### Test packages (Debian `.deb`)
 
@@ -189,7 +169,7 @@ On an Arch (or Arch-derivative) host:
 
 The shim runs `makepkg -f --skipchecksums` against
 [`build-aux/PKGBUILD`](build-aux/PKGBUILD) and drops the resulting
-`obsbot-cam-control-0.1.0-1-x86_64.pkg.tar.zst` under
+`obsbot-cam-control-<version>-1-x86_64.pkg.tar.zst` under
 `build-aux/dist/`.
 
 Install / uninstall:
