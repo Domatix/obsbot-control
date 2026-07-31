@@ -18,8 +18,9 @@
 
 ### T-222 — Pre-publication documentation reconciliation
 
-- **State**: IN_PROGRESS
+- **State**: DONE
 - **Started**: 2026-07-31T00:00:00Z
+- **Completed**: 2026-07-31T00:00:00Z
 - **Depends on**: none (docs-only task; bundles with T-015 for the
   public flip).
 - **Description**: Full audit of the repository before making it
@@ -44,17 +45,32 @@
   over-promised a Spanish translation that is still empty (deferred
   per [[ADR-0029]]).
 - **Acceptance criteria**:
-  - Every finding above fixed in the relevant file.
-  - ARCHITECTURE.md rewritten to describe the shipped code.
+  - Every finding above fixed in the relevant file. **DONE** — see the
+    commit series below.
+  - ARCHITECTURE.md rewritten to describe the shipped code. **DONE**
+    (`894339d`).
   - `.gitignore` covers `*.pkg.tar.zst`; stale blob removed from the
-    repo root.
-  - Flatpak manifest grants `--filesystem=xdg-pictures`.
+    repo root. **DONE** — blob moved to `build-aux/dist/` (`e93fb5e`);
+    note the blob was in fact the fresher 0.4.2 build, not the stale
+    0.4.1 STATE had recorded.
+  - Flatpak manifest grants `--filesystem=xdg-pictures`. **DONE**
+    (`bd2338c`).
   - SPEC/README no longer promise a maintained Spanish translation.
+    **DONE** — SPEC §4.4/§6.5 + SKILLS §2.4 softened per [[ADR-0029]].
   - ADR-0029 (Spanish deferral) and ADR-0030 (reconciliation itself)
-    recorded.
-  - All cargo gates green; `meson test -C builddir` green.
-  - Commit series on `main`, then STATE/PROGRESS updated.
-- **Outcome**: pending.
+    recorded. **DONE**.
+  - All cargo gates green; `meson test -C builddir` green. **DONE** —
+    fmt/clippy/test (61 pass) + validate-metainfo/validate-desktop
+    2/2 after every change.
+  - Commit series on `main`, then STATE/PROGRESS updated. **DONE**:
+    `9c22184` (ci, T-015) → `894339d` (ARCHITECTURE) → `b91d750`
+    (docs sweep) → `18492a5` (appstream) → `e93fb5e` (chore) →
+    `bd2338c` (flatpak).
+- **Outcome**: the repository is publication-ready on the docs side.
+  Remaining before/after the public flip (user-driven): push `main`,
+  flip the repo to public, watch the first CI run go green (T-015
+  caveat), take screenshots for the AppStream/Flathub listing, and
+  draft/publish the announcement post.
 
 ### T-099 — Blueprint pipeline (absorbs deferred T-013d)
 - **State**: DONE
@@ -2950,7 +2966,10 @@
     then-current supported GNOME runtime.
 
 ### T-015 — Set up CI (deferred until repo is public)
-- **State**: TODO
+- **State**: DONE (with caveat — "workflows green on `main`" can only
+  be observed after the first push of the public repo; the workflow
+  file itself is committed and lint-reviewed locally)
+- **Completed**: 2026-07-31
 - **Depends on**: T-014
 - **Description**: GitHub Actions workflows: one for `cargo fmt + clippy +
   test`, one for the Flatpak build, one each (or one matrix) for the
@@ -2958,12 +2977,20 @@
   jobs additionally upload artifacts on tag pushes (`v*`) per
   [[ADR-0015]].
 - **Acceptance criteria**:
-  - Workflows green on `main`.
-  - Badge added to `README.md`.
+  - Workflows green on `main`. **PENDING PUSH** — first run observable
+    once the public repo is pushed; watch
+    `github.com/Domatix/obsbot-control/actions`.
+  - Badge added to `README.md`. **DONE**.
   - On a `v*` tag, GitHub Release attaches a `.deb` and a `.pkg.tar.zst`.
-  - Commit: `ci: GitHub Actions for build and lint (T-015)`.
-- **Notes**: do not run until repo is on GitHub. Mark `BLOCKED` if still
-  private when reached.
+    **DONE** (configuration) — `deb` + `arch-pkg` jobs gated on
+    `refs/tags/v`, `release` job runs `gh release create` with both.
+  - Commit: `ci: GitHub Actions for build and lint (T-015)`. **DONE** —
+    `9c22184`.
+- **Implementation notes**: `cargo` job runs in a `fedora:42` container
+  (Ubuntu 24.04's libadwaita 1.5 cannot satisfy the workspace's >= 1.6
+  pin). `flatpak` job uses `flatpak-builder --install-deps-from=flathub`
+  on ubuntu-latest. `arch-pkg` runs makepkg as an unprivileged user
+  inside `archlinux:latest` (makepkg refuses root).
 
 ### T-016 — Test-artifact: `.deb` via `cargo-deb`
 - **State**: DONE

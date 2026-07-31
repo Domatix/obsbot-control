@@ -1383,5 +1383,66 @@ native and Flatpak installs).
 
 ---
 
+## ADR-0029 — Defer the project-maintained Spanish translation
+
+**Status**: Accepted, 2026-07-31.
+
+**Context**: SPEC §4.4/§6.5 promised "full localization (English source,
+Spanish at minimum)" with the Spanish translation "maintained by the
+project". Reality at v0.4.2: the gettext scaffolding (T-107) is in place,
+but `po/es.po` is a header-only stub, `po/POTFILES.in` omits two source
+files, and the app effectively ships English-only. Ahead of making the
+repo public, the docs would be promising something that does not exist.
+
+**Decision**: Stop promising a project-maintained Spanish translation.
+SPEC §4.4/§6.5 and SKILLS §2.4 now describe the real state:
+localization-ready scaffolding, English source, community translations
+welcome. A complete `es.po` returns to the v0.6 polish backlog as a
+nice-to-have, not a commitment. Confirmed with the user via
+AskUserQuestion (chose "Quitar la promesa por ahora" over translating
+`es.po` as part of the publication prep).
+
+**Consequences**:
+
+- No false advertising in the public README/SPEC/AppStream.
+- GNOME Circle eligibility is unaffected (i18n framework is present;
+  Circle does not require shipped translations).
+- If a translator steps up, only `po/LINGUAS` + a `.po` file are needed;
+  the meson/gettext wiring already works.
+
+---
+
+## ADR-0030 — Pre-publication documentation reconciliation (T-222)
+
+**Status**: Accepted, 2026-07-31.
+
+**Context**: Before flipping the repository to public, two audit passes
+(ground-truth code inventory + doc cross-check) found systemic drift:
+docs written against the *planned* design in April 2026 had never been
+corrected when implementation diverged. ARCHITECTURE described modules
+that never existed (`models/`, `widgets/`, `usb_backend.rs`) and an
+async worker design that was dropped; SKILLS cited unused crates and a
+phantom pre-commit hook; the README status was three releases behind;
+the AppStream description promised features as "planned" that had
+shipped (and one — continuous PTZ — that shipped and was removed).
+
+**Decision**: Rewrite ARCHITECTURE.md to describe the shipped code, fix
+every factual error found in the other public-facing docs, and adopt
+the rule that docs must describe **shipped reality** — aspirational
+design lives in PLAN task descriptions and ADRs, not in the reference
+docs. SPEC changes from the same audit are recorded separately in
+ADR-0029.
+
+**Consequences**:
+
+- The public repo no longer contains documentation that contradicts
+  the code.
+- Future divergence risk is mitigated by the §4.4 working-tree
+  reconciliation habit plus this precedent: reference docs get fixed
+  in the same task that changes the behaviour, not in a cleanup pass
+  months later.
+
+---
+
 <!-- Append new ADRs above this line, never below. Newest ADRs go at the bottom
      of the list but new entries are added; do not edit old ones. -->

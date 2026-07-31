@@ -10,6 +10,56 @@
 
 ---
 
+## 2026-07-31 (T-222 pre-publication reconciliation + T-015 CI)
+
+### [2026-07-31T00:00:00Z] [T-222] DONE — repo publication-ready
+
+User asked for a full audit before making the repo public and posting
+an announcement. Two explore agents cross-checked every doc against
+the v0.4.2 code. Findings and fixes (commit series on `main`):
+
+- `9c22184` **ci** (T-015): `.github/workflows/ci.yml` — cargo gates in
+  a `fedora:42` container (Ubuntu 24.04's libadwaita 1.5 can't satisfy
+  the >= 1.6 pin), Flatpak build on push/PR, `.deb` + Arch
+  `.pkg.tar.zst` + `gh release create` on `v*` tags. Caveat: "green on
+  main" observable only after the first public push.
+- `894339d` **docs**: ARCHITECTURE.md rewritten to describe the shipped
+  code (was the pre-implementation design: phantom `models/` /
+  `widgets/` modules, dropped async worker, wrong pipeline).
+- `b91d750` **docs**: sweep across README (status v0.4.2, runtime 50,
+  no duplicated release notes, CI badge), ROADMAP (version table),
+  PLAN (milestone header, T-222 registered, backlog), SPEC (Spanish
+  promise softened per ADR-0029), PROTOCOL (status header + shipped
+  outcomes for T-102/103/105/200, T-302 dump dialog removal noted),
+  SKILLS (nusb/anyhow/tracing-subscriber claims, phantom git hook,
+  GSettings key format, XU citation sources), HANDOFF (build paths,
+  PKGBUILD note, public repo), AI_WORKFLOW (INIT_PROMPT.txt /
+  QA_CHECKLIST.md references), CREDITS (added `xu/command02.rs` to the
+  canonical EUPL list).
+- `18492a5` **fix(appstream)**: description lists shipped capabilities;
+  dropped "planned", continuous-PTZ, and direct-USB claims.
+- `e93fb5e` **chore**: unused workspace deps removed (nusb, anyhow,
+  tracing-subscriber, async-channel — Cargo.lock untouched);
+  `.gitignore` covers `*.pkg.tar.zst`; root blob moved to
+  `build-aux/dist/` (turned out to be the 0.4.2 build, fresher than
+  STATE had recorded); cargo-deb description de-versioned.
+- `bd2338c` **fix(flatpak)**: `--filesystem=xdg-pictures` so snapshots
+  can reach `~/Pictures` from the sandbox.
+
+Gates green after every commit: fmt, clippy `-D warnings`,
+`cargo test --workspace` (61 pass / 7 hardware-ignored),
+`meson test -C builddir` 2/2. ADR-0029 (Spanish deferral) and
+ADR-0030 (reconciliation rule: docs describe shipped reality) recorded.
+
+User decisions via AskUserQuestion: full cleanup scope + CI; keep
+`alvaro@domatix.com`; drop the Spanish promise; screenshots deferred to
+the Flathub prep session.
+
+Next (user-driven): push `main`, flip the repo public, watch the first
+CI run, then screenshots + announcement post.
+
+---
+
 ## 2026-06-18 (v0.4.2 release — T-220/T-221 shipped)
 
 ### [2026-06-18T00:00:00Z] [T-220] DONE — user-validated, cut v0.4.2
