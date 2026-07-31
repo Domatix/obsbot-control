@@ -21,7 +21,7 @@ jobs:
       - name: Install build dependencies
         run: |
           dnf install -y --setopt=install_weak_deps=False \
-            rust cargo git \
+            rust cargo rustfmt clippy git \
             gtk4-devel libadwaita-devel \
             blueprint-compiler gettext-devel
       - uses: actions/checkout@v4
