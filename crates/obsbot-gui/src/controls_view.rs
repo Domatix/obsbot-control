@@ -151,7 +151,7 @@ fn build_body(cam: &CameraInfo) -> (gtk::Widget, PreviewSlot, Option<adw::ViewSt
             return (
                 error_status(
                     gettext("Could not read V4L2 controls"),
-                    format!("{path:?}: {err}"),
+                    format!("{}: {err}", path.display()),
                 )
                 .upcast(),
                 empty_preview_slot(),

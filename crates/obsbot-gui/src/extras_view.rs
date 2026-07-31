@@ -61,8 +61,9 @@ pub fn build_extras_group(cam: &CameraInfo) -> Option<adw::PreferencesGroup> {
         Ok(f) => Rc::new(f),
         Err(err) => {
             eprintln!(
-                "warning: extras_view: open {path:?} for XU writes failed: {err}; \
-                 skipping Power & Presets group"
+                "warning: extras_view: open {} for XU writes failed: {err}; \
+                 skipping Power & Presets group",
+                path.display()
             );
             return None;
         }

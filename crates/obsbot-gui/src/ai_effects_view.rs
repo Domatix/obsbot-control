@@ -131,8 +131,9 @@ pub fn build_ai_effects_group(cam: &CameraInfo) -> Option<adw::PreferencesGroup>
         Ok(f) => Rc::new(f),
         Err(err) => {
             eprintln!(
-                "warning: ai_effects_view: open {path:?} for XU writes failed: {err}; \
-                 skipping AI and effects group"
+                "warning: ai_effects_view: open {} for XU writes failed: {err}; \
+                 skipping AI and effects group",
+                path.display()
             );
             return None;
         }
@@ -178,8 +179,9 @@ pub fn build_hdr_group(cam: &CameraInfo) -> Option<adw::PreferencesGroup> {
         Ok(f) => Rc::new(f),
         Err(err) => {
             eprintln!(
-                "warning: ai_effects_view: open {path:?} for HDR writes failed: {err}; \
-                 skipping image-enhancements group"
+                "warning: ai_effects_view: open {} for HDR writes failed: {err}; \
+                 skipping image-enhancements group",
+                path.display()
             );
             return None;
         }
