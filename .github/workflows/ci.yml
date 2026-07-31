@@ -1,0 +1,114 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  cargo:
+    name: fmt + clippy + test
+    # Fedora 42 ships GTK 4.18 + libadwaita 1.7, satisfying the
+    # workspace's libadwaita >= 1.6 requirement (Ubuntu 24.04's 1.5
+    # does not).
+    runs-on: ubuntu-latest
+    container: fedora:42
+    steps:
+      - name: Install build dependencies
+        run: |
+          dnf install -y --setopt=install_weak_deps=False \
+            rust cargo git \
+            gtk4-devel libadwaita-devel \
+            blueprint-compiler gettext-devel
+      - uses: actions/checkout@v4
+      - name: fmt
+        run: cargo fmt --all --check
+      - name: clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: test
+        run: cargo test --workspace
+
+  flatpak:
+    name: Flatpak build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install flatpak-builder
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y flatpak flatpak-builder
+          flatpak remote-add --user --if-not-exists \
+            flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+      - name: Build the Flatpak
+        run: |
+          flatpak-builder --user --force-clean \
+            --install-deps-from=flathub \
+            build-flatpak-ci \
+            build-aux/io.github.domatix.ObsbotCamControl.json
+
+  deb:
+    name: .deb test artifact
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    container: fedora:42
+    steps:
+      - name: Install build dependencies
+        run: |
+          dnf install -y --setopt=install_weak_deps=False \
+            rust cargo git meson ninja-build \
+            gtk4-devel libadwaita-devel \
+            gstreamer1-devel gstreamer1-plugins-base-devel \
+            blueprint-compiler gettext-devel
+          cargo install cargo-deb --locked --version '^2.10'
+      - uses: actions/checkout@v4
+      - name: Build the .deb
+        run: ./build-aux/build-deb.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: deb
+          path: build-aux/dist/*.deb
+
+  arch-pkg:
+    name: Arch .pkg.tar.zst test artifact
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    container: archlinux:latest
+    steps:
+      - name: Install build dependencies
+        run: |
+          pacman -Sy --noconfirm base-devel rust meson clang pkgconf \
+            gtk4 libadwaita git blueprint-compiler
+      - uses: actions/checkout@v4
+      - name: Build the package (as unprivileged user; makepkg refuses root)
+        run: |
+          useradd -m builder
+          chown -R builder "$GITHUB_WORKSPACE"
+          su builder -c "cd '$GITHUB_WORKSPACE' && ./build-aux/build-arch.sh"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: arch-pkg
+          path: build-aux/dist/*.pkg.tar.zst
+
+  release:
+    name: GitHub Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [deb, arch-pkg]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          gh release create "$tag" dist/**/*.deb dist/**/*.pkg.tar.zst \
+            --title "$tag" \
+            --notes "See the AppStream metainfo for release notes. Test artifacts per ADR-0015: Flatpak via Flathub is the supported channel."
