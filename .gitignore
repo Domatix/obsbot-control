@@ -25,6 +25,9 @@ repo/
 build-aux/dist/
 *.deb
 
+# makepkg test-artifact output (T-017).
+*.pkg.tar.zst
+
 # IDE
 .idea/
 .vscode/

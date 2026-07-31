@@ -91,10 +91,10 @@ section = "video"
 priority = "optional"
 extended-description = """\
 Native GNOME application to control OBSBOT Tiny 2 family webcams \
-(Tiny 2 and Tiny 2 Lite) over UVC/V4L2. v0.4.0 ships AI auto-framing, \
+(Tiny 2 and Tiny 2 Lite) over UVC/V4L2. Ships AI auto-framing, \
 HDR, FOV, vendor XU controls, V4L2 standard sliders, single-step PTZ \
 (one click or arrow-key press = one move) with zoom and focus, and a \
-live-preview pipeline with snapshot-to-PNG and a grayscale filter. \
+live-preview pipeline with snapshot-to-PNG. \
 The preview needs the recommended GStreamer plugin packages at \
 runtime (gstreamer1.0-gtk4 in particular); without them the app \
 still runs and reports the missing element. Unofficial test package; \
