@@ -12,6 +12,32 @@
 
 ## 2026-07-31 (T-222 pre-publication reconciliation + T-015 CI)
 
+### [2026-07-31T11:45:00Z] [T-015] DONE — repo PUBLIC, CI green, v0.4.2 released
+
+User approved doing the whole publication flow autonomously. Executed:
+
+- Repo flipped to **public** via `gh repo edit --visibility public`.
+- `main` pushed (`1a1190b..474360b` across the session).
+- First CI run failed twice on environment gaps, fixed iteratively:
+  `990f1e0` (Fedora splits `rustfmt`/`clippy` out of `cargo`),
+  `b2728df` (`clang-libs` for v4l2-sys-mit's bindgen — same reason the
+  Flatpak manifest carries llvm20), `5ae089a` (newer clippy denies
+  `unnecessary_debug_formatting`; switched `{path:?}` →
+  `path.display()` in 4 GUI log calls — passes on both toolchains).
+- Run `30627008041` fully **green**: cargo gates + Flatpak build.
+  Tag-only jobs (deb/arch-pkg/release) correctly skipped on `main`.
+- `474360b`: PKGBUILD pkgver bumped 0.4.1 → 0.4.2 (tag CI names the
+  artifact from it).
+- GitHub Release **v0.4.2** created with locally built
+  `.deb` (0.4.2) + the existing Arch `.pkg.tar.zst` (0.4.2):
+  https://github.com/Domatix/obsbot-control/releases/tag/v0.4.2
+- Repo metadata set for discovery: description + 11 topics (gnome,
+  gtk4, rust, obsbot, webcam, uvc, v4l2, ptz, flatpak, ...).
+
+Still user-driven: Reddit/Mastodon posts (need the user's accounts),
+screenshots (need the camera plugged in — gate for Flathub), native
+`sudo meson install -C builddir` refresh, T-017b Arch validation.
+
 ### [2026-07-31T00:00:00Z] [T-222] DONE — repo publication-ready
 
 User asked for a full audit before making the repo public and posting
