@@ -3913,6 +3913,55 @@
   all three would edit the same insertion point in the ledger; it is
   updated once after the merges.
 
+### T-225 — Load the installed schema, and validate what gets replayed
+- **State**: IN_PROGRESS
+- **Started**: 2026-08-06
+- **Issues**: #3 (schema lookup), #4 (unvalidated replay). Done together
+  because #3 is what makes #4 reachable rather than merely sloppy.
+- **Description**: `settings.rs` only ever looked for the GSettings
+  schema in `OUT_DIR/schemas`, the directory cargo used at build time.
+  On an installed system that path belongs to another machine and no
+  longer exists, so `settings_handle()` returned `None` and persistence
+  was silently dead in every package. The `.deb` failed twice over: its
+  asset list never included the `.gschema.xml`. Meanwhile the values
+  read back from that store were replayed to the device with no
+  validation, and the store is dconf, which any process in the session
+  can write.
+- **Changes**:
+  - `settings.rs::settings_handle`: try `SettingsSchemaSource::default()`
+    first (the system source that meson, the .deb and the Flatpak
+    populate), fall back to the build directory only under
+    `#[cfg(debug_assertions)]`. Release builds therefore bake no build
+    path into the binary and cannot be steered by whoever controls that
+    path on the user's machine.
+  - `crates/obsbot-gui/Cargo.toml`: ship the schema in the `.deb` under
+    `usr/share/glib-2.0/schemas/`. Debian's own dpkg trigger recompiles
+    the cache, so no maintainer script is needed.
+  - `controls_view.rs::sanitize_integer`: pure clamp + step alignment,
+    anchored at `min` per the V4L2 grid. Returns `None` for a
+    self-contradictory descriptor (`min > max`) because `i64::clamp`
+    panics there.
+  - `controls_view.rs::restore_saved_values`: skip controls the kernel
+    reports inactive; clamp integers; replay a menu id only when the
+    driver advertises it (`PROTOCOL §2.3` Q1 shows a menu default can
+    fall outside its own option list).
+- **Acceptance criteria**:
+  - An installed build reads the installed schema. **DONE**.
+  - `cargo run` without `meson install` still works. **DONE** (debug
+    fallback).
+  - No absolute build path in a release binary. **DONE** (`env!` is
+    inside `#[cfg(debug_assertions)]`).
+  - The `.deb` ships the schema. **DONE**.
+  - Restored integers clamped and step-aligned. **DONE**.
+  - Inactive controls skipped, unknown menu ids skipped. **DONE**.
+  - Unit tests for out-of-range, misaligned, zero-step and
+    contradictory descriptors. **DONE** (7 tests).
+  - Four cargo gates green. **DONE** (2026-08-06, 13 unit tests).
+  - **User validation PENDING**: install the `.deb` or the Flatpak on a
+    machine that did not build it, change a slider, restart, confirm the
+    value comes back.
+- **Note**: `STATE.md` / `PROGRESS.md` untouched on this branch, as in
+  T-224; the ledger is updated once after the merges.
 
 ---
 
