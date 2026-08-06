@@ -6,8 +6,27 @@ on:
     tags: ["v*"]
   pull_request:
 
+# Least privilege for every job (T-224). Jobs here run code that arrives
+# from pull-request branches (build.rs, build-aux/*.sh), so they must not
+# inherit a write-capable token from the repository default. The single
+# job that needs to write, `release`, declares its own permission below.
+permissions:
+  contents: read
+
+# A new push to the same ref supersedes the run in flight. Tag runs are
+# excluded: they publish a release and must never be cancelled halfway.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
 env:
   CARGO_TERM_COLOR: always
+
+# Actions are pinned by commit SHA rather than by tag: a tag can be moved
+# in the action's own repository, and these run with access to the build.
+# The trailing comment carries the human-readable version so upgrades stay
+# reviewable. Newer majors exist (checkout v7, artifact v7/v8); moving to
+# them is a separate change with its own testing.
 
 jobs:
   cargo:
@@ -17,6 +36,7 @@ jobs:
     # does not).
     runs-on: ubuntu-latest
     container: fedora:42
+    timeout-minutes: 30
     steps:
       - name: Install build dependencies
         run: |
@@ -24,7 +44,7 @@ jobs:
             rust cargo rustfmt clippy git clang-libs \
             gtk4-devel libadwaita-devel \
             blueprint-compiler gettext-devel
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: fmt
         run: cargo fmt --all --check
       - name: clippy
@@ -32,11 +52,25 @@ jobs:
       - name: test
         run: cargo test --workspace
 
+  audit:
+    name: cargo audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      # Checks Cargo.lock against the RustSec advisory database. Ignored
+      # advisories and the reason for each live in `audit.toml`, which
+      # this action reads automatically.
+      - uses: rustsec/audit-check@69366f33c96575abad1ee0dba8212993eecbe998 # v2.0.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
   flatpak:
     name: Flatpak build
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: Install flatpak-builder
         run: |
           sudo apt-get update
@@ -55,6 +89,7 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     container: fedora:42
+    timeout-minutes: 45
     steps:
       - name: Install build dependencies
         run: |
@@ -63,11 +98,13 @@ jobs:
             gtk4-devel libadwaita-devel \
             gstreamer1-devel gstreamer1-plugins-base-devel \
             blueprint-compiler gettext-devel
-          cargo install cargo-deb --locked --version '^2.10'
-      - uses: actions/checkout@v4
+          # Exact version, not a caret range: a future 2.x lands in the
+          # build without review otherwise.
+          cargo install cargo-deb --locked --version '=2.10.0'
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: Build the .deb
         run: ./build-aux/build-deb.sh
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: deb
           path: build-aux/dist/*.deb
@@ -77,18 +114,19 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     container: archlinux:latest
+    timeout-minutes: 45
     steps:
       - name: Install build dependencies
         run: |
           pacman -Sy --noconfirm base-devel rust meson clang pkgconf \
             gtk4 libadwaita git blueprint-compiler
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: Build the package (as unprivileged user; makepkg refuses root)
         run: |
           useradd -m builder
           chown -R builder "$GITHUB_WORKSPACE"
           su builder -c "cd '$GITHUB_WORKSPACE' && ./build-aux/build-arch.sh"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: arch-pkg
           path: build-aux/dist/*.pkg.tar.zst
@@ -98,17 +136,27 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: [deb, arch-pkg]
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           path: dist
+      # Downstream users have no way to tell whether the binaries they
+      # pull match what CI built. Publish checksums alongside them.
+      - name: Generate checksums
+        run: |
+          cd dist
+          find . -type f \( -name '*.deb' -o -name '*.pkg.tar.zst' \) \
+            -exec sha256sum {} + | sed 's|\./||' > SHA256SUMS
+          cat SHA256SUMS
       - name: Create the release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           tag="${GITHUB_REF_NAME}"
-          gh release create "$tag" dist/**/*.deb dist/**/*.pkg.tar.zst \
+          gh release create "$tag" \
+            dist/**/*.deb dist/**/*.pkg.tar.zst dist/SHA256SUMS \
             --title "$tag" \
-            --notes "See the AppStream metainfo for release notes. Test artifacts per ADR-0015: Flatpak via Flathub is the supported channel."
+            --notes "See the AppStream metainfo for release notes. Test artifacts per ADR-0015: Flatpak via Flathub is the supported channel. Verify downloads against SHA256SUMS."

@@ -3815,6 +3815,44 @@
 
 ---
 
+### T-224 — CI hardening
+- **State**: IN_PROGRESS
+- **Started**: 2026-08-06
+- **Issue**: #5 — "CI workflow declares no minimum permissions".
+- **Description**: Three findings from the security review, all in
+  `.github/workflows/ci.yml`. The workflow declared no `permissions`, so
+  `cargo`, `flatpak`, `deb` and `arch-pkg` inherited the repository
+  default while running code that arrives from pull-request branches.
+  Actions were referenced by moving tag. Nothing checked dependencies
+  against the advisory database, and release artifacts shipped without
+  checksums.
+- **Changes**:
+  - `permissions: contents: read` at workflow level; `release` keeps its
+    explicit `contents: write`.
+  - All actions pinned by commit SHA with the version in a trailing
+    comment. Kept on the v4 line: newer majors exist (checkout v7,
+    artifact v7/v8) and moving to them is a separate change.
+  - New `audit` job running `rustsec/audit-check`, with `audit.toml`
+    at the repo root carrying the one ignored advisory and its reason.
+  - `SHA256SUMS` generated in the `release` job and published with the
+    artifacts.
+  - `timeout-minutes` on every job; `concurrency` group that cancels
+    superseded runs but never a tag run mid-release.
+  - `cargo-deb` pinned to `=2.10.0` instead of the `^2.10` range.
+- **Acceptance criteria**:
+  - Workflow-level `permissions: contents: read`. **DONE**.
+  - `release` still writes. **DONE**.
+  - Every action pinned by SHA. **DONE** (9 references).
+  - Advisory scan on every push and PR. **DONE**.
+  - Checksums published with the release artifacts. **DONE**.
+  - **CI validation PENDING**: the workflow only proves itself by
+    running. The `audit` job is new and `audit.toml` has never been
+    exercised.
+- **Note**: `STATE.md` / `PROGRESS.md` are deliberately untouched on this
+  branch. T-224, T-225 and T-226 are parallel branches off `main` and
+  all three would edit the same insertion point in the ledger; it is
+  updated once after the merges.
+
 ### T-226 — Pin the Flatpak git sources by commit
 - **State**: IN_PROGRESS
 - **Started**: 2026-08-06
@@ -3847,6 +3885,7 @@
     every push, so the PR run is the check.
 - **Note**: `STATE.md` / `PROGRESS.md` untouched on this branch, as in
   T-224 and T-225.
+
 
 ---
 
