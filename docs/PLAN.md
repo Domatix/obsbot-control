@@ -3815,6 +3815,66 @@
 
 ---
 
+### T-223 — Lock zoom
+- **State**: IN_PROGRESS
+- **Started**: 2026-08-06
+- **Depends on**: T-101 (the zoom slider inside the PTZ pad), T-105
+  (per-camera persistence), T-111 (the post-write sensitivity refresh
+  this has to work around).
+- **Issue**: #1 — "Zoom changes on its own during recording".
+- **Description**: The camera moves `zoom_absolute` on its own during a
+  call or a recording: the framing jumps from a wide shot to a close-up
+  with nobody touching the slider. Reading the control back after a jump
+  returns a different value, so the device is genuinely driving it. The
+  working hypothesis is the firmware's own auto-framing (`PROTOCOL.md
+  §3.2`, ten AI tracking modes on XU opcode `0x16`, several of which
+  describe framing behaviour), but `PROTOCOL.md` does not currently state
+  whether AI tracking writes `zoom_absolute`, and this task does not
+  assume it does. The lock is written to hold the value whatever moves
+  it.
+- **Changes**:
+  - `resources/ptz-pad.blp`: `Adw.SwitchRow lock_zoom_row` added to
+    `ptz_group`, under the pad + zoom box.
+  - `ptz_pad.rs::ZoomLock`: pinned value, re-entrancy guard, watchdog
+    source id. The id is held so a fast off-then-on replaces the timer
+    instead of stacking a second one (a released watchdog only notices on
+    its next tick).
+  - `ptz_pad.rs::restore_target`: pure decision function, unit-tested.
+    Writes nothing when the lock is released, nothing when the read
+    failed (same rule as T-216), nothing when the device is already at
+    the pinned value.
+  - `ptz_pad.rs::wire_zoom_lock` + `start_zoom_watchdog`: engage pins the
+    value the *device* reports rather than the slider's, because the two
+    drift apart precisely in the case this exists for. Release leaves the
+    zoom where it is and issues no write.
+  - `ptz_pad.rs`: the zoom adjustment handler stops writing while
+    engaged and snaps the handle back to the pinned value.
+  - Poll cadence `ZOOM_LOCK_POLL = 2 s`, matching `window.rs`'s hot-plug
+    timer so the added syscall load stays in the same order of magnitude
+    as idle.
+  - Persistence via the existing `control-values` dictionary under the
+    key `"Zoom Lock"`. Deliberately not a V4L2 control name:
+    `controls_view::restore_saved_values` looks each saved entry up
+    against the device's advertised controls, so an entry matching none
+    is ignored by that replay path.
+- **Acceptance criteria**:
+  - Lock off: behaviour identical to today. **DONE** (no change to the
+    unlocked write path beyond the guard check).
+  - Lock on: the slider writes nothing and shows as unavailable.
+    **DONE**.
+  - Lock on and device drifted: the pinned value is written back.
+    **DONE** (`restore_target` + watchdog).
+  - Release issues no write and leaves the zoom where it is. **DONE**.
+  - State persists per camera across restarts. **DONE**.
+  - All four cargo gates green (fmt, clippy -D warnings for default and
+    `live-preview`, test). **DONE** (2026-08-06, 10 unit tests pass).
+  - **User validation PENDING**: needs the camera plugged in. Engage the
+    lock, let auto-framing move the zoom, confirm it returns; confirm the
+    slider is inert while locked; confirm the state survives a restart.
+  - **Hardware finding PENDING**: record in `PROTOCOL.md` whether AI
+    tracking is in fact what moves `zoom_absolute`. If it is the only
+    cause, a cheaper no-polling variant becomes possible.
+
 ### T-224 — CI hardening
 - **State**: IN_PROGRESS
 - **Started**: 2026-08-06
