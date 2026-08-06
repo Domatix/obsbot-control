@@ -47,8 +47,10 @@
 //! on them (PROTOCOL §2.3 Q9). `zoom_continuous` is also not surfaced
 //! (Q2 — driver reports out-of-range values).
 
+use std::cell::{Cell, RefCell};
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
+use std::time::Duration;
 
 use gtk4 as gtk;
 use libadwaita as adw;
@@ -84,6 +86,20 @@ pub const PTZ_PAD_IDS: &[u32] = &[
 
 const PTZ_PAD_UI: &str = "/io/github/domatix/ObsbotCamControl/ptz-pad.ui";
 
+/// Persistence key for the T-223 zoom lock, stored in the same
+/// `GSettings` `control-values` dictionary the V4L2 controls use.
+/// Deliberately not a V4L2 control name: `controls_view::
+/// restore_saved_values` walks the device's advertised controls and
+/// looks each one up by name, so an entry that matches no control is
+/// ignored by that replay path and only this module reads it back.
+const ZOOM_LOCK_KEY: &str = "Zoom Lock";
+
+/// How often the T-223 watchdog re-reads `zoom_absolute` while the lock
+/// is engaged. Matches `window.rs`'s hot-plug cadence so the added
+/// syscall load stays in the same order of magnitude as what the app
+/// already does at idle.
+const ZOOM_LOCK_POLL: Duration = Duration::from_secs(2);
+
 /// V4L2 pan/tilt units: 3600 units per degree per `PROTOCOL §2.2`.
 const UNITS_PER_DEGREE: i64 = 3600;
 /// Step size per directional click/keypress, in degrees.
@@ -99,6 +115,47 @@ struct IntRange {
     max: i64,
     step: u64,
     is_active: bool,
+}
+
+/// State of the T-223 zoom lock for one mounted camera.
+///
+/// The Tiny 2 firmware moves `zoom_absolute` on its own while its
+/// on-device auto-framing is running, which shows up mid-call as an
+/// abrupt jump between a wide shot and a close-up (see issue #1). The
+/// lock pins the control: the slider stops writing, and a watchdog puts
+/// the pinned value back whenever the device has drifted away from it.
+#[derive(Default)]
+struct ZoomLock {
+    /// `Some(value)` while engaged, `None` while released. Read by the
+    /// adjustment handler on every slider move and by the watchdog on
+    /// every tick, so it doubles as the watchdog's stop condition.
+    pinned: Cell<Option<i64>>,
+    /// Re-entrancy guard. Snapping the slider handle back to the pinned
+    /// value re-enters `connect_value_changed`; without this the second
+    /// entry would snap again and recurse.
+    applying: Cell<bool>,
+    /// `GLib` source id of the running watchdog. Held so re-engaging the
+    /// lock replaces the timer instead of stacking a second one on top:
+    /// a released watchdog only notices on its next tick, so a fast
+    /// off-then-on would otherwise leave two polling the device.
+    watchdog: RefCell<Option<glib::SourceId>>,
+}
+
+/// Decide what the watchdog must write, if anything.
+///
+/// Pure so the decision can be unit-tested without a device.
+///
+/// - Released lock (`pinned` is `None`) writes nothing.
+/// - A failed read (`current` is `None`) writes nothing either. Same
+///   reasoning as T-216: without a fresh reading of where the control
+///   actually is, an absolute write is a guess, and a wrong guess on
+///   this hardware is a visible jump.
+/// - Otherwise the pinned value is written back only when the device
+///   has actually drifted.
+fn restore_target(current: Option<i64>, pinned: Option<i64>) -> Option<i64> {
+    let pinned = pinned?;
+    let current = current?;
+    (current != pinned).then_some(pinned)
 }
 
 /// Build the PTZ pad widget for the given camera. Returns `None` when
@@ -180,10 +237,25 @@ pub fn build_ptz_pad(
     zoom_scale.set_adjustment(&zoom_adj);
     zoom_scale.set_sensitive(zoom.is_active);
     settings::register_row(CID_ZOOM_ABSOLUTE, &zoom_scale);
+
+    // T-223: shared between the adjustment handler below (which stops
+    // writing while engaged) and the watchdog wired in `wire_zoom_lock`.
+    let zoom_lock = Rc::new(ZoomLock::default());
     {
         let owned_path = owned_path.clone();
         let owned_serial = owned_serial.clone();
+        let zoom_lock = zoom_lock.clone();
         zoom_adj.connect_value_changed(move |adj| {
+            // While the lock is engaged the slider is inert: snap the
+            // handle back to the pinned value instead of writing. The
+            // guard absorbs the re-entry that `set_value` causes.
+            if let Some(pinned) = zoom_lock.pinned.get() {
+                if !zoom_lock.applying.replace(true) {
+                    adj.set_value(f64::from(clamp_i32(pinned)));
+                    zoom_lock.applying.set(false);
+                }
+                return;
+            }
             let value = i64::from(f64_to_i32_saturating(adj.value().round()));
             write(
                 &owned_path,
@@ -195,10 +267,140 @@ pub fn build_ptz_pad(
         });
     }
 
+    wire_zoom_lock(
+        &builder,
+        &zoom_scale,
+        &zoom_adj,
+        &zoom_lock,
+        &owned_path,
+        &owned_serial,
+    );
+
     // Focus moved to its own group on the Main tab (T-220); see
     // `build_focus_group`. The pad here is pan/tilt/zoom only.
 
     Some(group)
+}
+
+/// Wire the T-223 "Lock zoom" switch: pin state, slider sensitivity,
+/// per-camera persistence, and the watchdog that undoes the camera's own
+/// zoom changes.
+///
+/// Engaging pins the value the *device* reports, not the one the slider
+/// shows. The two drift apart precisely when the firmware has been
+/// moving the zoom on its own, which is the case this exists for.
+///
+/// Releasing leaves the zoom wherever it currently is and issues no
+/// write: the user asked to stop holding it, not to move it.
+fn wire_zoom_lock(
+    builder: &gtk::Builder,
+    zoom_scale: &gtk::Scale,
+    zoom_adj: &gtk::Adjustment,
+    lock: &Rc<ZoomLock>,
+    path: &Rc<PathBuf>,
+    serial: &Rc<Option<String>>,
+) {
+    let row: adw::SwitchRow = builder
+        .object("lock_zoom_row")
+        .expect("ptz-pad.ui missing object 'lock_zoom_row'");
+
+    let saved_on = serial
+        .as_deref()
+        .and_then(|s| settings::load_for_camera(s).get(ZOOM_LOCK_KEY).copied())
+        .is_some_and(|v| v != 0);
+
+    {
+        let lock = lock.clone();
+        let zoom_scale = zoom_scale.clone();
+        let zoom_adj = zoom_adj.clone();
+        let path = path.clone();
+        let serial = serial.clone();
+        row.connect_active_notify(move |row| {
+            let on = row.is_active();
+            // Drop any previous watchdog before touching `pinned`, so a
+            // released timer can never outlive its lock.
+            if let Some(id) = lock.watchdog.borrow_mut().take() {
+                id.remove();
+            }
+            if on {
+                let pinned = current_axis(&path, CID_ZOOM_ABSOLUTE)
+                    .unwrap_or_else(|| i64::from(f64_to_i32_saturating(zoom_adj.value().round())));
+                lock.pinned.set(Some(pinned));
+                apply_pinned_to_slider(&zoom_adj, &lock, pinned);
+                zoom_scale.set_sensitive(false);
+                start_zoom_watchdog(&zoom_scale, &zoom_adj, &lock, &path, &serial);
+            } else {
+                lock.pinned.set(None);
+                zoom_scale.set_sensitive(true);
+            }
+            if let Some(s) = serial.as_deref() {
+                settings::save_for_camera(s, ZOOM_LOCK_KEY, i32::from(on));
+            }
+        });
+    }
+
+    // Replaying the saved state goes through the same closure as a user
+    // click, so there is one engage path and not two.
+    if saved_on {
+        row.set_active(true);
+    }
+}
+
+/// Move the slider handle to `pinned` without the adjustment handler
+/// treating it as a user edit. No-op if a snap-back is already running.
+fn apply_pinned_to_slider(adj: &gtk::Adjustment, lock: &Rc<ZoomLock>, pinned: i64) {
+    if lock.applying.replace(true) {
+        return;
+    }
+    adj.set_value(f64::from(clamp_i32(pinned)));
+    lock.applying.set(false);
+}
+
+/// Start the watchdog that re-reads `zoom_absolute` while the lock is
+/// engaged and writes the pinned value back when the device has drifted.
+///
+/// The widgets are captured weakly so the timer removes itself once the
+/// controls page is replaced (camera switch, hot-plug, window close).
+fn start_zoom_watchdog(
+    zoom_scale: &gtk::Scale,
+    zoom_adj: &gtk::Adjustment,
+    lock: &Rc<ZoomLock>,
+    path: &Rc<PathBuf>,
+    serial: &Rc<Option<String>>,
+) {
+    let id = glib::timeout_add_local(
+        ZOOM_LOCK_POLL,
+        glib::clone!(
+            #[weak]
+            zoom_scale,
+            #[weak]
+            zoom_adj,
+            #[strong]
+            lock,
+            #[strong]
+            path,
+            #[strong]
+            serial,
+            #[upgrade_or]
+            glib::ControlFlow::Break,
+            move || {
+                let Some(pinned) = lock.pinned.get() else {
+                    return glib::ControlFlow::Break;
+                };
+                // T-111's post-write refresh re-applies the kernel's
+                // INACTIVE flag to every registered row, which would
+                // hand the slider back to the user mid-lock. Re-assert.
+                zoom_scale.set_sensitive(false);
+                let current = current_axis(&path, CID_ZOOM_ABSOLUTE);
+                if let Some(target) = restore_target(current, Some(pinned)) {
+                    write(&path, CID_ZOOM_ABSOLUTE, "zoom_absolute", target, &serial);
+                    apply_pinned_to_slider(&zoom_adj, &lock, target);
+                }
+                glib::ControlFlow::Continue
+            }
+        ),
+    );
+    *lock.watchdog.borrow_mut() = Some(id);
 }
 
 /// Build the standalone "Focus" group (T-220): an `AdwSwitchRow` for
@@ -571,7 +773,7 @@ fn f64_to_i32_saturating(v: f64) -> i32 {
 
 #[cfg(test)]
 mod tests {
-    use super::next_position;
+    use super::{next_position, restore_target};
 
     // A Tiny 2 Lite advertises pan/tilt roughly ±130° = ±468000 units;
     // the exact bounds do not matter for the arithmetic, only that
@@ -602,5 +804,36 @@ mod tests {
     #[test]
     fn zero_sign_is_a_noop() {
         assert_eq!(next_position(1234, 0, STEP, MIN, MAX), 1234);
+    }
+
+    // ---- T-223 zoom lock ----
+
+    #[test]
+    fn released_lock_never_writes() {
+        assert_eq!(restore_target(Some(40), None), None);
+        // Even when the device has moved, a released lock stays quiet.
+        assert_eq!(restore_target(Some(100), None), None);
+    }
+
+    #[test]
+    fn drifted_zoom_is_pulled_back_to_the_pinned_value() {
+        assert_eq!(restore_target(Some(90), Some(40)), Some(40));
+        assert_eq!(restore_target(Some(0), Some(40)), Some(40));
+    }
+
+    #[test]
+    fn zoom_already_at_the_pinned_value_writes_nothing() {
+        assert_eq!(restore_target(Some(40), Some(40)), None);
+        // Boundaries of the advertised 0..100 range (PROTOCOL §2.2).
+        assert_eq!(restore_target(Some(0), Some(0)), None);
+        assert_eq!(restore_target(Some(100), Some(100)), None);
+    }
+
+    #[test]
+    fn failed_read_writes_nothing() {
+        // Same rule as T-216: no fresh reading, no absolute write. A
+        // guess here is a visible jump on this hardware.
+        assert_eq!(restore_target(None, Some(40)), None);
+        assert_eq!(restore_target(None, None), None);
     }
 }

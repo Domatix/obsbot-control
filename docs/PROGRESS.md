@@ -10,6 +10,59 @@
 
 ---
 
+## 2026-08-06 (T-223 lock zoom)
+
+### [2026-08-06T00:00:00Z] [T-223] Started — issue #1 filed, lock implemented
+
+Issue #1 opened against the public repo ("Zoom changes on its own
+during recording"): the camera moves `zoom_absolute` mid-call with
+nobody touching the slider, and reading the control back after a jump
+confirms the device is driving it. Not reproducible on demand, which
+the issue says outright rather than inventing a recipe. Working
+hypothesis recorded as hypothesis: the firmware's own auto-framing
+(`PROTOCOL.md §3.2`, ten AI modes on XU opcode `0x16`). `PROTOCOL.md`
+does not currently document whether AI tracking writes `zoom_absolute`
+and this task does not assume it does.
+
+Branch `feat/T-223-lock-zoom`. Implementation:
+
+- `resources/ptz-pad.blp` gains `Adw.SwitchRow lock_zoom_row` under the
+  pad + zoom box. Declared in Blueprint, not hand-built, per §5.3.
+- `ptz_pad.rs`: `ZoomLock` holds the pinned value, a re-entrancy guard,
+  and the watchdog source id. The id matters: releasing the lock only
+  stops the timer on its next tick, so without holding it a fast
+  off-then-on would leave two timers polling the device.
+- `restore_target(current, pinned)` is the whole decision, extracted
+  pure so it could be tested without hardware. Writes nothing when
+  released, nothing when the read failed, nothing when already at the
+  pinned value. The failed-read rule is T-216's, reapplied: without a
+  fresh reading an absolute write is a guess, and a wrong guess on this
+  hardware is a visible jump.
+- Engage pins what the *device* reports, not what the slider shows. The
+  two drift apart precisely in the case this feature exists for.
+- Release leaves the zoom where it is and issues no write.
+- The watchdog re-asserts `set_sensitive(false)` on every tick. T-111's
+  post-write refresh re-applies the kernel's INACTIVE flag to every
+  registered row, and `zoom_scale` is registered, so without this the
+  slider would be handed back to the user mid-lock.
+- Persistence reuses the `control-values` dictionary under `"Zoom
+  Lock"`. Not a V4L2 control name on purpose:
+  `controls_view::restore_saved_values` looks saved entries up against
+  the device's advertised controls, so this one is ignored by that
+  replay path and only `ptz_pad` reads it.
+
+Four gates green: `cargo fmt --check`, `cargo clippy --workspace
+--all-targets -D warnings` for the default build and for
+`live-preview`, and `cargo test --workspace` (10 unit tests, 4 of them
+new for `restore_target`).
+
+Still open: user validation with the camera plugged in, and the
+hardware finding on whether AI tracking is what moves the zoom. If it
+turns out to be the only cause, a cheaper no-polling variant becomes
+possible. Both recorded as PENDING in PLAN T-223.
+
+---
+
 ## 2026-07-31 (T-222 pre-publication reconciliation + T-015 CI)
 
 ### [2026-07-31T11:45:00Z] [T-015] DONE — repo PUBLIC, CI green, v0.4.2 released
