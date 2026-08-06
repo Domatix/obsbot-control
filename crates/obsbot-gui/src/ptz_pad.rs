@@ -86,19 +86,26 @@ pub const PTZ_PAD_IDS: &[u32] = &[
 
 const PTZ_PAD_UI: &str = "/io/github/domatix/ObsbotCamControl/ptz-pad.ui";
 
-/// Persistence key for the T-223 zoom lock, stored in the same
-/// `GSettings` `control-values` dictionary the V4L2 controls use.
-/// Deliberately not a V4L2 control name: `controls_view::
-/// restore_saved_values` walks the device's advertised controls and
-/// looks each one up by name, so an entry that matches no control is
-/// ignored by that replay path and only this module reads it back.
-const ZOOM_LOCK_KEY: &str = "Zoom Lock";
-
 /// How often the T-223 watchdog re-reads `zoom_absolute` while the lock
 /// is engaged. Matches `window.rs`'s hot-plug cadence so the added
 /// syscall load stays in the same order of magnitude as what the app
 /// already does at idle.
 const ZOOM_LOCK_POLL: Duration = Duration::from_secs(2);
+
+/// Ticks between two liveness lines in the watchdog log (T-228).
+/// 30 × 2 s = one line a minute while the lock is engaged.
+///
+/// This is not debugging for its own sake. Field testing showed the lock
+/// does not stop the zoom the camera's own L-gesture triggers, and there
+/// are two very different explanations: either the firmware moves
+/// `zoom_absolute` and this watchdog is failing to correct it, or the
+/// gesture zooms inside the ISP without ever touching the UVC control,
+/// in which case watching that control cannot work no matter what.
+/// Telling them apart needs a reading taken while the gesture happens.
+/// Rather than ask someone to babysit `v4l2-ctl`, the watchdog records
+/// what it sees: engage the lock, do the gesture, read the log. Zero
+/// drifts next to a zoom that visibly happened is the answer.
+const ZOOM_LOCK_LOG_EVERY: u32 = 30;
 
 /// V4L2 pan/tilt units: 3600 units per degree per `PROTOCOL §2.2`.
 const UNITS_PER_DEGREE: i64 = 3600;
@@ -139,6 +146,11 @@ struct ZoomLock {
     /// a released watchdog only notices on its next tick, so a fast
     /// off-then-on would otherwise leave two polling the device.
     watchdog: RefCell<Option<glib::SourceId>>,
+    /// Watchdog ticks since the lock was engaged, and drifts corrected
+    /// in that time (T-228). Reported to stderr; see
+    /// [`ZOOM_LOCK_LOG_EVERY`] for what question they answer.
+    polls: Cell<u32>,
+    drifts: Cell<u32>,
 }
 
 /// Decide what the watchdog must write, if anything.
@@ -304,10 +316,11 @@ fn wire_zoom_lock(
         .object("lock_zoom_row")
         .expect("ptz-pad.ui missing object 'lock_zoom_row'");
 
-    let saved_on = serial
-        .as_deref()
-        .and_then(|s| settings::load_for_camera(s).get(ZOOM_LOCK_KEY).copied())
-        .is_some_and(|v| v != 0);
+    // T-228: read from the application-wide key, not from the per-camera
+    // map. That map is keyed by USB serial and the Tiny 2 Lite reports
+    // none (PROTOCOL.md §5), so the lock never survived a restart on the
+    // hardware it was written for.
+    let saved_on = settings::zoom_lock();
 
     {
         let lock = lock.clone();
@@ -326,16 +339,22 @@ fn wire_zoom_lock(
                 let pinned = current_axis(&path, CID_ZOOM_ABSOLUTE)
                     .unwrap_or_else(|| i64::from(f64_to_i32_saturating(zoom_adj.value().round())));
                 lock.pinned.set(Some(pinned));
+                lock.polls.set(0);
+                lock.drifts.set(0);
                 apply_pinned_to_slider(&zoom_adj, &lock, pinned);
                 zoom_scale.set_sensitive(false);
+                eprintln!("zoom lock: engaged, pinned at {pinned}");
                 start_zoom_watchdog(&zoom_scale, &zoom_adj, &lock, &path, &serial);
             } else {
                 lock.pinned.set(None);
                 zoom_scale.set_sensitive(true);
+                eprintln!(
+                    "zoom lock: released after {} polls, {} drift(s) corrected",
+                    lock.polls.get(),
+                    lock.drifts.get(),
+                );
             }
-            if let Some(s) = serial.as_deref() {
-                settings::save_for_camera(s, ZOOM_LOCK_KEY, i32::from(on));
-            }
+            settings::set_zoom_lock(on);
         });
     }
 
@@ -392,9 +411,26 @@ fn start_zoom_watchdog(
                 // hand the slider back to the user mid-lock. Re-assert.
                 zoom_scale.set_sensitive(false);
                 let current = current_axis(&path, CID_ZOOM_ABSOLUTE);
+                lock.polls.set(lock.polls.get() + 1);
                 if let Some(target) = restore_target(current, Some(pinned)) {
+                    lock.drifts.set(lock.drifts.get() + 1);
+                    eprintln!(
+                        "zoom lock: drift, device at {} but pinned at {target}; writing it back",
+                        current.map_or_else(|| "?".to_string(), |v| v.to_string()),
+                    );
                     write(&path, CID_ZOOM_ABSOLUTE, "zoom_absolute", target, &serial);
                     apply_pinned_to_slider(&zoom_adj, &lock, target);
+                }
+                // T-228: a periodic line so "the watchdog never ran" and
+                // "the watchdog ran and saw nothing move" stop looking
+                // alike in a log.
+                if lock.polls.get() % ZOOM_LOCK_LOG_EVERY == 0 {
+                    eprintln!(
+                        "zoom lock: alive, {} polls, {} drift(s), device reads {}",
+                        lock.polls.get(),
+                        lock.drifts.get(),
+                        current.map_or_else(|| "unreadable".to_string(), |v| v.to_string()),
+                    );
                 }
                 glib::ControlFlow::Continue
             }

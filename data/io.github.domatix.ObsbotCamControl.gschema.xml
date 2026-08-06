@@ -53,6 +53,21 @@
         AdwStyleManager (T-215).
       </description>
     </key>
+    <key name="zoom-lock" type="b">
+      <default>false</default>
+      <summary>Hold the zoom where the user set it</summary>
+      <description>
+        When true, the zoom slider stops writing and a watchdog puts the
+        pinned value back whenever the device drifts away from it (T-223).
+
+        Stored as one application-wide boolean rather than inside the
+        per-camera control-values map (T-228). That map is keyed by USB
+        serial, and the Tiny 2 Lite reports iSerial = 0, so nothing keyed
+        by serial persists on it at all (see PROTOCOL.md section 5). A
+        boolean does not need to distinguish cameras for the
+        single-camera setup this application supports.
+      </description>
+    </key>
     <key name="preview-default-on" type="b">
       <default>false</default>
       <summary>Start the live preview on page open</summary>

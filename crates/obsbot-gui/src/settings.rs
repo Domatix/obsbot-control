@@ -61,6 +61,9 @@ const KEY_PREVIEW_DEFAULT_ON: &str = "preview-default-on";
 /// `GSettings` key for the T-215 appearance preference
 /// (`"default"` / `"light"` / `"dark"`).
 const KEY_COLOR_SCHEME: &str = "color-scheme";
+/// `GSettings` key for the T-223 zoom lock, application-wide rather
+/// than per camera. See [`zoom_lock`] for why.
+const KEY_ZOOM_LOCK: &str = "zoom-lock";
 /// Duration in seconds before a write-failure toast auto-dismisses.
 /// `adw::Toast` interprets `0` as "never auto-dismiss"; we want users
 /// to actually notice the message but not be hostage to it.
@@ -265,6 +268,32 @@ pub fn color_scheme() -> String {
         || "default".to_string(),
         |s| s.string(KEY_COLOR_SCHEME).to_string(),
     )
+}
+
+/// Read the saved zoom-lock state (T-223, moved out of the per-camera
+/// map in T-228). Defaults to `false` when the schema cannot be opened.
+///
+/// Application-wide on purpose. The per-camera `control-values` map is
+/// keyed by USB serial, and the Tiny 2 Lite reports `iSerial = 0`, so
+/// anything keyed by serial never persists on that model at all
+/// (`PROTOCOL.md` §5 records the T-105 decision to accept that). The
+/// lock shipped inside that map and therefore never came back after a
+/// restart on the very hardware it was written for. A single boolean
+/// needs no per-camera identity for a single-camera setup.
+pub fn zoom_lock() -> bool {
+    settings_handle().is_some_and(|s| s.boolean(KEY_ZOOM_LOCK))
+}
+
+/// Persist the zoom-lock state (T-223 / T-228). Best-effort: a failure
+/// costs the setting across restarts, never the live behaviour.
+pub fn set_zoom_lock(on: bool) {
+    let Some(settings) = settings_handle() else {
+        eprintln!("warning: GSettings schema not loadable; zoom lock not saved");
+        return;
+    };
+    if let Err(err) = settings.set_boolean(KEY_ZOOM_LOCK, on) {
+        eprintln!("warning: failed to save the zoom lock state: {err}");
+    }
 }
 
 /// Persist the appearance preference (T-215). Best-effort: failures are

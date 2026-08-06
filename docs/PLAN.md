@@ -4036,6 +4036,60 @@
 
 ---
 
+### T-228 — Zoom lock: fix persistence, and instrument the open question
+- **State**: IN_PROGRESS
+- **Started**: 2026-08-06
+- **Issue**: #1 (reopened by field testing).
+- **Depends on**: T-223, T-225 (the schema lookup fix, without which the
+  new key would not load on an installed build either).
+- **Description**: Two defects reported from a real session. The switch
+  came back off after a restart, and engaging it did not stop the zoom
+  the camera's own L-gesture triggers.
+- **Defect 1, persistence — fixed.** The lock was stored in the
+  per-camera `control-values` map, which is keyed by USB serial. The
+  Tiny 2 Lite reports `iSerial = 0`, and `PROTOCOL.md` §5 records the
+  T-105 decision that on that model the GUI simply does not persist
+  anything. The lock inherited that limitation on exactly the hardware
+  it was written for. Moved to a new application-wide `zoom-lock`
+  boolean in the schema: a boolean needs no per-camera identity for the
+  single-camera setup this app supports.
+- **Defect 2, no effect — not fixed, instrumented instead.** T-223 was
+  built on a hypothesis this session's testing refutes: that whatever
+  moves the zoom does so through `zoom_absolute`. Two explanations
+  remain and they lead opposite ways. Either the firmware does move the
+  control and the watchdog is failing to correct it, which is fixable;
+  or the gesture zooms inside the ISP without touching the UVC control,
+  in which case watching that control can never work and the feature has
+  to be rethought or withdrawn.
+  Deciding needs a reading of `zoom_absolute` taken while the gesture
+  happens, and the user cannot run that test by hand. So the watchdog now
+  reports what it sees: a line per drift corrected, a liveness line every
+  30 polls with the value the device returns, and a summary on release.
+  Engaging the lock and using the camera normally now produces the
+  missing data as a side effect.
+- **Research done (2026-08-06)**: no FOSS project exposes gesture
+  control. `cgevans/tiny2` and `taxfromdk/obsbot_tiny_reversing` have
+  nothing; `OpenFoxes/Tiny4Linux`'s README states that gesture settings
+  are configured once from OBSBOT Center inside a Windows VM and then
+  persist on the camera. The user has ruled that route out. The XU
+  opcodes that would carry it are among the unmapped ones
+  (`0x02`, `0x05`, `0x06`-`0x15`, `0x17`+).
+  One useful finding: what `taxfromdk` labelled "suspected zoom" is
+  `controlWrite(0x21, 0x01, 0x0B00, 0x0100, ...)`, i.e. UVC selector
+  `0x0B` (`CT_ZOOM_ABSOLUTE_CONTROL`) on unit 1, the Camera Terminal.
+  That is the same control the kernel exposes as `zoom_absolute`, so the
+  proprietary app's own zoom does travel this path. It does not settle
+  whether the gesture does.
+- **Acceptance criteria**:
+  - The lock survives a restart on a camera with no serial. **DONE**.
+  - Watchdog activity is visible in the log. **DONE**.
+  - Four cargo gates green. **DONE** (17 unit tests).
+  - **Field data PENDING**: run with the lock engaged, trigger the
+    gesture, read stderr. Zero drifts beside a zoom that visibly
+    happened settles it.
+
+---
+
 ## Backlog (future milestones)
 
 The detailed task breakdown for a milestone is filled in when the
