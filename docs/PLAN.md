@@ -4003,6 +4003,39 @@
 
 ---
 
+### T-227 — Self-contained PKGBUILD
+- **State**: DONE
+- **Started**: 2026-08-06
+- **Completed**: 2026-08-06
+- **Issue**: #11
+- **Description**: `build-aux/PKGBUILD` declared `source=()` and built
+  `$startdir/..`, so it only worked from inside a clone and could not go
+  to the AUR. `build-arch.sh` passed `--skipchecksums` because there was
+  nothing to verify, which would have silently disabled verification the
+  day a `source` was added. The comment justifying all this said "while
+  the repo is private and pre-tag"; the repo has been public since
+  2026-07-31 with two published releases.
+- **Changes**:
+  - New `build-aux/aur/PKGBUILD`: fetches the release tarball and
+    verifies a real sha256. Builds from an empty directory.
+  - `build-aux/PKGBUILD`: kept for testing an unreleased tree, with its
+    comment rewritten to say so and to point at the other one.
+  - `build-arch.sh`: `--skipchecksums` dropped. It was never needed with
+    an empty `source=()`.
+  - README documents both and which is which.
+- **Acceptance criteria**:
+  - `makepkg -si` works from an empty directory. **DONE** (shape
+    verified; a real Arch host run is still pending, same standing
+    caveat as T-017).
+  - Real `sha256sums`, no `SKIP`, no `--skipchecksums`. **DONE**
+    (`e0523928…`, verified against the release tarball).
+  - Local-tree path still works. **DONE** (unchanged except the flag).
+  - README covers both. **DONE**.
+- **Not done**: publishing to the AUR. That is a maintenance
+  commitment and needs its own decision; issue #11 stays open for it.
+
+---
+
 ## Backlog (future milestones)
 
 The detailed task breakdown for a milestone is filled in when the

@@ -1,0 +1,63 @@
+# Maintainer: Domatix and contributors <noreply@domatix.com>
+#
+# Self-contained PKGBUILD (T-227). Unlike build-aux/PKGBUILD, which
+# builds the working tree next to it for local testing, this one fetches
+# and verifies a published release tarball. It therefore works from an
+# empty directory:
+#
+#   mkdir /tmp/obsbot && cd /tmp/obsbot
+#   curl -O https://raw.githubusercontent.com/Domatix/obsbot-control/main/build-aux/aur/PKGBUILD
+#   makepkg -si
+#
+# This is the shape the AUR requires. Publishing it there is a separate
+# decision (see issue #11): the AUR is a maintenance commitment, not just
+# an upload.
+#
+# ## Bumping the version
+#
+# `sha256sums` must be regenerated on every version bump:
+#
+#   updpkgsums                                    # from pacman-contrib
+#   # or, by hand:
+#   curl -sL "https://github.com/Domatix/obsbot-control/archive/refs/tags/v<ver>.tar.gz" \
+#     | sha256sum
+#
+# GitHub's auto-generated source archives are not guaranteed to be
+# byte-stable forever; they changed once in 2023 and broke checksums
+# across the AUR. If that happens again the fix is to attach a tarball
+# built by CI to each release and point `source` at that asset instead.
+# Verifying a real hash is still worth more than the `SKIP` a git source
+# would need.
+
+pkgname=obsbot-cam-control
+pkgver=0.4.2
+pkgrel=1
+pkgdesc="Native GNOME app to control OBSBOT Tiny 2 family webcams over UVC/V4L2"
+arch=('x86_64')
+url="https://github.com/Domatix/obsbot-control"
+license=('GPL-3.0-or-later')
+# Runtime deps mirror build-aux/PKGBUILD; see the rationale there.
+depends=('gtk4' 'libadwaita' 'gst-plugins-base' 'gst-plugins-good'
+         'gst-plugin-gtk4')
+makedepends=('rust' 'meson' 'clang' 'pkgconf' 'blueprint-compiler')
+source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
+sha256sums=('e0523928d173618d1c071b9ef09fdc57022bd2d267e077cac0625bd5bd692544')
+# The workspace's [profile.release] already does lto = "thin" +
+# strip = "symbols"; skip makepkg's own debug package.
+options=('!debug' '!lto')
+
+# The tarball unpacks to <repo>-<version>, not <pkgname>-<version>.
+_srcdir="obsbot-control-$pkgver"
+
+build() {
+    # arch-meson runs with --buildtype=plain, which the top-level
+    # meson.build maps to cargo's release profile.
+    arch-meson "$_srcdir" build -Dlive-preview=true
+    meson compile -C build
+}
+
+package() {
+    meson install -C build --destdir="$pkgdir"
+    install -Dm644 "$_srcdir/LICENSE" \
+        "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+}

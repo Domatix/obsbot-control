@@ -9,8 +9,8 @@
 # Must run on an Arch (or Arch-derivative) host. Mirrors the shape
 # of `build-deb.sh`:
 #   1. cd build-aux/ (where PKGBUILD lives)
-#   2. makepkg -f --skipchecksums (source=() is empty, no real
-#      checksums to compute)
+#   2. makepkg -f (build-aux/PKGBUILD has source=(), so there is
+#      nothing to fetch or verify: it builds the tree in place)
 #   3. mv the resulting *.pkg.tar.zst into build-aux/dist/
 #
 # Usage: `./build-aux/build-arch.sh` (no arguments).
@@ -66,7 +66,7 @@ fi
 mkdir -p "$dist"
 
 cd "$here"
-makepkg --force --skipchecksums --noconfirm
+makepkg --force --noconfirm
 
 mv ./*.pkg.tar.zst "$dist/"
 
