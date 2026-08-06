@@ -12,6 +12,62 @@
 
 ## 2026-08-06 (T-223 lock zoom)
 
+### [2026-08-06T12:00:00Z] [T-223/224/225/226] DONE — security review landed, four PRs merged
+
+A static security review of v0.4.2 (commit 5cd5814) covered the three
+crates, the build script, the Flatpak manifest, the PKGBUILD, the
+packaging scripts, the CI workflow, the GSettings schema and all 189
+crates in `Cargo.lock`. No critical or high finding. The XU ioctl layer
+came out clean: one `unsafe` block, isolated, with a SAFETY comment that
+holds, and lengths validated against `UVC_GET_LEN` before every
+transfer. The GStreamer pipeline is built by factory, not by
+`parse_launch`, so there is no pipeline-injection surface.
+
+Dependencies were checked against OSV, then each hit re-checked with
+`cargo tree` to see whether it reaches a shipped binary.
+RUSTSEC-2026-0190 (`anyhow` < 1.0.103) does not: the path is
+wit-bindgen -> wasip2/wasip3 -> getrandom -> tempfile, all WASI-only,
+and tempfile is a dev-dependency. RUSTSEC-2024-0436 (`paste`
+unmaintained) does, through gstreamer 0.23, and is now the one entry in
+`audit.toml` with its reason and its way out.
+
+Five issues filed (#3-#7), four PRs merged:
+
+- **#8 / T-224** — the workflow declared no `permissions`, so jobs
+  running pull-request code inherited the repository default. Now
+  `contents: read` at workflow level, actions pinned by commit SHA, a
+  `cargo audit` job, SHA256SUMS on releases, per-job timeouts and a
+  concurrency group.
+- **#9 / T-225** — `settings.rs` only ever looked for the schema in the
+  build directory, so persistence was silently dead in every installed
+  package and the `.deb` did not even ship the `.gschema.xml`. The
+  system schema source is tried first now; the build-directory lookup
+  survives only under `cfg(debug_assertions)`, which also keeps the
+  build host's path out of release binaries. The values coming back from
+  that store are no longer replayed to the device unvalidated: clamped,
+  step-aligned, inactive controls skipped, unknown menu ids skipped.
+- **#10 / T-226** — both Flatpak git sources carry the commit their tag
+  resolves to. Removing `--share=network` is deliberately left out; it
+  needs a generated `cargo-sources.json` that only proves itself by
+  building the Flatpak end to end, so #6 stays open for that half.
+- **#2 / T-223** — the zoom lock (see the entry above).
+
+Merging the four hit the conflict the PR bodies predicted: parallel
+branches all inserting their section at the same point in `PLAN.md`.
+Resolved by merging main into each branch and keeping both sections, in
+numeric order. No force-push. All four tasks are DONE in `PLAN.md`.
+
+Two things stay open and are not oversights. #7 collects the
+low-severity findings (unescaped Pango markup from device strings, the
+public enumerator building `/dev` paths, two panics in `preview.rs`,
+sandbox-blind device-in-use detection, snapshot overwrite) as
+independent small fixes. And T-223 has no hardware validation: the unit
+plugged in during this session is an OBSBOT Meet SE (`3564:fefe`), which
+`enumerate.rs` rejects because `TINY2_FAMILY` only lists `fef8` and
+`fef9`. Supporting it is not the one-line change ADR-0014 promises,
+because the same constant gates whether XU frames get sent, and those
+selectors are confirmed against the Tiny 2 only.
+
 ### [2026-08-06T00:00:00Z] [T-223] Started — issue #1 filed, lock implemented
 
 Issue #1 opened against the public repo ("Zoom changes on its own

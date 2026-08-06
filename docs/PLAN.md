@@ -3816,8 +3816,9 @@
 ---
 
 ### T-223 — Lock zoom
-- **State**: IN_PROGRESS
+- **State**: DONE
 - **Started**: 2026-08-06
+- **Completed**: 2026-08-06
 - **Depends on**: T-101 (the zoom slider inside the PTZ pad), T-105
   (per-camera persistence), T-111 (the post-write sensitivity refresh
   this has to work around).
@@ -3876,8 +3877,9 @@
     cause, a cheaper no-polling variant becomes possible.
 
 ### T-224 — CI hardening
-- **State**: IN_PROGRESS
+- **State**: DONE
 - **Started**: 2026-08-06
+- **Completed**: 2026-08-06
 - **Issue**: #5 — "CI workflow declares no minimum permissions".
 - **Description**: Three findings from the security review, all in
   `.github/workflows/ci.yml`. The workflow declared no `permissions`, so
@@ -3914,8 +3916,9 @@
   updated once after the merges.
 
 ### T-225 — Load the installed schema, and validate what gets replayed
-- **State**: IN_PROGRESS
+- **State**: DONE
 - **Started**: 2026-08-06
+- **Completed**: 2026-08-06
 - **Issues**: #3 (schema lookup), #4 (unvalidated replay). Done together
   because #3 is what makes #4 reachable rather than merely sloppy.
 - **Description**: `settings.rs` only ever looked for the GSettings
@@ -3964,8 +3967,9 @@
   T-224; the ledger is updated once after the merges.
 
 ### T-226 — Pin the Flatpak git sources by commit
-- **State**: IN_PROGRESS
+- **State**: DONE
 - **Started**: 2026-08-06
+- **Completed**: 2026-08-06
 - **Issue**: #6 — partial. Closes the mutable-tag half; the offline-build
   half is tracked separately.
 - **Description**: The manifest pinned `blueprint-compiler` and
