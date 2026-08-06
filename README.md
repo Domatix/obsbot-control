@@ -161,16 +161,34 @@ sudo apt remove obsbot-cam-control              # removes everything
 > package. Build, install, remove; no commitment to track Arch
 > packaging policy churn.
 
-On an Arch (or Arch-derivative) host:
+There are two PKGBUILDs, for two different jobs.
+
+**To install a published release** (works from an empty directory, no
+clone needed):
+
+```sh
+mkdir /tmp/obsbot && cd /tmp/obsbot
+curl -O https://raw.githubusercontent.com/Domatix/obsbot-control/main/build-aux/aur/PKGBUILD
+makepkg -si
+```
+
+[`build-aux/aur/PKGBUILD`](build-aux/aur/PKGBUILD) fetches the release
+tarball and verifies its `sha256sum`. This is the shape the AUR
+requires; whether to publish it there is still open (issue #11).
+
+**To test the tree you have checked out**, on an Arch (or
+Arch-derivative) host:
 
 ```sh
 ./build-aux/build-arch.sh
 ```
 
-The shim runs `makepkg -f --skipchecksums` against
-[`build-aux/PKGBUILD`](build-aux/PKGBUILD) and drops the resulting
+The shim runs `makepkg -f` against
+[`build-aux/PKGBUILD`](build-aux/PKGBUILD), which has `source=()` and
+builds `$startdir/..` in place, and drops the resulting
 `obsbot-cam-control-<version>-1-x86_64.pkg.tar.zst` under
-`build-aux/dist/`.
+`build-aux/dist/`. That one is deliberately not self-contained: it
+exists to package an unreleased revision.
 
 Install / uninstall:
 

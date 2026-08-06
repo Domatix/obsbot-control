@@ -8,7 +8,7 @@
 # remains the supported distribution channel (target: v1.0).
 #
 # Invocation (Arch host):
-#   cd build-aux && makepkg -f --skipchecksums
+#   cd build-aux && makepkg -f
 # Or, from the repo root:
 #   ./build-aux/build-arch.sh
 #
@@ -16,10 +16,15 @@
 # `build-aux/dist/`. Install with `sudo pacman -U <pkg>`;
 # remove with `sudo pacman -R obsbot-cam-control`.
 #
-# `source=()` is intentional: the PKGBUILD ships inside the repo
-# and builds the working tree at `$startdir/..` directly. No
-# tarball / git+https URL while the repo is private and pre-tag;
-# revisit when v1.0 lands a public release.
+# `source=()` is intentional *for this file*: it ships inside the
+# repo and builds the working tree at `$startdir/..`, which is what
+# makes it useful for testing an unreleased revision. It is therefore
+# NOT usable outside a clone and NOT publishable to the AUR.
+#
+# The self-contained counterpart lives at `build-aux/aur/PKGBUILD`
+# (T-227): it fetches a release tarball and verifies its sha256. Use
+# that one to install a published version, this one to test the tree
+# you have checked out.
 
 pkgname=obsbot-cam-control
 pkgver=0.4.2
