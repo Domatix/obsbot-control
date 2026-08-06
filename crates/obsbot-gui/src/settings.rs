@@ -184,19 +184,56 @@ pub fn surface_error(msg: &str) {
     }
 }
 
-/// Resolve the [`gio::Settings`] handle for the app, loading the
-/// compiled schema from `OUT_DIR/schemas/` (set by `build.rs`).
-/// Returns `None` if the schema source can not be opened — callers
-/// then degrade gracefully (warning + persistence disabled).
+/// Resolve the [`gio::Settings`] handle for the app.
+///
+/// Looks in the system schema source first — the one `meson install`,
+/// the `.deb` and the Flatpak populate under
+/// `$datadir/glib-2.0/schemas`. That is the production path, and until
+/// T-225 it did not exist: the only lookup was the build directory
+/// `build.rs` had staged, which on an installed system belongs to
+/// another machine and is long gone. Persistence was therefore dead in
+/// every package, silently.
+///
+/// The build-directory lookup survives as a fallback so `cargo run`
+/// works without `meson install`, but only in debug builds. Keeping it
+/// out of release builds means no absolute path from the build host is
+/// baked into a shipped binary, and no release binary can be steered by
+/// whoever happens to control that path on the user's machine.
+///
+/// Returns `None` when neither source yields the schema — callers then
+/// degrade gracefully (warning + persistence disabled).
 fn settings_handle() -> Option<gio::Settings> {
-    let schema_dir: PathBuf = PathBuf::from(env!("OBSBOT_DEV_SCHEMA_DIR"));
-    let source = gio::SettingsSchemaSource::from_directory(&schema_dir, None, false).ok()?;
-    let schema = source.lookup(APP_ID, false)?;
+    let schema = installed_schema().or_else(dev_schema)?;
     Some(gio::Settings::new_full(
         &schema,
         gio::SettingsBackend::NONE,
         None,
     ))
+}
+
+/// Look the schema up in the system schema source. `recursive` is on so
+/// the lookup follows the source's parent chain, which is how
+/// `XDG_DATA_DIRS`-provided schemas are found next to the system ones.
+fn installed_schema() -> Option<gio::SettingsSchema> {
+    gio::SettingsSchemaSource::default()?.lookup(APP_ID, true)
+}
+
+/// Debug-only fallback: the compiled schema `build.rs` stages into
+/// `OUT_DIR/schemas/`. Compiled out of release builds entirely, so
+/// `env!` never puts the build path in a shipped binary.
+#[cfg(debug_assertions)]
+fn dev_schema() -> Option<gio::SettingsSchema> {
+    let schema_dir: PathBuf = PathBuf::from(env!("OBSBOT_DEV_SCHEMA_DIR"));
+    gio::SettingsSchemaSource::from_directory(&schema_dir, None, false)
+        .ok()?
+        .lookup(APP_ID, false)
+}
+
+/// Release builds have no fallback: an installed application reads the
+/// installed schema or does without persistence.
+#[cfg(not(debug_assertions))]
+fn dev_schema() -> Option<gio::SettingsSchema> {
+    None
 }
 
 /// Load every saved control value for the given camera serial.
