@@ -202,16 +202,71 @@ fn restore_saved_values(
         let Some(stored) = saved.get(&ctrl.name) else {
             continue;
         };
+        // T-225: these values come back from dconf, which any process in
+        // the user's session can write without privileges. Treat them as
+        // untrusted input, not as something this app wrote.
+        //
+        // The stakes are not theoretical. T-216 (see `ptz_pad.rs`)
+        // exists because a large fast absolute move hangs the Tiny 2
+        // firmware, and this path writes absolute positions at page
+        // open, when the camera may have just woken up. `CLAUDE.md` §5.5
+        // asks for no untested command to reach the device.
+        //
+        // A control the kernel currently reports as inactive is skipped
+        // outright: writing to it is a no-op at best, and at worst it
+        // fights whatever mode made it inactive.
+        if !ctrl.is_active {
+            continue;
+        }
         let value = match &ctrl.kind {
-            ControlKind::Integer { .. } => ControlValue::Integer(i64::from(*stored)),
+            ControlKind::Integer { min, max, step, .. } => {
+                match sanitize_integer(i64::from(*stored), *min, *max, *step) {
+                    Some(v) => ControlValue::Integer(v),
+                    None => continue,
+                }
+            }
             ControlKind::Boolean { .. } => ControlValue::Boolean(*stored != 0),
-            ControlKind::Menu { .. } => ControlValue::Menu(i64::from(*stored)),
+            // Only replay a menu id the driver actually advertises.
+            // `PROTOCOL §2.3` quirk Q1 is the reminder that a menu's own
+            // default can fall outside its option list, so the option
+            // list is the only thing worth trusting here.
+            ControlKind::Menu { options, .. } => {
+                let id = i64::from(*stored);
+                if !options.iter().any(|(opt, _)| *opt == id) {
+                    continue;
+                }
+                ControlValue::Menu(id)
+            }
             _ => continue,
         };
         settings::write_and_save(path, ctrl.id, value, Some(serial), &ctrl.name);
     }
 
     read_controls(path).ok()
+}
+
+/// Bring a persisted integer back inside the envelope the driver just
+/// advertised (T-225).
+///
+/// Clamps to `[min, max]` and snaps to the advertised `step`, anchored
+/// at `min` the way V4L2 defines the grid. Returns `None` for a
+/// descriptor that contradicts itself (`min > max`), because there is no
+/// safe value to derive from it and skipping is always safe.
+///
+/// Pure so the rules can be unit-tested without a device.
+fn sanitize_integer(value: i64, min: i64, max: i64, step: u64) -> Option<i64> {
+    if min > max {
+        return None;
+    }
+    let clamped = value.clamp(min, max);
+    let step = i64::try_from(step).unwrap_or(1).max(1);
+    if step == 1 {
+        return Some(clamped);
+    }
+    // Align down to the grid. `clamped - min` cannot overflow after the
+    // clamp above, and the result stays inside the range by construction.
+    let aligned = min + ((clamped - min) / step) * step;
+    Some(aligned)
 }
 
 /// Build the controls body: the live-preview card (when the
@@ -1085,4 +1140,81 @@ fn error_status(title: String, description: String) -> adw::StatusPage {
         .title(title)
         .description(description)
         .build()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::sanitize_integer;
+
+    /// Real envelope of `pan_absolute` on a Tiny 2 Lite: ±130° at 3600
+    /// units per degree, stepping one degree at a time.
+    const PAN_MIN: i64 = -468_000;
+    const PAN_MAX: i64 = 468_000;
+    const PAN_STEP: u64 = 3600;
+    /// Same step in the signed domain, so the assertions below need no
+    /// cast (clippy rejects `u64 as i64` under `-D warnings`).
+    const PAN_STEP_SIGNED: i64 = 3600;
+
+    #[test]
+    fn in_range_aligned_value_passes_through() {
+        assert_eq!(
+            sanitize_integer(18_000, PAN_MIN, PAN_MAX, PAN_STEP),
+            Some(18_000)
+        );
+        assert_eq!(sanitize_integer(0, PAN_MIN, PAN_MAX, PAN_STEP), Some(0));
+    }
+
+    #[test]
+    fn out_of_range_is_clamped() {
+        // The case that motivated T-225: dconf holding a value the
+        // driver never advertised, replayed straight to the gimbal.
+        assert_eq!(
+            sanitize_integer(2_000_000, PAN_MIN, PAN_MAX, PAN_STEP),
+            Some(PAN_MAX)
+        );
+        assert_eq!(
+            sanitize_integer(-2_000_000, PAN_MIN, PAN_MAX, PAN_STEP),
+            Some(PAN_MIN)
+        );
+    }
+
+    #[test]
+    fn misaligned_value_snaps_down_to_the_grid() {
+        // 18_500 sits between two 3600-unit stops; the grid is anchored
+        // at min, not at zero.
+        let got = sanitize_integer(18_500, PAN_MIN, PAN_MAX, PAN_STEP).unwrap();
+        assert_eq!((got - PAN_MIN) % PAN_STEP_SIGNED, 0);
+        assert!(got <= 18_500 && got > 18_500 - PAN_STEP_SIGNED);
+    }
+
+    #[test]
+    fn step_of_one_leaves_the_value_alone() {
+        // zoom_absolute on a Tiny 2: 0..100 step 1.
+        assert_eq!(sanitize_integer(37, 0, 100, 1), Some(37));
+        assert_eq!(sanitize_integer(999, 0, 100, 1), Some(100));
+    }
+
+    #[test]
+    fn zero_step_is_treated_as_one() {
+        // A driver reporting step = 0 must not cause a division by zero.
+        assert_eq!(sanitize_integer(37, 0, 100, 0), Some(37));
+    }
+
+    #[test]
+    fn contradictory_descriptor_is_skipped() {
+        // `i64::clamp` panics when min > max, so this has to be caught
+        // before it gets there.
+        assert_eq!(sanitize_integer(10, 100, 0, 1), None);
+    }
+
+    #[test]
+    fn result_always_lands_inside_the_advertised_range() {
+        for v in [i64::MIN, -1, 0, 1, 12_345, i64::MAX] {
+            let got = sanitize_integer(v, PAN_MIN, PAN_MAX, PAN_STEP).unwrap();
+            assert!(
+                (PAN_MIN..=PAN_MAX).contains(&got),
+                "{v} produced {got}, outside [{PAN_MIN}, {PAN_MAX}]"
+            );
+        }
+    }
 }
