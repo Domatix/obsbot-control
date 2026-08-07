@@ -455,6 +455,66 @@ anyone who wants to resume the discovery work.
   subtitle calls out the Lite case. Observed during T-301 live
   validation, 2026-05-14.
 
+- **Q10 — The gesture zoom never touches `zoom_absolute`.** Measured on
+  a Tiny 2 Lite (3564:fef9, bcdDevice 5.10) on 2026-08-06 during T-228.
+  With the live preview running, the on-device L-gesture was triggered
+  and the camera visibly zoomed in and back out. Throughout,
+  `zoom_absolute` (`0x009a090d`) stayed at `0`: 60 consecutive reads two
+  seconds apart from inside the app, plus an independent
+  `v4l2-ctl --get-ctrl=zoom_absolute` afterwards, all returned `0`. The
+  firmware applies the gesture zoom internally without reflecting it in
+  the UVC Camera Terminal control the kernel exposes.
+  **Consequence.** Anything that tries to constrain the gesture zoom by
+  watching or rewriting `zoom_absolute` cannot work, because the value
+  never moves. That is what T-223's zoom lock attempted and why T-228
+  reworked it. Constraining it would mean turning the gesture feature
+  off in the firmware, and no FOSS project maps that command:
+  `cgevans/tiny2` and `taxfromdk/obsbot_tiny_reversing` have nothing on
+  gestures, and `OpenFoxes/Tiny4Linux`'s README documents configuring
+  gesture settings from OBSBOT Center inside a Windows VM as the only
+  known route. The opcode would be among the unmapped selector-`0x06`
+  ones (`0x02`, `0x05`, `0x06`-`0x15`, `0x17`+).
+  Worth recording alongside: what `taxfromdk` labelled "suspected zoom"
+  in `research/rosetta.txt` is
+  `controlWrite(0x21, 0x01, 0x0B00, 0x0100, …)`, i.e. UVC selector
+  `0x0B` (`CT_ZOOM_ABSOLUTE_CONTROL`) on unit 1, the Camera Terminal.
+  The proprietary app's *manual* zoom does travel the same path the
+  kernel exposes; only the gesture bypasses it.
+
+- **Q11 — On-device gestures are controllable over the XU, and the
+  L-pose is "zoom", not "dynamic zoom".** Captured and confirmed on a
+  Tiny 2 Lite (3564:fef9, firmware 6.2.5.3) on 2026-08-06 for T-229.
+  No FOSS project maps these; the frames were obtained by observing the
+  `UVCIOC_CTRL_QUERY` traffic the vendor SDK emits under an `LD_PRELOAD`
+  shim over `ioctl`, while calling its gesture API. Only the observed
+  bytes were kept: the SDK is neither linked nor redistributed, so
+  ADR-0002 stands.
+  Selector `0x02`, standard 36-byte frame. The `function_group` picks
+  the gesture and the `command` carries the value in its third byte:
+
+  | Gesture | `function_group` |
+  |---|---|
+  | Target selection | `0a 04 c4 30 01 00` |
+  | Zoom | `0a 04 44 31 01 00` |
+  | Dynamic zoom | `0a 04 44 33 01 00` |
+  | Dynamic zoom direction | `0a 04 c4 33 01 00` |
+
+  `command` is `e6 3f 00 00 00 00` for off and `27 ff 01 00 00 00` for
+  on, identical across all four.
+  **The naming is a trap.** On hardware, switching off *Zoom* stops the
+  L-shaped hand pose; switching off *Dynamic zoom* changes nothing
+  observable. The obvious reading of the vendor's names is backwards,
+  and it was implemented the wrong way round first.
+  This is the answer to Q10: the gesture zoom cannot be constrained from
+  the V4L2 side, but the gesture itself can be turned off here.
+  **Checksum still unknown.** Bytes 2-3 are a sequence number and 6-7 a
+  checksum that varies with it. Fourteen captured frames were tested
+  against ten common CRC-16 variants (CCITT-FALSE, XMODEM, KERMIT,
+  MODBUS, ARC, MAXIM, USB, CMS, DNP, X.25) over six byte ranges in both
+  endiannesses; none reproduces it. As with `sleep`, `preset` and
+  `tracking_speed`, captured `(sequence, checksum)` pairs are replayed
+  verbatim, and the firmware accepts a replayed pair repeatedly.
+
 - **Q5 resolution (Auto / Manual exposure label swap).** Live
   validation on 2026-05-14 showed cgevans's labelling produces
   the opposite of the V4L2 standard `auto_exposure` control —

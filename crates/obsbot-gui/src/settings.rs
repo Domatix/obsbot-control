@@ -200,15 +200,68 @@ pub fn surface_error(msg: &str) {
 /// baked into a shipped binary, and no release binary can be steered by
 /// whoever happens to control that path on the user's machine.
 ///
-/// Returns `None` when neither source yields the schema — callers then
-/// degrade gracefully (warning + persistence disabled).
+/// Returns `None` when neither source yields a *usable* schema — callers
+/// then degrade gracefully (warning + persistence disabled).
+///
+/// "Usable" is load-bearing (T-228). A schema older than the binary is
+/// worse than no schema at all: `g_settings_get_*` on a key the schema
+/// does not declare is a fatal `GLib` error, not a recoverable one, and it
+/// aborts the process. That is not hypothetical: adding a key to
+/// `data/*.gschema.xml` and running `cargo run` on a machine with an
+/// older copy installed system-wide killed the app on launch, because
+/// the installed schema won the lookup and did not declare the new key.
+/// So each candidate is checked against the keys this binary actually
+/// uses, and one that comes up short is skipped rather than handed to
+/// `gio::Settings`. The same shape of mismatch already bit this project
+/// once, in T-105fix.
 fn settings_handle() -> Option<gio::Settings> {
-    let schema = installed_schema().or_else(dev_schema)?;
+    let schema = schema_candidates().into_iter().flatten().find(usable)?;
     Some(gio::Settings::new_full(
         &schema,
         gio::SettingsBackend::NONE,
         None,
     ))
+}
+
+/// Keys this binary reads or writes. Every one must exist in whichever
+/// schema we end up using; see [`settings_handle`] for why.
+const REQUIRED_KEYS: &[&str] = &[
+    KEY,
+    KEY_COLOR_SCHEME,
+    #[cfg(feature = "live-preview")]
+    KEY_PREVIEW_DEFAULT_ON,
+];
+
+fn usable(schema: &gio::SettingsSchema) -> bool {
+    let missing: Vec<&str> = REQUIRED_KEYS
+        .iter()
+        .copied()
+        .filter(|k| !schema.has_key(k))
+        .collect();
+    if !missing.is_empty() {
+        eprintln!(
+            "warning: ignoring a GSettings schema that is missing {missing:?} \
+             (an installed copy older than this binary; run `meson install` \
+             or remove it)",
+        );
+        return false;
+    }
+    true
+}
+
+/// Candidate schemas, best first.
+///
+/// Debug builds try the build directory first: it is regenerated from
+/// `data/` on every build, so it always matches the binary, whereas an
+/// installed copy is whatever was there last time someone ran
+/// `meson install`. Release builds have no build directory to speak of
+/// and read the installed schema only.
+fn schema_candidates() -> [Option<gio::SettingsSchema>; 2] {
+    if cfg!(debug_assertions) {
+        [dev_schema(), installed_schema()]
+    } else {
+        [installed_schema(), dev_schema()]
+    }
 }
 
 /// Look the schema up in the system schema source. `recursive` is on so
