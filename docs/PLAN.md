@@ -4084,9 +4084,20 @@
   - The lock survives a restart on a camera with no serial. **DONE**.
   - Watchdog activity is visible in the log. **DONE**.
   - Four cargo gates green. **DONE** (17 unit tests).
-  - **Field data PENDING**: run with the lock engaged, trigger the
-    gesture, read stderr. Zero drifts beside a zoom that visibly
-    happened settles it.
+  - **Field data COLLECTED 2026-08-06 — the answer is the bad one.**
+    Lock engaged, live preview on, L-gesture triggered, camera visibly
+    zoomed in and out. The watchdog logged `60 polls, 0 drift(s), device
+    reads 0`, and an independent `v4l2-ctl --get-ctrl=zoom_absolute`
+    also returned 0. The gesture zoom never touches the UVC control, so
+    no watchdog over that control can ever constrain it. Recorded as
+    `PROTOCOL.md` quirk Q10.
+    The persistence half of T-228 is confirmed working: the switch came
+    back engaged after a restart.
+  - **Decision PENDING**: what to do with the feature now that its
+    original purpose is proven unreachable. Withdraw it, or keep it
+    honestly relabelled as a slider lock (it still blocks accidental
+    slider drags and anything else that writes `zoom_absolute`, which
+    the gesture does not).
 
 ---
 

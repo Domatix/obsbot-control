@@ -455,6 +455,32 @@ anyone who wants to resume the discovery work.
   subtitle calls out the Lite case. Observed during T-301 live
   validation, 2026-05-14.
 
+- **Q10 — The gesture zoom never touches `zoom_absolute`.** Measured on
+  a Tiny 2 Lite (3564:fef9, bcdDevice 5.10) on 2026-08-06 during T-228.
+  With the live preview running, the on-device L-gesture was triggered
+  and the camera visibly zoomed in and back out. Throughout,
+  `zoom_absolute` (`0x009a090d`) stayed at `0`: 60 consecutive reads two
+  seconds apart from inside the app, plus an independent
+  `v4l2-ctl --get-ctrl=zoom_absolute` afterwards, all returned `0`. The
+  firmware applies the gesture zoom internally without reflecting it in
+  the UVC Camera Terminal control the kernel exposes.
+  **Consequence.** Anything that tries to constrain the gesture zoom by
+  watching or rewriting `zoom_absolute` cannot work, because the value
+  never moves. That is what T-223's zoom lock attempted and why T-228
+  reworked it. Constraining it would mean turning the gesture feature
+  off in the firmware, and no FOSS project maps that command:
+  `cgevans/tiny2` and `taxfromdk/obsbot_tiny_reversing` have nothing on
+  gestures, and `OpenFoxes/Tiny4Linux`'s README documents configuring
+  gesture settings from OBSBOT Center inside a Windows VM as the only
+  known route. The opcode would be among the unmapped selector-`0x06`
+  ones (`0x02`, `0x05`, `0x06`-`0x15`, `0x17`+).
+  Worth recording alongside: what `taxfromdk` labelled "suspected zoom"
+  in `research/rosetta.txt` is
+  `controlWrite(0x21, 0x01, 0x0B00, 0x0100, …)`, i.e. UVC selector
+  `0x0B` (`CT_ZOOM_ABSOLUTE_CONTROL`) on unit 1, the Camera Terminal.
+  The proprietary app's *manual* zoom does travel the same path the
+  kernel exposes; only the gesture bypasses it.
+
 - **Q5 resolution (Auto / Manual exposure label swap).** Live
   validation on 2026-05-14 showed cgevans's labelling produces
   the opposite of the V4L2 standard `auto_exposure` control —
