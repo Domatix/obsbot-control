@@ -4101,6 +4101,45 @@
 
 ---
 
+### T-229 — Turn off the on-device gesture that zooms
+- **State**: IN_PROGRESS
+- **Started**: 2026-08-06
+- **Completed**: 2026-08-06
+- **Issue**: #1.
+- **Supersedes**: T-223 and the T-228 zoom lock, both removed here.
+- **Description**: Q10 established that the gesture zoom never reaches
+  `zoom_absolute`, so no amount of watching that control can constrain
+  it. The lever that does work is turning the gesture off in the
+  firmware. No FOSS project maps that command, and Tiny4Linux points at
+  OBSBOT Center in a Windows VM, which the user ruled out.
+  Obtained instead by observing the vendor SDK's own `ioctl` traffic
+  under an `LD_PRELOAD` shim while calling its gesture API, keeping only
+  the bytes on the wire. Same method as the USB captures already in
+  `PROTOCOL.md`; the SDK is not linked or redistributed, so ADR-0002
+  stands. Recorded as quirk Q11.
+- **Changes**:
+  - New `obsbot-core::xu::commands::gesture` with a `Gesture` enum and
+    `set_gesture`, plus three unit tests pinning all eight captured
+    frames byte for byte.
+  - `ai_effects_view`: `AdwExpanderRow` "Gestures" with one switch per
+    gesture, `Zoom` first because it is the one users need.
+  - Removed: the T-223 zoom lock in `ptz_pad.rs`, its switch in
+    `ptz-pad.blp`, the `zoom-lock` schema key and its accessors. The
+    zoom slider goes back to its pre-T-223 shape.
+  - Kept from T-228: the schema-candidate fix in `settings.rs`, which is
+    an independent robustness fix, and quirk Q10.
+- **Hardware validation DONE (2026-08-06)**: switching off `Zoom` stops
+  the L-pose. Switching off `Dynamic zoom` does nothing observable,
+  which is the opposite of what the vendor naming suggests; the first
+  implementation had them the wrong way round.
+- **Known limitation**: the switches cannot be hydrated from the device.
+  The gesture flags are not among the five decoded bytes of the
+  selector-`0x06` status struct, so they start on (the factory default)
+  and the first toggle sends the real bytes. Same limitation the FOV row
+  already has.
+
+---
+
 ## Backlog (future milestones)
 
 The detailed task breakdown for a milestone is filled in when the

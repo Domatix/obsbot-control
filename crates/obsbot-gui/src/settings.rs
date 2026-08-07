@@ -61,9 +61,6 @@ const KEY_PREVIEW_DEFAULT_ON: &str = "preview-default-on";
 /// `GSettings` key for the T-215 appearance preference
 /// (`"default"` / `"light"` / `"dark"`).
 const KEY_COLOR_SCHEME: &str = "color-scheme";
-/// `GSettings` key for the T-223 zoom lock, application-wide rather
-/// than per camera. See [`zoom_lock`] for why.
-const KEY_ZOOM_LOCK: &str = "zoom-lock";
 /// Duration in seconds before a write-failure toast auto-dismisses.
 /// `adw::Toast` interprets `0` as "never auto-dismiss"; we want users
 /// to actually notice the message but not be hostage to it.
@@ -209,11 +206,14 @@ pub fn surface_error(msg: &str) {
 /// "Usable" is load-bearing (T-228). A schema older than the binary is
 /// worse than no schema at all: `g_settings_get_*` on a key the schema
 /// does not declare is a fatal `GLib` error, not a recoverable one, and it
-/// aborts the process. A developer with an older copy installed
-/// system-wide got exactly that on first launch after `zoom-lock` was
-/// added. So each candidate is checked against the keys this binary
-/// actually uses, and one that comes up short is skipped rather than
-/// handed to `gio::Settings`.
+/// aborts the process. That is not hypothetical: adding a key to
+/// `data/*.gschema.xml` and running `cargo run` on a machine with an
+/// older copy installed system-wide killed the app on launch, because
+/// the installed schema won the lookup and did not declare the new key.
+/// So each candidate is checked against the keys this binary actually
+/// uses, and one that comes up short is skipped rather than handed to
+/// `gio::Settings`. The same shape of mismatch already bit this project
+/// once, in T-105fix.
 fn settings_handle() -> Option<gio::Settings> {
     let schema = schema_candidates().into_iter().flatten().find(usable)?;
     Some(gio::Settings::new_full(
@@ -228,7 +228,6 @@ fn settings_handle() -> Option<gio::Settings> {
 const REQUIRED_KEYS: &[&str] = &[
     KEY,
     KEY_COLOR_SCHEME,
-    KEY_ZOOM_LOCK,
     #[cfg(feature = "live-preview")]
     KEY_PREVIEW_DEFAULT_ON,
 ];
@@ -319,32 +318,6 @@ pub fn color_scheme() -> String {
         || "default".to_string(),
         |s| s.string(KEY_COLOR_SCHEME).to_string(),
     )
-}
-
-/// Read the saved zoom-lock state (T-223, moved out of the per-camera
-/// map in T-228). Defaults to `false` when the schema cannot be opened.
-///
-/// Application-wide on purpose. The per-camera `control-values` map is
-/// keyed by USB serial, and the Tiny 2 Lite reports `iSerial = 0`, so
-/// anything keyed by serial never persists on that model at all
-/// (`PROTOCOL.md` §5 records the T-105 decision to accept that). The
-/// lock shipped inside that map and therefore never came back after a
-/// restart on the very hardware it was written for. A single boolean
-/// needs no per-camera identity for a single-camera setup.
-pub fn zoom_lock() -> bool {
-    settings_handle().is_some_and(|s| s.boolean(KEY_ZOOM_LOCK))
-}
-
-/// Persist the zoom-lock state (T-223 / T-228). Best-effort: a failure
-/// costs the setting across restarts, never the live behaviour.
-pub fn set_zoom_lock(on: bool) {
-    let Some(settings) = settings_handle() else {
-        eprintln!("warning: GSettings schema not loadable; zoom lock not saved");
-        return;
-    };
-    if let Err(err) = settings.set_boolean(KEY_ZOOM_LOCK, on) {
-        eprintln!("warning: failed to save the zoom lock state: {err}");
-    }
 }
 
 /// Persist the appearance preference (T-215). Best-effort: failures are

@@ -78,7 +78,9 @@ use gtk4 as gtk;
 use libadwaita as adw;
 
 use adw::prelude::*;
-use obsbot_core::xu::commands::{set_ai_mode, set_fov, set_hdr, set_tracking_speed};
+use obsbot_core::xu::commands::{
+    set_ai_mode, set_fov, set_gesture, set_hdr, set_tracking_speed, Gesture,
+};
 use obsbot_core::xu::{get_status, AiMode, FovMode, Status, TrackingSpeed, XuError};
 use obsbot_core::{CameraInfo, TINY2_FAMILY};
 
@@ -156,6 +158,7 @@ pub fn build_ai_effects_group(cam: &CameraInfo) -> Option<adw::PreferencesGroup>
     group.add(&ai_mode_row(&file, baseline.as_ref()));
     group.add(&tracking_speed_row(&file, baseline.as_ref()));
     group.add(&fov_row(&file));
+    group.add(&gestures_row(&file));
 
     Some(group)
 }
@@ -228,6 +231,69 @@ fn ai_mode_row(file: &Rc<File>, baseline: Option<&Status>) -> adw::ComboRow {
         }
     });
     row
+}
+
+/// Expander holding one switch per on-device gesture (T-229).
+///
+/// This is the only lever that reaches the behaviour behind
+/// `PROTOCOL.md` quirk Q10: the zoom a gesture triggers never touches
+/// `zoom_absolute`, so it cannot be constrained from the V4L2 side.
+/// Turn off `Zoom` to stop the camera zooming on its own mid-call.
+///
+/// Like [`fov_row`], the switches cannot be hydrated from the device:
+/// the gesture flags are not among the five decoded bytes of the
+/// selector-`0x06` status struct, and the vendor's own getter was not
+/// reverse-engineered. They therefore start in the on position, which is
+/// the factory default, and the first toggle sends the real bytes.
+fn gestures_row(file: &Rc<File>) -> adw::ExpanderRow {
+    let expander = adw::ExpanderRow::builder()
+        .title(gettext("Gestures"))
+        .subtitle(gettext("Hand poses the camera reacts to on its own"))
+        .build();
+
+    // `Zoom` first: it is the L-shaped pose and the reason anyone opens
+    // this expander. Confirmed on hardware 2026-08-06 — the vendor's
+    // "dynamic zoom" is a different switch with no visible effect here,
+    // despite the name suggesting otherwise.
+    let rows = [
+        (
+            Gesture::Zoom,
+            gettext("Zoom"),
+            gettext("The L-shaped hand pose that zooms in and out"),
+        ),
+        (
+            Gesture::TargetSelection,
+            gettext("Target selection"),
+            gettext("Pick who the camera tracks"),
+        ),
+        (
+            Gesture::DynamicZoom,
+            gettext("Dynamic zoom"),
+            gettext("No observable effect on Tiny 2 Lite"),
+        ),
+        (
+            Gesture::DynamicZoomDirection,
+            gettext("Dynamic zoom direction"),
+            gettext("Which way the dynamic zoom gesture reads"),
+        ),
+    ];
+
+    for (gesture, title, subtitle) in rows {
+        let row = adw::SwitchRow::builder()
+            .title(title)
+            .subtitle(subtitle)
+            .active(true)
+            .build();
+        let file_for_cb = Rc::clone(file);
+        row.connect_active_notify(move |row| {
+            if let Err(err) = set_gesture(&file_for_cb, gesture, row.is_active()) {
+                report_xu_error("Gesture", &err);
+            }
+        });
+        expander.add_row(&row);
+    }
+
+    expander
 }
 
 fn fov_row(file: &Rc<File>) -> adw::ComboRow {
