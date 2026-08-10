@@ -56,12 +56,20 @@ jobs:
     name: cargo audit
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    # The rustsec/audit-check action posts check-run annotations when it
+    # finds informational warnings (unmaintained, unsound, …). Without
+    # `checks: write` the API call fails and the job breaks.
+    permissions:
+      contents: read
+      checks: write
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       # Checks Cargo.lock against the RustSec advisory database. Ignored
-      # advisories and the reason for each live in `audit.toml`, which
-      # this action reads automatically.
+      # advisories and the reason for each live in `.cargo/audit.toml`,
+      # which this action reads automatically.
       - uses: rustsec/audit-check@69366f33c96575abad1ee0dba8212993eecbe998 # v2.0.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
   flatpak:
     name: Flatpak build
