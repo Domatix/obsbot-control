@@ -15,6 +15,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+#![allow(unsafe_code)]
+
 //! gettext scaffolding (T-107).
 //!
 //! Thin shim around [`gettextrs`] so the rest of the GUI can route
@@ -42,7 +44,13 @@ const TEXTDOMAIN: &str = "obsbot-cam-control";
 /// degrades to a `setlocale(LC_ALL, "")` only — `gettext()` then
 /// returns the source-language string unchanged.
 pub fn init() {
-    setlocale(LocaleCategory::LcAll, "");
+    // SAFETY: called once at process startup, before any other threads
+    // are spawned and before GTK initialises. setlocale(LC_ALL, "") is
+    // thread-unsafe by POSIX contract; we satisfy the contract by
+    // running it here, at the single-threaded entry point.
+    unsafe {
+        setlocale(LocaleCategory::LcAll, "");
+    }
 
     if let Some(localedir) = option_env!("OBSBOT_LOCALEDIR") {
         let _ = gettextrs::bindtextdomain(TEXTDOMAIN, localedir);
