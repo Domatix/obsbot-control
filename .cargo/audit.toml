@@ -26,12 +26,18 @@ ignore = [
     # version that no longer depends on `paste`. Re-check on every
     # gstreamer bump.
     "RUSTSEC-2024-0436",
+
+    # RUSTSEC-2026-0190 — `anyhow` < 1.0.103 has an unsoundness bug in
+    # `Error::downcast_mut()`. Not a vulnerability; it requires the
+    # caller to misuse the API in a specific pattern.
+    #
+    # Reaches us through: wit-bindgen -> wasip2/wasip3 -> getrandom ->
+    # tempfile, all WASI-only. tempfile is a dev-dependency. This path
+    # does not reach any Linux binary we ship. (cargo-audit does not
+    # filter by target_os, so it reports the advisory anyway.)
+    #
+    # Way out: drop this entry when Cargo.lock bumps anyhow to >= 1.0.103.
+    "RUSTSEC-2026-0190",
 ]
 
-# Everything else fails the build, including advisories that appear in
-# the lockfile without reaching the Linux binary. RUSTSEC-2026-0190
-# (anyhow < 1.0.103) is one such case today: it arrives via
-# wit-bindgen -> wasip2/wasip3 -> getrandom -> tempfile, all of which
-# only build for WASI targets, and tempfile is a dev-dependency. It is
-# deliberately NOT ignored here — if it ever starts being reported for a
-# target we actually ship, the build should stop.
+# Everything else fails the build.
