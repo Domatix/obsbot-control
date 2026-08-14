@@ -10,6 +10,86 @@
 
 ---
 
+## 2026-08-14 (Flathub readiness — T-230 / T-231 / T-232, sync remote)
+
+### [2026-08-14T12:00:00Z] [sync] main fast-forwarded to e9fc39c
+
+`git pull --ff-only` brought local `main` from `b69dd95` to `e9fc39c`,
+picking up PR #18 (`ci: build a CachyOS .pkg.tar.zst test artifact`).
+The other commits in the batch (#12 T-227 PKGBUILD, #14 T-229 XU
+gestures, T-224 CI/audit fixes) were already local; `STATE.md` had
+been stale (it reported `e36da92` as last commit). Tree clean after
+the pull.
+
+### [2026-08-14T12:10:00Z] [T-230] Flatpak manifest rebuilt offline (closes #6)
+
+Generated the two cargo vendor source manifests with
+`flatpak-cargo-generator.py` (flatpak-builder-tools) against the
+current locks:
+
+- `build-aux/cargo-sources.json` — from the application `Cargo.lock`
+  (373 entries).
+- `build-aux/cargo-sources-gst.json` — from the `gst-plugins-rs`
+  0.13.5 `Cargo.lock` at commit `4281db13…` (1414 entries; includes
+  its git deps `gtk4-rs`, `gstreamer-rs`, … pinned by commit).
+
+Manifest changes in `build-aux/io.github.domatix.ObsbotCamControl.json`:
+removed `--share=network` from every module (top-level build-options
+and the `gst-plugin-gtk4` module); referenced both `cargo-sources*.json`
+inline in each Rust module's `sources`; set `CARGO_NET_OFFLINE=true`
+(top-level env + gst module env); rewrote `x-comment-network` to
+describe the regen contract. Approach recorded as [[ADR-0031]];
+PLAN tasks T-230 (offline build), T-231 (screenshots, blocked on
+hardware), T-232 (submission) opened.
+
+### [2026-08-14T12:25:00Z] [T-230] flatpak-builder offline build — DONE, exit 0
+
+Clean `flatpak-builder` run completed with exit 0. (state-dir +
+build-dir under `$HOME` — `/tmp` is a `nodev` tmpfs and
+`rofiles-fuse` cannot mount there, which initially aborted the build
+with `fusermount3: Permission denied`; relocating off `/tmp` fixed
+it.) Both Rust modules resolved dependencies purely from the vendored
+sources with no network: `gst-plugin-gtk4` produced and stripped
+`libgstgtk4.so` offline, and the application module compiled
+(`obsbot-core`, `v4l`, `gtk4`, `libadwaita`, …) and installed. The
+build exported the `.desktop`, icons and metainfo and committed the
+finish stage to cache. All of issue #6's acceptance criteria are now
+met: every git source is commit-pinned, `cargo-sources.json` +
+`cargo-sources-gst.json` are referenced, no module uses
+`--share=network`, and `flatpak-builder` completes from a clean
+checkout. T-230 → DONE.
+
+### [2026-08-14T12:45:00Z] [T-230/T-231] offline Flatpak installed + running; Tiny 2 Lite back
+
+User connected the OBSBOT Tiny 2 Lite (`3564:fef9`), removing the
+T-231 hardware blocker. The offline-built app was exported from the
+flatpak-builder output (`flatpak build-export` to a local repo,
+24.8 MB) and reinstalled over the previous 0.4.2 install, then
+launched: running under bwrap with `libgstgtk4.so` bundled at
+`/app/lib/gstreamer-1.0/` and no startup errors — the offline build
+is functional, not just compilable. Programmatic screenshots are not
+possible on this GNOME Wayland session (Shell denies
+`ScreenshotWindow` over DBus; `grim` requires wlr-screencopy), so
+T-231's captures will be taken by the user with the built-in GNOME
+screenshot UI. `gh` CLI verified authenticated as `alvaro-domatix`
+(GitHub operations can be automated; the flathub.org OAuth login
+stays interactive for the user).
+
+### [2026-08-14T12:30:00Z] [T-231] DONE — screenshots captured and wired into the metainfo
+
+The user captured six window screenshots with the GNOME screenshot UI
+(main page without/with preview, Image tab, Image tab scrolled, Move
+tab with zoom at half, Presets tab). Four were selected — main page
+with live preview (default), Image, Move, Presets — copied to
+`data/screenshots/` as 1212×958 RGBA PNGs, and a `<screenshots>`
+block with per-image captions was added to the metainfo template,
+pointing at the `raw.githubusercontent.com/Domatix/obsbot-control/main/data/screenshots/…`
+URLs (live once pushed). `appstreamcli validate --no-net` passes;
+the only warnings are the four `screenshot-image-not-found` ones
+that resolve when the PNGs land on `main`. T-231 → DONE.
+
+---
+
 ## 2026-08-06 (T-223 lock zoom)
 
 ### [2026-08-06T12:00:00Z] [T-223/224/225/226] DONE — security review landed, four PRs merged

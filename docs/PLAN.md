@@ -2160,6 +2160,103 @@
 
 ---
 
+### T-230 — Flatpak offline cargo build (closes #6)
+
+- **State**: DONE
+- **Started**: 2026-08-14T12:00:00Z
+- **Completed**: 2026-08-14T12:25:00Z
+- **Depends on**: T-226 (commit pins already in place).
+- **Origin**: issue #6 — the manifest built the two Rust modules
+  with `--share=network`, so cargo resolved crates at build time and
+  the build was not reproducible. Flathub rejects this shape: it
+  requires offline builds with sources declared and hashed. T-226
+  pinned the git sources; this task finishes #6 by pinning the cargo
+  sources too.
+- **Description**: generate per-module cargo source manifests with
+  `flatpak-cargo-generator.py` (from `flatpak-builder-tools`),
+  reference them in the Flatpak manifest, remove `--share=network`
+  from every module, and set `CARGO_NET_OFFLINE=true`.
+  - `build-aux/cargo-sources.json` — from the app `Cargo.lock`.
+  - `build-aux/cargo-sources-gst.json` — from the `gst-plugins-rs`
+    0.13.5 `Cargo.lock` (commit `4281db13…`), which also pins its
+    git deps (`gtk4-rs`, `gstreamer-rs`, …) by commit.
+- **Acceptance criteria**:
+  - [x] `cargo-sources.json` and `cargo-sources-gst.json` generated
+        and committed under `build-aux/`.
+  - [x] No module carries `--share=network`; both Rust modules set
+        `CARGO_NET_OFFLINE=true`.
+  - [x] `flatpak-builder` completes from a clean checkout without
+        network in the build phase.
+- **Regen contract** (see [[ADR-0031]]): on any `Cargo.lock` bump,
+  re-run `flatpak-cargo-generator.py` against the new lock and
+  re-commit the two `cargo-sources*.json`.
+
+---
+
+### T-231 — AppStream screenshots for the Flathub listing
+
+- **State**: DONE
+- **Started**: 2026-08-14T12:00:00Z
+- **Completed**: 2026-08-14T12:30:00Z
+- **Depends on**: a Tiny 2 family camera the app recognises plugged
+  in, and the preview working end to end.
+- **Origin**: Flathub requires screenshots in the AppStream metainfo;
+  the current metainfo has no `<screenshots>` section. `STATE.md`
+  has deferred them since 2026-07-31 (camera not connected). The
+  unit currently plugged in is an OBSBOT Meet SE (`3564:fefe`),
+  which `enumerate.rs` does not accept, so the app shows no device.
+- **Description**: capture 2–3 HiDPI screenshots (main controls page
+  with preview on; AI tracking group; presets), host them under
+  `data/screenshots/`, and add a `<screenshots>` block to
+  `data/io.github.domatix.ObsbotCamControl.metainfo.xml.in`.
+- **How it went**: the user connected the Tiny 2 Lite (`3564:fef9`)
+  on 2026-08-14 and captured six window screenshots with the
+  built-in GNOME screenshot UI (programmatic capture is impossible
+  on this GNOME Wayland session: Shell denies `ScreenshotWindow`
+  over DBus and `grim` needs wlr-screencopy). Four were selected for
+  the listing: main page with live preview (default), Image tab, Move
+  tab (zoom at half), Presets tab.
+- **Acceptance criteria**:
+  - [x] `data/screenshots/` holds the selected PNGs — four captures
+        at 1212×958 RGBA (≥ 800 px wide as Flathub guidance asks;
+        the originally planned 1280×720 / 16:9 framing was dropped
+        in favour of window-native captures).
+  - [x] metainfo `<screenshots>` lists each with a `caption` and an
+        image URL pointing at the committed
+        `raw.githubusercontent.com` location.
+  - [x] `appstreamcli validate --no-net` passes (exit 0). The four
+        `screenshot-image-not-found` warnings under network
+        validation disappear once the PNGs are pushed to `main`.
+- **Unblock**: resolved — hardware connected and captures done by
+  the user on 2026-08-14.
+
+---
+
+### T-232 — Flathub submission
+
+- **State**: TODO
+- **Depends on**: T-230 (offline build), T-231 (screenshots).
+- **Origin**: `ROADMAP` v0.6 lists "Flathub submission of the
+  package" as a milestone item; `ADR-0015` makes Flathub the
+  supported distribution channel. This task is the actual upload.
+- **Description**: convert the in-repo manifest's app source from
+  `type: dir` to a pinned release git/archive source, add a
+  `flathub.json` (with the branch/arches), sign in at flathub.org,
+  submit the app, and after review push the manifest to the
+  provisioned `flathub/io.github.domatix.ObsbotCamControl` repo.
+- **Acceptance criteria**:
+  - [ ] A release tag (`vX.Y.0`) is cut; the manifest app source
+        points at it with a commit + sha256.
+  - [ ] `flatpak-builder` builds clean from the manifest as it will
+        live on Flathub (release source, not `type: dir`).
+  - [ ] `flathub.json` committed.
+  - [ ] App accepted; first build green on the `flathub/` repo; the
+        app is installable via `flatpak install flathub <app-id>`.
+- **Note**: the submit step and the GitHub sign-in require the user;
+  the AI prepares the manifest and documents the exact steps.
+
+---
+
 ## Beyond v1.0 — Multi-model OBSBOT support (planned)
 
 ### T-400 — Add OBSBOT Meet (original) as a supported model

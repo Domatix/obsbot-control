@@ -1444,5 +1444,59 @@ ADR-0029.
 
 ---
 
+## ADR-0031 — Flatpak builds offline via generated cargo vendor sources (T-230, closes #6)
+
+**Status**: Accepted, 2026-08-14.
+
+**Context**: The Flatpak manifest built its two Rust modules
+(`gst-plugin-gtk4` and `obsbot-cam-control`) with `--share=network`,
+so `cargo` resolved and downloaded crates at build time. Flathub
+rejects this shape: it requires offline, reproducible builds with
+every source declared and hashed. T-226 already pinned the git
+sources by commit; the crate graph was the remaining hole (issue #6).
+
+**Decision**: Generate two `cargo-sources*.json` files with
+`flatpak-cargo-generator.py` (from `flatpak-builder-tools`) and
+reference them inline in the manifest:
+
+- `build-aux/cargo-sources.json` — from the application `Cargo.lock`.
+- `build-aux/cargo-sources-gst.json` — from the `gst-plugins-rs`
+  0.13.5 `Cargo.lock` (which also carries its git dependencies —
+  `gtk4-rs`, `gstreamer-rs`, … — pinned by commit).
+
+Both are emitted in the `cargo vendor` layout (crate archives + a
+`.cargo/config` that replaces `crates-io` and the git sources with
+`vendored-sources`). `--share=network` is removed from every module
+and `CARGO_NET_OFFLINE=true` is set as a belt-and-suspenders guard so
+`cargo` never attempts a registry fetch.
+
+**Regen contract**: the `cargo-sources*.json` are *derived* artifacts
+that must track `Cargo.lock` exactly. On any dependency bump:
+
+```
+python3 flatpak-builder-tools/cargo/flatpak-cargo-generator.py \
+    Cargo.lock -o build-aux/cargo-sources.json
+```
+
+(and the same against the `gst-plugins-rs` lock when its pin moves).
+This step is now part of the release/dependency-change checklist and
+is recorded in the manifest's `x-comment-network`.
+
+**Consequences**:
+
+- The Flatpak build is reproducible and meets Flathub's offline-build
+  requirement, unblocking submission (T-232).
+- The manifest gains two sizeable generated files (~100 KB + ~490 KB).
+  They are committed (Flathub needs them in the source repo) rather
+  than generated in CI, because Flathub does not run a generator step.
+- A `Cargo.lock` change that forgets to regenerate the sources fails
+  the build (cargo cannot find the new crate offline), which is the
+  desired fail-loud behaviour.
+- The `type: dir` app source still used for local builds will be
+  swapped for a pinned release git/archive source at submission time
+  (T-232); the offline cargo mechanism is independent of that change.
+
+---
+
 <!-- Append new ADRs above this line, never below. Newest ADRs go at the bottom
      of the list but new entries are added; do not edit old ones. -->

@@ -6,29 +6,23 @@
 
 ---
 
-active_task: none  # T-223/224/225/226 merged to main via PRs #2/#8/#9/#10. Issues #1/#3/#4/#5 closed; #6 (partial) and #7 open.
+active_task: none  # T-230 and T-231 complete (gates/build green). T-232 pending user. Work uncommitted; commit pending user go-ahead.
 active_task_state: IDLE
 active_branch: main
-last_completed_task: T-226  # Flatpak git sources pinned by commit. Prior in the same batch: T-225 (schema lookup + replay validation), T-224 (CI hardening), T-223 (zoom lock).
-last_milestone: v0.4.2  # unchanged. v0.6 (Polish) is now the active milestone per ROADMAP/PLAN.
-last_commit_on_main: e36da92  # feat(gui): zoom lock (T-223) (#2). Prior: e6eb797 (T-226), b531ff6 (T-225), c270b23 (T-224).
-last_step: 2026-08-06 — security review of v0.4.2 filed as issues #3-#7; four PRs merged. Repo now has a permissions-locked CI with SHA-pinned actions, a cargo-audit job, release checksums, an installed-schema lookup, validated replay, commit-pinned Flatpak sources, and the zoom lock.
-next_step: hardware validation of T-223 (engage lock, let the camera move the zoom, confirm it returns; slider inert while locked; state survives restart). Two issues stay open: #6 offline Flatpak build (blocks Flathub), #7 low-severity findings.
-blockers: native /usr/local install still pending user sudo (from v0.4.2). T-017b Arch validation still pending an Arch host. T-223 hardware validation needs an OBSBOT the app recognises — the unit currently plugged in is an OBSBOT Meet SE (3564:fefe), which enumerate.rs does not accept (TINY2_FAMILY is fef8/fef9 only).
-  status: working_tree clean on main. build-aux/dist/ keeps 0.4.2 artifacts, git-ignored.
-firmware_notes:
-  - Tiny 2 Lite fw 5.10: XU Sleep frame IGNORED for ~3s after streaming stops (accepted at t≈3s); cold Sleep works immediately. set_sleep(Awake)/get_status reliable. Rapid open/close/sleep/wake churn can hang capture (0 buffers, no error) until USB replug. (ADR-0025)
-still_open_non_hardware:
-  - T-017 Arch PKGBUILD build/install/remove on an Arch host (community stakeholder, no rush).
-  - T-202 minor: grayscale toggled while preview off is lost on start (re-apply on start, or disable filter buttons while off).
-follow_ups_queued:
-  - screenshots for AppStream + Flathub (needs camera plugged in; deferred per user 2026-07-31).
-  - PLAN T-015 caveat "workflows green on main" RESOLVED 2026-07-31 (run 30627008041 green) — PLAN still says PENDING PUSH; fix on next PLAN touch.
-  - announcement post draft (Reddit r/gnome / r/linux) — drafted at end of T-222 session.
-  - preview-visibility-pause (T-207 follow-up, ADR-0024): pause/resume the preview on window minimise / focus-loss.
-  - sepia-invert-filters, file-chooser-snapshot, preferences-dialog (preview-default-on), verify-q9-tiny2-regular.
-  - branch-hygiene: feat/* branches retained locally; delete only on explicit user ask.
-  - T-400 (post-v1.0): add OBSBOT Meet (original) to the model matrix.
-known_issues:
-  - Q9 (PROTOCOL.md): pan_speed/tilt_speed accept writes but no motion on Tiny 2 Lite firmware 5.10. PTZ moves via discrete pan_absolute/tilt_absolute single steps (T-101d).
-updated_at: 2026-07-31T00:00:00Z
+last_completed_task: T-231  # AppStream screenshots wired (4 PNGs in data/screenshots/, metainfo <screenshots>). Prior: T-230 offline Flatpak build (closes #6).
+last_milestone: v0.4.2  # v0.6 (Polish / Flathub) is the active milestone.
+last_commit_on_main: e9fc39c  # ci: build a CachyOS .pkg.tar.zst test artifact (#18). Working tree holds T-230 + T-231 changes, not yet committed.
+last_step: 2026-08-14 — Tiny 2 Lite (3564:fef9) connected; offline-built Flatpak exported to a local repo, reinstalled and launched (libgstgtk4.so bundled, no errors); user verified tabs/preview/zoom; user captured 6 screenshots; 4 selected into data/screenshots/; metainfo <screenshots> added; appstreamcli --no-net exit 0. gh CLI authed as alvaro-domatix.
+next_step: user gives the go-ahead → 3 commits: (1) build(flatpak) T-230 manifest + cargo-sources, (2) feat(flatpak) T-231 screenshots + metainfo, (3) docs T-230/231 + ADR-0031; then push. After that T-232: cut release tag, switch manifest app source type:dir → pinned git, flathub.org login (user), submit, push to flathub/<app-id>.
+blockers:
+  - T-232 submit needs the user's flathub.org login (interactive OAuth) and a cut release tag.
+  - native /usr/local install pending user sudo (from v0.4.2); T-017b Arch validation pending an Arch host.
+working_tree:  # matches `git status --short`
+  - M build-aux/io.github.domatix.ObsbotCamControl.json  # offline cargo build (T-230)
+  - ?? build-aux/cargo-sources.json, build-aux/cargo-sources-gst.json  # generated vendor sources (T-230)
+  - M data/io.github.domatix.ObsbotCamControl.metainfo.xml.in  # <screenshots> (T-231)
+  - ?? data/screenshots/{main-page-with-preview,image-controls,ptz-zoom-controls,presets}.png  # captures (T-231)
+  - M docs/{DECISIONS,PLAN,PROGRESS,STATE}.md  # ADR-0031, tasks T-230/231/232, journal
+firmware_notes: Tiny 2 Lite fw 5.10 — XU Sleep IGNORED ~3s after streaming stops (cold Sleep immediate); rapid open/close/sleep churn can hang capture until USB replug (ADR-0025). Q9: pan/tilt_speed write but no motion; PTZ via discrete steps (T-101d).
+flatpak_build_note: rofiles-fuse cannot mount on /tmp (nodev tmpfs) — run flatpak-builder with --state-dir and build dir under $HOME, never /tmp.
+updated_at: 2026-08-14T12:35:00Z
