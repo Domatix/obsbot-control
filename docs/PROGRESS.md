@@ -124,6 +124,29 @@ against `flathub/flathub`@`new-pr` (Flathub's Generative-AI policy
 forbids AI-opened submission PRs — the bundle README documents the
 steps).
 
+### [2026-08-14T14:00:00Z] [T-232] tag CI repaired; GitHub Release v0.5.0 published
+
+The first v0.5.0 tag run exposed that the tag-only packaging jobs
+had never executed: the .deb job failed at meson configure
+(`update-desktop-database` missing on the Fedora container), the
+Arch/CachyOS jobs failed because `build-aux/PKGBUILD` hardcoded
+`pkgver=0.4.2` and the containers lacked the runtime deps makepkg
+checks (`gst-plugins-base/-good`, `gst-plugin-gtk4`) plus the two
+post-install tools. Fixed in `20d9b08` (added
+`desktop-file-utils`/`gtk-update-icon-cache`/gstreamer packages to
+the container installs, bumped the PKGBUILD) and the tag was
+re-cut on it — the bundle pin follows. The second tag run went 6/7
+green; only the GitHub Release job failed because it has no checkout
+step and `gh` could not infer the repository. Fixed for future
+releases with a `GH_REPO` env (`0206bcd`); the v0.5.0 release itself
+was created manually from that run's artifacts (`.deb`, Arch and
+CachyOS `.pkg.tar.zst`, SHA256SUMS) at
+<https://github.com/Domatix/obsbot-control/releases/tag/v0.5.0>.
+The AUR PKGBUILD was synced (pkgver 0.5.0 + the tag tarball sha).
+The old-ID Flatpak install was removed from the dev machine (only
+`io.github.domatix.obsbot-control` remains). Everything the AI can do
+is done: the only step left is the user opening the submission PR.
+
 ---
 
 ## 2026-08-06 (T-223 lock zoom)
