@@ -30,7 +30,7 @@
 # would need.
 
 pkgname=obsbot-control
-pkgver=0.4.2
+pkgver=0.5.0
 pkgrel=1
 pkgdesc="Native GNOME app to control OBSBOT Tiny 2 family webcams over UVC/V4L2"
 arch=('x86_64')
@@ -41,7 +41,7 @@ depends=('gtk4' 'libadwaita' 'gst-plugins-base' 'gst-plugins-good'
          'gst-plugin-gtk4')
 makedepends=('rust' 'meson' 'clang' 'pkgconf' 'blueprint-compiler')
 source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
-sha256sums=('e0523928d173618d1c071b9ef09fdc57022bd2d267e077cac0625bd5bd692544')
+sha256sums=('e4a36b450076b6e7cc583ba2b73b29f015f1cce686bf209ea412628c2bdac65f')
 # The workspace's [profile.release] already does lto = "thin" +
 # strip = "symbols"; skip makepkg's own debug package.
 options=('!debug' '!lto')
