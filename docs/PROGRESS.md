@@ -147,6 +147,17 @@ The old-ID Flatpak install was removed from the dev machine (only
 `io.github.domatix.obsbot-control` remains). Everything the AI can do
 is done: the only step left is the user opening the submission PR.
 
+### [2026-08-14T14:30:00Z] [T-232] submission branch pushed to the fork; PR is the user's click
+
+Everything Flathub's docs sanction for tooling was done with `gh`
+(the docs' own tip uses it): the user's fork `alvaro-domatix/flathub`
+was created and cloned, branch `obsbot-control-submission` was cut
+from `new-pr`, the three bundle JSON files were added as a single
+commit, and the branch was pushed. Opening the PR itself stays with
+the user: the docs require the github.com web interface and Flathub's
+Generative-AI policy forbids AI-opened submission PRs. Base branch
+must be `new-pr`, title `Add io.github.domatix.obsbot-control`.
+
 ---
 
 ## 2026-08-06 (T-223 lock zoom)
