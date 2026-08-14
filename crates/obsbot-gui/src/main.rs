@@ -36,7 +36,7 @@ mod wb_group;
 mod window;
 
 /// The reverse-DNS App ID resolved in ADR-0012.
-const APP_ID: &str = "io.github.domatix.ObsbotCamControl";
+const APP_ID: &str = "io.github.domatix.obsbot-control";
 
 fn main() -> glib::ExitCode {
     // T-107: bind the gettext text-domain before any widget is built

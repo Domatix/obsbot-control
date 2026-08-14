@@ -6,9 +6,9 @@
 # App ID's last segment per ADR-0012). `i18n.gettext()` does three
 # jobs:
 #   1. Generate `<domain>.pot` from the sources listed in
-#      `POTFILES.in` (target name: `obsbot-cam-control-pot`).
+#      `POTFILES.in` (target name: `obsbot-control-pot`).
 #   2. Compile each `<lang>.po` into a `<lang>.gmo` (target name:
-#      `obsbot-cam-control-update-po` and `obsbot-cam-control-gmo`).
+#      `obsbot-control-update-po` and `obsbot-control-gmo`).
 #   3. Install the `.gmo` files at
 #      `<localedir>/<lang>/LC_MESSAGES/<domain>.mo` so the runtime
 #      `bindtextdomain` call in `src/i18n.rs` can find them.
@@ -22,6 +22,6 @@
 i18n = import('i18n')
 
 i18n.gettext(
-  'obsbot-cam-control',
+  'obsbot-control',
   preset: 'glib',
 )

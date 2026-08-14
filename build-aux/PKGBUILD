@@ -14,7 +14,7 @@
 #
 # The wrapper drops the produced `*.pkg.tar.zst` into
 # `build-aux/dist/`. Install with `sudo pacman -U <pkg>`;
-# remove with `sudo pacman -R obsbot-cam-control`.
+# remove with `sudo pacman -R obsbot-control`.
 #
 # `source=()` is intentional *for this file*: it ships inside the
 # repo and builds the working tree at `$startdir/..`, which is what
@@ -26,7 +26,7 @@
 # that one to install a published version, this one to test the tree
 # you have checked out.
 
-pkgname=obsbot-cam-control
+pkgname=obsbot-control
 pkgver=0.4.2
 pkgrel=1
 pkgdesc="Native GNOME app to control OBSBOT Tiny 2 family webcams over UVC/V4L2"

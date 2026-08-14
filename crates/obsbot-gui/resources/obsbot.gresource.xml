@@ -9,7 +9,7 @@
   via `gio::resources_register_include!` at application startup.
 -->
 <gresources>
-  <gresource prefix="/io/github/domatix/ObsbotCamControl">
+  <gresource prefix="/io/github/domatix/obsbot-control">
     <file compressed="true" preprocess="xml-stripblanks">window.ui</file>
     <file compressed="true" preprocess="xml-stripblanks">ptz-pad.ui</file>
     <file compressed="true">style.css</file>

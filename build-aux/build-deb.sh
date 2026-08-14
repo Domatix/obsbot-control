@@ -42,8 +42,8 @@ else
 fi
 
 for f in \
-    "$builddir/data/io.github.domatix.ObsbotCamControl.desktop" \
-    "$builddir/data/io.github.domatix.ObsbotCamControl.metainfo.xml"
+    "$builddir/data/io.github.domatix.obsbot-control.desktop" \
+    "$builddir/data/io.github.domatix.obsbot-control.metainfo.xml"
 do
     if [ ! -f "$f" ]; then
         echo "build-deb.sh: meson did not produce $f. Re-run \`meson setup --reconfigure $builddir\`." >&2

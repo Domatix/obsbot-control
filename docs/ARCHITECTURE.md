@@ -67,7 +67,7 @@ obsbot-control/
 │   ├── obsbot-cli/         # `obsbot-cli list` — headless camera info
 │   │   └── src/main.rs
 │   │
-│   └── obsbot-gui/         # GTK4 + libadwaita binary `obsbot-cam-control`
+│   └── obsbot-gui/         # GTK4 + libadwaita binary `obsbot-control`
 │       ├── build.rs        # blueprint-compiler → .ui → GResource
 │       ├── resources/
 │       │   ├── window.blp      # app window shell
@@ -91,7 +91,7 @@ obsbot-control/
 └── docs/                   # project documentation (see CLAUDE.md §0)
 ```
 
-The App ID `io.github.domatix.ObsbotCamControl` (resolved in ADR-0012)
+The App ID `io.github.domatix.obsbot-control` (resolved in ADR-0012)
 appears as the basename of every namespaced asset above. The local folder
 and Cargo crate names stay as `obsbot-control`, `obsbot-core`,
 `obsbot-cli`, `obsbot-gui`; the user-visible product name is "Obsbot Cam
@@ -142,7 +142,7 @@ see `CREDITS.md` and `docs/PROTOCOL.md` §3.2. There is no raw-USB
 
 ### 3.4 Persistence
 
-One GSettings schema, `io.github.domatix.ObsbotCamControl`:
+One GSettings schema, `io.github.domatix.obsbot-control`:
 
 - `control-values` (`a{si}`): per-camera control values, keyed
   `"<serial>\x1f<control-name>"`. Cameras without a USB serial (the

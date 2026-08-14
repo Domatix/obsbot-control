@@ -1547,5 +1547,55 @@ was v0.6.0 (the full Polish milestone), which is not yet complete.
 
 ---
 
+## ADR-0033 — App ID renamed to io.github.domatix.obsbot-control before Flathub submission (T-232)
+
+**Status**: Accepted, 2026-08-14.
+
+**Context**: The official Flathub linter
+(`flatpak-builder-lint manifest`) reported one blocking error on the
+submission bundle: `appid-url-not-reachable`. Flathub derives the
+repository URL from the app ID (last component taken as-is), so
+`io.github.domatix.ObsbotCamControl` mapped to
+`github.com/domatix/obsbotcamcontrol` — which does not exist; the
+repo is `Domatix/obsbot-control`. Flathub policy permits exceptions
+when the calculated URL doesn't match, but also states that renames
+keeping the same domain portion will not be accepted after
+submission — so if the ID were ever to change, it had to happen now,
+before the app is public.
+
+**Decision**: Rename the application ID to
+`io.github.domatix.obsbot-control` (a dash in the last component is
+explicitly allowed by the ID rules and maps exactly to the repo).
+Everything identity-related follows, driven by the existing
+conventions:
+
+- GSettings schema id and path (`/io/github/domatix/obsbot-control/`).
+- GResource prefix, UI constants, textdomain (`obsbot-control`).
+- Desktop, metainfo, and icon file names; `data/` filenames.
+- Binary name `obsbot-cam-control` → `obsbot-control` (ADR-0012's
+  kebab-of-last-segment rule applied to the new segment).
+- Both Flatpak manifests (app-id, command, module name, CARGO_HOME),
+  the CI workflow, the PKGBUILDs, the packaging scripts, and the
+  current-state docs.
+
+The `v0.5.0` tag cut earlier the same day had no consumers (nothing
+published, no Flathub build), so it is re-cut on the rename commit
+instead of bumping the version again.
+
+**Consequences**:
+
+- The Flathub linter's `appid-url-not-reachable` error is resolved
+  without relying on a reviewer exception.
+- Installations under the old ID are a *different* app: GSettings
+  state does not carry over (acceptable — only the dev machine had
+  one).
+- ADR-0012's TitleCase rationale is superseded for this project; the
+  rule itself (binary name = kebab of the last ID segment) still
+  holds and was followed here.
+- Old-ID mentions intentionally remain in the historical ledger
+  entries (PROGRESS/DECISIONS) and are not rewritten.
+
+---
+
 <!-- Append new ADRs above this line, never below. Newest ADRs go at the bottom
      of the list but new entries are added; do not edit old ones. -->

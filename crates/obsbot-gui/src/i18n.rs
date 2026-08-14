@@ -33,7 +33,7 @@
 use gettextrs::{setlocale, LocaleCategory};
 
 /// gettext domain. Matches the installed binary name (ADR-0012).
-const TEXTDOMAIN: &str = "obsbot-cam-control";
+const TEXTDOMAIN: &str = "obsbot-control";
 
 /// Initialise the translation domain. Call once at process start,
 /// before any code constructs widget labels.

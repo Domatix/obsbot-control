@@ -90,7 +90,7 @@
   <content_rating type="oars-1.1" />
 
   <provides>
-    <binary>obsbot-cam-control</binary>
+    <binary>obsbot-control</binary>
   </provides>
 
   <supports>

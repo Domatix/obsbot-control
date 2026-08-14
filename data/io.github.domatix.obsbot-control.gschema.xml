@@ -10,8 +10,8 @@
   `__s32` too). Boolean controls store as 0/1 in the same i32 map.
 
   Schema layout:
-    - id: io.github.domatix.ObsbotCamControl
-    - path: /io/github/domatix/ObsbotCamControl/
+    - id: io.github.domatix.obsbot-control
+    - path: /io/github/domatix/obsbot-control/
     - control-values: flat dict — key is "<serial>\x1f<control-name>"
       (ASCII Unit Separator is reserved in both V4L2 names and OBSBOT
       serials), value is i32.
@@ -26,8 +26,8 @@
   layout that the GUI was already encoding by hand.
 -->
 <schemalist>
-  <schema id="io.github.domatix.ObsbotCamControl"
-          path="/io/github/domatix/ObsbotCamControl/">
+  <schema id="io.github.domatix.obsbot-control"
+          path="/io/github/domatix/obsbot-control/">
     <key name="control-values" type="a{si}">
       <default>[]</default>
       <summary>Saved per-camera V4L2 control values</summary>

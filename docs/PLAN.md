@@ -104,15 +104,15 @@
     Rust changes finishes in <1 s (blueprint-compiler only
     re-runs when `.blp` sources change, via
     `cargo:rerun-if-changed`).
-  - `obsbot-cam-control` loads its UI from the embedded
+  - `obsbot-control` loads its UI from the embedded
     `GResource`. **DONE** — `strings target/debug/obsbot-cam-
-    control | grep '/io/github/domatix/ObsbotCamControl/' | wc
+    control | grep '/io/github/domatix/obsbot-control/' | wc
     -l` returns `3` (the two .ui paths used by Builder lookups
     plus the gresource prefix string). The
     `gio::resources_register_include!("obsbot.gresource")`
     call at the top of `application::run` bakes the
     GResource bytes into the binary; `gtk::Builder::from_
-    resource("/io/github/domatix/ObsbotCamControl/window.ui")`
+    resource("/io/github/domatix/obsbot-control/window.ui")`
     and the matching `controls-view.ui` lookup both succeed
     at runtime (no `expect()` panic surfaced).
   - `cargo run -p obsbot-gui` behaviour unchanged from T-013c.
@@ -148,7 +148,7 @@
     title(&cam.product)`, `page.set_tag(Some(&format!
     ("controls-{:04x}-{:04x}", …)))`).
   * **`crates/obsbot-gui/resources/obsbot.gresource.xml`** —
-    `<gresource prefix="/io/github/domatix/ObsbotCamControl">`
+    `<gresource prefix="/io/github/domatix/obsbot-control">`
     declaring both `.ui` files with `compressed="true"
     preprocess="xml-stripblanks"` so the embedded bundle stays
     small.
@@ -457,7 +457,7 @@
 - **Depends on**: T-100 / T-102 (the write paths whose values we
   persist).
 - **Description**: First persistence layer. A GSettings schema
-  `io.github.domatix.ObsbotCamControl.gschema.xml` declares a
+  `io.github.domatix.obsbot-control.gschema.xml` declares a
   single key `cameras` of type `a{sa{si}}` — a dictionary mapping
   camera serial number to a sub-dictionary of (control name,
   int value) pairs. On every successful `write_control`, the GUI
@@ -471,7 +471,7 @@
   to point at the source schema dir so devs don't need
   `meson install` to test persistence.
 - **Acceptance criteria**:
-  - `data/io.github.domatix.ObsbotCamControl.gschema.xml` exists.
+  - `data/io.github.domatix.obsbot-control.gschema.xml` exists.
   - `data/meson.build` installs + compiles the schema.
   - `crates/obsbot-gui/src/settings.rs` (new module) exposes
     `load_for_camera(serial) -> HashMap<String, i64>` and
@@ -535,11 +535,11 @@
   via gettext (English source, Spanish at minimum). The polish
   work itself is v0.6, but the scaffolding has to land now so
   user-facing strings produced by T-099..T-106 can be marked at
-  source and a `obsbot-cam-control.pot` template can be
+  source and a `obsbot-control.pot` template can be
   extracted on demand. Concretely: a top-level `po/` directory
   with `LINGUAS` (containing `es`), `POTFILES.in` listing every
   `.rs` / `.blp` carrying translatable strings, `meson.build`
-  wiring `i18n.gettext('obsbot-cam-control', preset: 'glib')`,
+  wiring `i18n.gettext('obsbot-control', preset: 'glib')`,
   and a Rust-side `i18n` shim (thin `pub fn gettext(s: &str) ->
   String` wrapping `gettextrs::gettext`) that the existing code
   switches to. Strings inside `.blp` files do NOT yet get the
@@ -558,7 +558,7 @@
   - User-facing string literals in `controls_view.rs`,
     `wb_group.rs`, `exposure_group.rs`, `ptz_pad.rs`, `window.rs`
     are routed through `i18n::gettext(...)`.
-  - `meson compile -C builddir obsbot-cam-control-pot` (or the
+  - `meson compile -C builddir obsbot-control-pot` (or the
     target `i18n.gettext()` provides) produces a non-empty
     `.pot` covering the marked strings. **Wiring verified, host
     gap noted**: this dev host has `gettext-base` only (no
@@ -567,9 +567,9 @@
     skips the .pot target without failing the build. The wiring
     is correct (meson processes `subdir('po')`, the cargo build
     bakes `OBSBOT_LOCALEDIR` into the binary — visible via
-    `strings builddir/cargo/release/obsbot-cam-control | grep
+    `strings builddir/cargo/release/obsbot-control | grep
     locale` showing `/usr/local/share/locale` and
-    `obsbot-cam-control`). CI + Flatpak builders ship full
+    `obsbot-control`). CI + Flatpak builders ship full
     gettext so the .pot target lands there.
   - An empty `po/es.po` is committed (header only, will be
     populated in v0.6).
@@ -631,7 +631,7 @@
   the AppStream `<description>` mini-format (`<p>`, `<ul>`,
   `<li>`); no marketing prose.
 - **Acceptance criteria**:
-  - `data/io.github.domatix.ObsbotCamControl.metainfo.xml.in`
+  - `data/io.github.domatix.obsbot-control.metainfo.xml.in`
     gains a `<release version="0.2.0" type="development">`
     entry on top of the existing v0.1.0 record (newest-first
     per AppStream convention). Implementation note: dropped the
@@ -1308,7 +1308,7 @@
 - **Started**: 2026-05-14T20:55:00Z
 - **Completed**: 2026-05-15T12:00:00Z
 - **Depends on**: T-300, T-301, T-302.
-- **Progress so far**: `data/io.github.domatix.ObsbotCamControl.
+- **Progress so far**: `data/io.github.domatix.obsbot-control.
   metainfo.xml.in` gains a `<release version="0.3.0"
   date="2026-05-14" type="development">` entry listing every
   user-visible v0.3 feature (10 AI modes, 3 FOV widths, HDR,
@@ -1347,7 +1347,7 @@
       observe no error).
     - Dump status shows non-zero bytes outside the 5
       decoded offsets.
-  - `data/io.github.domatix.ObsbotCamControl.metainfo.xml.in`
+  - `data/io.github.domatix.obsbot-control.metainfo.xml.in`
     gains a `<release version="0.3.0">` entry summarizing the
     XU + AI tracking work.
   - PROTOCOL.md §3.2 updated with any corrections from the
@@ -1388,7 +1388,7 @@
 - **Completed**: 2026-05-15T12:45:00Z
 - **Depends on**: v0.3.0 tagged.
 - **Origin**: surfaced 2026-05-14 during T-301 implementation.
-  `data/io.github.domatix.ObsbotCamControl.gschema.xml`
+  `data/io.github.domatix.obsbot-control.gschema.xml`
   declares key `cameras` of type `a{sa{si}}` (nested dict:
   serial → control-name → i32), but `crates/obsbot-gui/src/
   settings.rs` reads/writes key `control-values` of type
@@ -1428,7 +1428,7 @@
   layered on top of the corrected T-105 path); user-visible
   Reset to defaults button (lives in T-100 plumbing).
 - **Outcome**: Option A taken — schema realigned to runtime.
-  `data/io.github.domatix.ObsbotCamControl.gschema.xml`
+  `data/io.github.domatix.obsbot-control.gschema.xml`
   renames key `cameras` → `control-values` and switches the
   type from `a{sa{si}}` to `a{si}`. `settings.rs` was
   already encoding `"<serial>\x1f<control-name>"` as the
@@ -1757,7 +1757,7 @@
     Failures surface as toasts via `settings::surface_error`
     and the toggle snaps back to off so the GUI does not lie
     about state.
-  - `data/io.github.domatix.ObsbotCamControl.gschema.xml`:
+  - `data/io.github.domatix.obsbot-control.gschema.xml`:
     new `preview-default-on` boolean key (default `false`).
   - `crates/obsbot-gui/src/settings.rs`: feature-gated
     `preview_default_on()` reader.
@@ -1957,7 +1957,7 @@
   - `build-aux/cargo-build.sh` accepts 7 or 8 args; when
     arg 8 is non-empty it adds
     `--features "$feature"` to the cargo invocation.
-  - `build-aux/io.github.domatix.ObsbotCamControl.json`
+  - `build-aux/io.github.domatix.obsbot-control.json`
     adds the `gst-plugin-gtk4` module before the app
     module and sets `-Dlive-preview=true` in the app's
     `config-opts`.
@@ -1971,7 +1971,7 @@
         includes the gstreamer chain).
   - [x] `flatpak-builder` smoke-test (2026-06-02): builds all
         three modules (blueprint-compiler, gst-plugin-gtk4,
-        app), installs `io.github.domatix.ObsbotCamControl
+        app), installs `io.github.domatix.obsbot-control
         0.3.2` to the user installation, and `gst-inspect-1.0
         gtk4paintablesink` inside the app sandbox finds the
         plugin from `/app/lib/gstreamer-1.0/libgstgtk4.so`
@@ -2114,7 +2114,7 @@
   `/usr/lib/sdk/llvm19/...` PATH / LD / `LIBCLANG_PATH` references
   follow; `rust-stable` resolves to its 25.08 branch
   automatically. No app-code change — only
-  `build-aux/io.github.domatix.ObsbotCamControl.json`.
+  `build-aux/io.github.domatix.obsbot-control.json`.
 - **Acceptance criteria**:
   - [x] `runtime-version` 48 → 50; `llvm19` → `llvm20`; the three
         `/usr/lib/sdk/llvm19` paths → `llvm20`.
@@ -2152,7 +2152,7 @@
   - [x] Rebuilt `.deb` Depends gains `libgstreamer1.0-0` via
         `$auto` (proof the feature compiled in) and Recommends
         lists the three plugin packages.
-  - [x] `strings usr/bin/obsbot-cam-control` from the extracted
+  - [x] `strings usr/bin/obsbot-control` from the extracted
         `.deb` contains `gtk4paintablesink` (preview pipeline
         present).
   - [x] §2.3 gates green (fmt, clippy `-D warnings`, tests —
@@ -2208,7 +2208,7 @@
 - **Description**: capture 2–3 HiDPI screenshots (main controls page
   with preview on; AI tracking group; presets), host them under
   `data/screenshots/`, and add a `<screenshots>` block to
-  `data/io.github.domatix.ObsbotCamControl.metainfo.xml.in`.
+  `data/io.github.domatix.obsbot-control.metainfo.xml.in`.
 - **How it went**: the user connected the Tiny 2 Lite (`3564:fef9`)
   on 2026-08-14 and captured six window screenshots with the
   built-in GNOME screenshot UI (programmatic capture is impossible
@@ -2246,7 +2246,7 @@
   pinned to the tag, the two `cargo-sources*.json` copies, and a
   README with the exact steps), then have the user submit via
   flathub.org and push the bundle to the provisioned
-  `flathub/io.github.domatix.ObsbotCamControl` repo.
+  `flathub/io.github.domatix.obsbot-control` repo.
 - **How it went (so far)**: version bumped to 0.5.0 (Cargo,
   meson, README, metainfo `<release>`, ROADMAP mapping), tag
   `v0.5.0` cut and pushed (commit `afb9609a`), bundle assembled.
@@ -2263,8 +2263,17 @@
         screenshots block.
   - [ ] App accepted; first build green on the `flathub/` repo; the
         app is installable via `flatpak install flathub <app-id>`.
-- **Remaining user steps**: flathub.org sign-in + submit, then push
-  the bundle to `flathub/io.github.domatix.ObsbotCamControl`.
+- **Remaining user steps**: open the submission PR by hand against
+  `flathub/flathub`@`new-pr` with the three bundle JSON files
+  (Flathub's Generative-AI policy requires the PR to be opened by a
+  human, not automated), answer review, and trigger `bot, build`
+  when asked. After approval, the reviewers create
+  `flathub/io.github.domatix.obsbot-control` and invite the user as
+  maintainer.
+- **Rename note**: the app ID was renamed from
+  `io.github.domatix.ObsbotCamControl` to `io.github.domatix.obsbot-control`
+  to satisfy the Flathub linter's `appid-url-not-reachable` check —
+  see [[ADR-0033]].
 
 ---
 
@@ -2353,7 +2362,7 @@
 - **Completed**: 2026-05-12T10:55:00Z
 - **Depends on**: T-001
 - **Description**: Pick the reverse-DNS namespace for the app (resolved to
-  `io.github.domatix.ObsbotCamControl`) and the OSI license (resolved to
+  `io.github.domatix.obsbot-control`) and the OSI license (resolved to
   `GPL-3.0-or-later`). Both decisions taken with explicit user input.
 - **Acceptance criteria**:
   - `DECISIONS.md` contains an ADR with rationale for the namespace.
@@ -2362,7 +2371,7 @@
   - All placeholders `io.github.<ns>` replaced project-wide.
   - Commit: `chore: set namespace and license (T-002)`.
 - **Outcome**: [[ADR-0011]] records GPL-3.0-or-later; [[ADR-0012]] records
-  the App ID `io.github.domatix.ObsbotCamControl`, GitHub org `Domatix`,
+  the App ID `io.github.domatix.obsbot-control`, GitHub org `Domatix`,
   display name "Obsbot Cam Control", and copyright line "© 2026 Domatix and
   contributors". `LICENSE` file installed at repo root with verbatim GNU
   GPL-3.0 text. All live `<ns>` and `<app-id>` placeholders in ARCHITECTURE,
@@ -2519,7 +2528,7 @@
 - **Outcome**: `crates/obsbot-gui/` with three source files (~120 lines
   of project code, ignoring SPDX headers) backed by GTK 4.18.6 +
   libadwaita 1.7.6 on the user's Debian trixie. `[[bin]] name =
-  "obsbot-cam-control"` per [[ADR-0012]]. Source split mirrors
+  "obsbot-control"` per [[ADR-0012]]. Source split mirrors
   [[ARCHITECTURE §2]]: `main.rs` (APP_ID const + `application::run`),
   `application.rs` (`adw::Application` factory, registers
   `app.quit` ActionEntry, binds `<primary>q`), `window.rs`
@@ -2552,12 +2561,12 @@
     incremental rebuilds finish in tens of milliseconds.
   - `meson install -C builddir --destdir /tmp/install-test` produces a
     correctly-laid-out filesystem under `/tmp/install-test`. **DONE** —
-    install drops `obsbot-cam-control` (424 KB stripped ELF) at
-    `/tmp/install-test/usr/local/bin/obsbot-cam-control`; `--help`
+    install drops `obsbot-control` (424 KB stripped ELF) at
+    `/tmp/install-test/usr/local/bin/obsbot-control`; `--help`
     responds with the standard GLib option-group output.
   - Commit: `build: set up Meson orchestration (T-008)`.
 - **Outcome**: top-level `meson.build` declares the project
-  (`obsbot-cam-control` 0.1.0, GPL-3.0-or-later, meson ≥ 1.0),
+  (`obsbot-control` 0.1.0, GPL-3.0-or-later, meson ≥ 1.0),
   asserts runtime-lib minimums (belt-and-suspenders vs. the
   cargo-side gtk4-sys/libadwaita-sys link), and wraps cargo in a
   single `custom_target('cargo-build', ...)` plumbed through
@@ -2577,9 +2586,9 @@
 - **Started**: 2026-05-13T12:50:39Z
 - **Completed**: 2026-05-13T12:54:51Z
 - **Depends on**: T-002 (namespace), T-008
-- **Description**: Write `io.github.domatix.ObsbotCamControl.metainfo.xml.in`
+- **Description**: Write `io.github.domatix.obsbot-control.metainfo.xml.in`
   with description, summary (≤ 35 chars), categories, license, content
-  rating. Write `io.github.domatix.ObsbotCamControl.desktop.in` with name,
+  rating. Write `io.github.domatix.obsbot-control.desktop.in` with name,
   comment, exec, icon, categories.
 - **Acceptance criteria**:
   - `appstreamcli validate` passes with zero errors. **DONE** — `LC_ALL=C
@@ -2624,7 +2633,7 @@
 - **Completed**: 2026-05-13T15:44:58Z
 - **Depends on**: T-009
 - **Description**: Add a placeholder icon (scalable SVG) at the correct path
-  (`data/icons/scalable/apps/io.github.domatix.ObsbotCamControl.svg`) and a
+  (`data/icons/scalable/apps/io.github.domatix.obsbot-control.svg`) and a
   symbolic version. A
   better-designed icon is a later concern; this just needs to be a recognizable
   camera shape in Adwaita style.
@@ -2819,7 +2828,7 @@
     "OBSBOT Tiny 2 Lite" with a subtitle carrying the USB ID and
     `/dev/videoN` path. **DONE** — user-confirmed via
     AskUserQuestion 2026-05-13T16:25Z while
-    `./target/debug/obsbot-cam-control` was running in background
+    `./target/debug/obsbot-control` was running in background
     (xwininfo reported the same `0x2600004 "Obsbot Cam Control"
     842x662` window shape T-007 verified, and the user picked
     "Fila Tiny 2 Lite (correcto)" describing the AdwActionRow
@@ -3002,7 +3011,7 @@
   lookups.
 - **Acceptance criteria (preserved)**:
   - `blueprint-compiler` invoked successfully from `cargo build`.
-  - `obsbot-cam-control` loads UI from the embedded GResource.
+  - `obsbot-control` loads UI from the embedded GResource.
   - `cargo run -p obsbot-gui` behaviour unchanged from T-013c.
   - Commit: `build: Blueprint pipeline (T-013d)` (or the
     equivalent v0.2 task ID).
@@ -3013,17 +3022,17 @@
 - **Completed**: 2026-05-13T17:55:00Z
 - **Depends on**: T-008, T-009, T-010
 - **Description**: Create
-  `build-aux/io.github.domatix.ObsbotCamControl.json` for `flatpak-builder`.
+  `build-aux/io.github.domatix.obsbot-control.json` for `flatpak-builder`.
   Permissions: `--device=all`, `--share=ipc`, `--socket=wayland`,
   `--socket=fallback-x11`. Runtime: GNOME 48.
 - **Acceptance criteria**:
   - `flatpak-builder --user --install --force-clean build-flatpak
-    build-aux/io.github.domatix.ObsbotCamControl.json` succeeds.
+    build-aux/io.github.domatix.obsbot-control.json` succeeds.
     **DONE** — third attempt succeeded after two manifest fixes
     (see Outcome). Final invocation completed in ~3 minutes
     (cargo-warm cache; first run had a cold cargo build at
     ~5 minutes).
-  - `flatpak run io.github.domatix.ObsbotCamControl` opens the diagnostics
+  - `flatpak run io.github.domatix.obsbot-control` opens the diagnostics
     window from T-013. **DONE** — user-confirmed
     2026-05-13T17:55Z via AskUserQuestion ("Works the same as the
     local build"): the camera row, drill-down detail page with the
@@ -3031,10 +3040,10 @@
     native binary. `--device=all` correctly grants `/dev/video0`
     access from the sandbox.
   - Commit: `build: initial Flatpak manifest (T-014)`.
-- **Outcome**: `build-aux/io.github.domatix.ObsbotCamControl.json`
+- **Outcome**: `build-aux/io.github.domatix.obsbot-control.json`
   declares the canonical GNOME-Circle shape (runtime
   `org.gnome.Platform//48` + sdk `org.gnome.Sdk//48`, command
-  `obsbot-cam-control`, `--share=ipc + --socket=wayland +
+  `obsbot-control`, `--share=ipc + --socket=wayland +
   --socket=fallback-x11 + --device=all` finish-args, meson
   buildsystem module sourcing the local repo dir). Three in-flight
   fixes that the live build pipeline forced and that are now
@@ -3120,14 +3129,14 @@
   Scope per [[ADR-0015]]: convenience artifact, not Debian-policy.
 - **Acceptance criteria**:
   - `cargo deb -p obsbot-gui` succeeds locally; artifact installs via
-    `sudo apt install ./obsbot-cam-control_*_amd64.deb`. **DONE** —
+    `sudo apt install ./obsbot-control_*_amd64.deb`. **DONE** —
     `build-aux/build-deb.sh` (cargo-deb 2.12.1, pinned to `^2.10`
     because 3.7.0 needs rustc 1.88 which our 1.83 MSRV / 1.85 host
     toolchain doesn't ship) produces
-    `build-aux/dist/obsbot-cam-control_0.1.0-1_amd64.deb` (201 KB on
+    `build-aux/dist/obsbot-control_0.1.0-1_amd64.deb` (201 KB on
     disk; installed-size 558 KB). The user's host installed it via
-    `sudo apt install -y ./build-aux/dist/obsbot-cam-control_0.1.0-1
-    _amd64.deb`; `dpkg -l obsbot-cam-control` returns `ii  obsbot-
+    `sudo apt install -y ./build-aux/dist/obsbot-control_0.1.0-1
+    _amd64.deb`; `dpkg -l obsbot-control` returns `ii  obsbot-
     cam-control  0.1.0-1  amd64  …` (installed, properly
     configured). The hicolor / desktop-file-utils / gnome-menus
     triggers ran post-install, confirming the freedesktop assets
@@ -3135,9 +3144,9 @@
     notice on `_apt` is APT's standard "couldn't access file in
     $HOME" disclaimer — apt re-runs as root and the install
     completes cleanly.
-  - After install, `obsbot-cam-control` launches and reaches the T-013
+  - After install, `obsbot-control` launches and reaches the T-013
     diagnostics view against the user's Tiny 2 Lite. **DONE
-    (proxy)** — `/usr/bin/obsbot-cam-control --help` prints the
+    (proxy)** — `/usr/bin/obsbot-control --help` prints the
     standard GLib option-group help message (`Uso: obsbot-cam-
     control [OPCIÓN…] / Opciones de ayuda: -h, --help`). This
     proves: (a) the binary is on PATH at `/usr/bin/`, mode 755
@@ -3152,10 +3161,10 @@
     representative signal, and the actual GUI behaviour was
     confirmed identical to the native build via the Flatpak path
     in [[PLAN T-014]] which links the same ELF.
-  - `sudo apt remove obsbot-cam-control` leaves no stray files in
+  - `sudo apt remove obsbot-control` leaves no stray files in
     `/usr/share/applications`, `/usr/share/icons/hicolor`,
     `/usr/share/glib-2.0/schemas`. **DONE** — `sudo apt remove -y
-    obsbot-cam-control` reported "Freed space: 571 kB" and ran the
+    obsbot-control` reported "Freed space: 571 kB" and ran the
     same hicolor/desktop-file-utils/gnome-menus triggers in
     reverse. Post-remove `ls` of the four installed paths (the
     `.desktop`, both SVGs, and the metainfo) plus the doc
@@ -3172,7 +3181,7 @@
 - **Outcome**: `cargo-deb` toolchain compatibility pinned at `^2.10`
   (resolved to 2.12.1). `[package.metadata.deb]` in
   `crates/obsbot-gui/Cargo.toml` declares the package as
-  `obsbot-cam-control` ([[ADR-0012]] kebab-case App-ID tail —
+  `obsbot-control` ([[ADR-0012]] kebab-case App-ID tail —
   hiding the internal `obsbot-gui` crate handle from the deb world)
   with `section = video`, `priority = optional`, `maintainer`,
   `copyright`, `license-file = ["../../LICENSE", "0"]`,
@@ -3216,7 +3225,7 @@
   [[ADR-0015]]: convenience artifact, not AUR-grade.
 - **Acceptance criteria**:
   - `makepkg -f` (run by CI or a contributor on Arch) produces
-    `obsbot-cam-control-*-x86_64.pkg.tar.zst`. **DEFERRED** —
+    `obsbot-control-*-x86_64.pkg.tar.zst`. **DEFERRED** —
     same shape as the original T-010 caveat: deliverable is the
     PKGBUILD + shim, not the act of running makepkg. Host is
     Debian (no native makepkg) and has no docker/podman, so the
@@ -3234,10 +3243,10 @@
     cargo release-profile output is byte-for-byte stable across
     invocation paths. `meson install --destdir=` produces the
     same 5-file freedesktop layout the `.deb` ships, plus the
-    Arch-idiomatic `/usr/share/licenses/obsbot-cam-control/
+    Arch-idiomatic `/usr/share/licenses/obsbot-control/
     LICENSE` symmetry copy.
   - On an Arch test machine, `sudo pacman -U <package>` installs
-    cleanly and `obsbot-cam-control` launches. **DEFERRED** —
+    cleanly and `obsbot-control` launches. **DEFERRED** —
     same reasoning: downstream on the Arch stakeholder's
     machine, identical pattern to T-016's user-driven `apt
     install` gate.
@@ -3252,7 +3261,7 @@
   host", not a code defect — symmetric with T-010's
   framework-correct / hardware-deferred shape.
 - **Outcome**: three artefacts land under `build-aux/`:
-  * **`PKGBUILD`** — pkgname=`obsbot-cam-control` ([[ADR-0012]]
+  * **`PKGBUILD`** — pkgname=`obsbot-control` ([[ADR-0012]]
     kebab-case App-ID tail, matches `.deb` and binary).
     pkgver=0.1.0, pkgrel=1, license=`GPL-3.0-or-later` (Arch
     accepts SPDX identifiers since 2024). `depends=('gtk4'
@@ -3331,13 +3340,13 @@
 - **Acceptance criteria**:
   - [ ] `makepkg` inside an up-to-date `archlinux:latest`
         container produces
-        `obsbot-cam-control-0.4.0-1-x86_64.pkg.tar.zst`.
+        `obsbot-control-0.4.0-1-x86_64.pkg.tar.zst`.
   - [ ] `pacman -U` installs it cleanly inside the container;
-        `pacman -Qi obsbot-cam-control` reports 0.4.0-1.
+        `pacman -Qi obsbot-control` reports 0.4.0-1.
   - [ ] The installed binary executes in the container (GUI
         cannot render headless; acceptance = process starts and
         fails gracefully on missing display, not on linkage).
-  - [ ] `pacman -R obsbot-cam-control` removes it cleanly.
+  - [ ] `pacman -R obsbot-control` removes it cleanly.
   - [ ] The `.pkg.tar.zst` lands in `build-aux/dist/` for the
         Arch stakeholder.
 - **Handoff note (2026-06-05, [[DECISIONS.md ADR-0023]])**: the

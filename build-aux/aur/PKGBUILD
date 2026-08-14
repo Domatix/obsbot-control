@@ -29,7 +29,7 @@
 # Verifying a real hash is still worth more than the `SKIP` a git source
 # would need.
 
-pkgname=obsbot-cam-control
+pkgname=obsbot-control
 pkgver=0.4.2
 pkgrel=1
 pkgdesc="Native GNOME app to control OBSBOT Tiny 2 family webcams over UVC/V4L2"

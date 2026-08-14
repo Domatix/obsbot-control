@@ -51,7 +51,7 @@ const POLL_INTERVAL: Duration = Duration::from_secs(2);
 /// Path to the window's Blueprint-compiled UI inside the embedded
 /// `GResource` (see `build.rs` + `resources/window.blp` + the prefix
 /// in `resources/obsbot.gresource.xml`).
-const WINDOW_UI: &str = "/io/github/domatix/ObsbotCamControl/window.ui";
+const WINDOW_UI: &str = "/io/github/domatix/obsbot-control/window.ui";
 
 /// Shared state driving the single-page view: the live camera
 /// enumeration, the index of the camera currently mounted, and a guard

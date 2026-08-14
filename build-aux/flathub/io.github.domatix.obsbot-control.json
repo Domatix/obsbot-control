@@ -1,5 +1,5 @@
 {
-    "app-id": "io.github.domatix.ObsbotCamControl",
+    "app-id": "io.github.domatix.obsbot-control",
     "runtime": "org.gnome.Platform",
     "runtime-version": "50",
     "sdk": "org.gnome.Sdk",
@@ -7,7 +7,7 @@
         "org.freedesktop.Sdk.Extension.rust-stable",
         "org.freedesktop.Sdk.Extension.llvm20"
     ],
-    "command": "obsbot-cam-control",
+    "command": "obsbot-control",
     "finish-args": [
         "--share=ipc",
         "--socket=wayland",
@@ -19,18 +19,23 @@
         "append-path": "/usr/lib/sdk/rust-stable/bin:/usr/lib/sdk/llvm20/bin",
         "prepend-ld-library-path": "/usr/lib/sdk/llvm20/lib",
         "env": {
-            "CARGO_HOME": "/run/build/obsbot-cam-control/cargo",
+            "CARGO_HOME": "/run/build/obsbot-control/cargo",
             "CARGO_NET_OFFLINE": "true",
             "LIBCLANG_PATH": "/usr/lib/sdk/llvm20/lib"
         }
     },
-    "x-comment-sources": [
-        "T-226: every git source carries a full commit next to its tag.",
-        "A tag is a mutable ref in the source repository; the commit is",
-        "what actually gets built. flatpak-builder verifies the tag",
-        "resolves to that commit and fails the build otherwise.",
-        "When bumping a version, update BOTH fields:",
-        "  git ls-remote <url> refs/tags/<tag>"
+    "x-comment-source": [
+        "Flathub submission variant: the app source is the release tag",
+        "instead of a local dir (the in-repo dev manifest uses type:dir).",
+        "When a new release is cut, bump BOTH the tag and the commit here,",
+        "bump the cargo-sources*.json in this directory per ADR-0031, and",
+        "add the metainfo <release> entry in the app repo before tagging."
+    ],
+    "x-comment-sandbox": [
+        "--device=all is deliberate: the vendor XU control surface needs",
+        "raw access to /dev/videoN plus USB ioctls, for which no portal",
+        "exists. This matches other Flathub apps driving UVC extension",
+        "units and is the reason the app only talks to the camera."
     ],
     "x-comment-network": [
         "Both Rust modules build fully offline. cargo-sources.json (app)",
@@ -38,9 +43,7 @@
         "flatpak-cargo-generator.py from flatpak-builder-tools, declaring",
         "every crate archive and git dependency with a sha256 / commit.",
         "CARGO_NET_OFFLINE=true forces cargo to never reach the network.",
-        "Regenerate after a Cargo.lock bump:",
-        "  python3 flatpak-builder-tools/cargo/flatpak-cargo-generator.py",
-        "      <Cargo.lock> -o build-aux/cargo-sources.json"
+        "Regenerate after a Cargo.lock bump (see ADR-0031)."
     ],
     "modules": [
         {
@@ -82,7 +85,7 @@
             ]
         },
         {
-            "name": "obsbot-cam-control",
+            "name": "obsbot-control",
             "buildsystem": "meson",
             "config-opts": [
                 "--buildtype=release",
@@ -90,8 +93,10 @@
             ],
             "sources": [
                 {
-                    "type": "dir",
-                    "path": ".."
+                    "type": "git",
+                    "url": "https://github.com/Domatix/obsbot-control.git",
+                    "tag": "v0.5.0",
+                    "commit": "afb9609a103862f8d53b391ffc8b22eae7c54d26"
                 },
                 "cargo-sources.json"
             ]

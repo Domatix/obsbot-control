@@ -35,7 +35,7 @@ const TEMPLATES: &[&str] = &["window", "ptz-pad"];
 /// `GResource` compiler — whose only source dir is `OUT_DIR` — can find
 /// them next to the Blueprint-generated `.ui` files.
 const STATIC_RESOURCES: &[&str] = &["style.css"];
-const SCHEMA_FILENAME: &str = "io.github.domatix.ObsbotCamControl.gschema.xml";
+const SCHEMA_FILENAME: &str = "io.github.domatix.obsbot-control.gschema.xml";
 
 fn main() {
     let manifest_dir =

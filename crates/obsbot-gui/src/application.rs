@@ -41,7 +41,7 @@ pub fn run(app_id: &str) -> glib::ExitCode {
 
     let app = adw::Application::builder()
         .application_id(app_id)
-        .resource_base_path("/io/github/domatix/ObsbotCamControl/")
+        .resource_base_path("/io/github/domatix/obsbot-control/")
         .build();
 
     let app_id_owned = app_id.to_owned();
@@ -73,7 +73,7 @@ pub fn run(app_id: &str) -> glib::ExitCode {
 /// window.
 fn load_css() {
     let provider = gtk::CssProvider::new();
-    provider.load_from_resource("/io/github/domatix/ObsbotCamControl/style.css");
+    provider.load_from_resource("/io/github/domatix/obsbot-control/style.css");
     if let Some(display) = gtk::gdk::Display::default() {
         gtk::style_context_add_provider_for_display(
             &display,

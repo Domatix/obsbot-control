@@ -5,7 +5,7 @@
 A native GNOME application to control OBSBOT cameras on Linux. Built with
 GTK 4, libadwaita, and Rust. Targets GNOME Circle inclusion.
 
-- **App ID**: `io.github.domatix.ObsbotCamControl`
+- **App ID**: `io.github.domatix.obsbot-control`
 - **License**: [GPL-3.0-or-later](LICENSE) (SPDX: `GPL-3.0-or-later`)
 - **Repo**: hosted under the [`Domatix`](https://github.com/Domatix)
   GitHub organization.
@@ -52,7 +52,7 @@ against the Tiny 2 Lite:
   translations are welcome.
 
 Full release notes for every version live in the [AppStream
-metainfo](data/io.github.domatix.ObsbotCamControl.metainfo.xml.in);
+metainfo](data/io.github.domatix.obsbot-control.metainfo.xml.in);
 the milestone roadmap in [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
 ## Supported cameras
@@ -111,12 +111,12 @@ flatpak install --user flathub \
     org.gnome.Platform//50 \
     org.gnome.Sdk//50
 flatpak-builder --user --install --force-clean \
-    build-flatpak build-aux/io.github.domatix.ObsbotCamControl.json
-flatpak run io.github.domatix.ObsbotCamControl
+    build-flatpak build-aux/io.github.domatix.obsbot-control.json
+flatpak run io.github.domatix.obsbot-control
 ```
 
 The manifest at
-[`build-aux/io.github.domatix.ObsbotCamControl.json`](build-aux/io.github.domatix.ObsbotCamControl.json)
+[`build-aux/io.github.domatix.obsbot-control.json`](build-aux/io.github.domatix.obsbot-control.json)
 targets the GNOME 50 runtime and pulls the rust-stable and llvm20 SDK
 extensions automatically on first build. It also compiles the
 `gtk4paintablesink` GStreamer plugin and `blueprint-compiler`, which
@@ -144,14 +144,14 @@ Build the artifact:
 The shim runs `meson setup` so the `.desktop` / AppStream files have
 their `@APP_ID@` / `@VERSION@` placeholders substituted, then invokes
 `cargo deb -p obsbot-gui`. The resulting package lands under
-`build-aux/dist/` as `obsbot-cam-control_<version>_amd64.deb`.
+`build-aux/dist/` as `obsbot-control_<version>_amd64.deb`.
 
 Install / uninstall:
 
 ```sh
-sudo apt install ./build-aux/dist/obsbot-cam-control_*_amd64.deb
-obsbot-cam-control                              # launches the GUI
-sudo apt remove obsbot-cam-control              # removes everything
+sudo apt install ./build-aux/dist/obsbot-control_*_amd64.deb
+obsbot-control                              # launches the GUI
+sudo apt remove obsbot-control              # removes everything
 ```
 
 ### Test packages (Arch `pkg.tar.zst`)
@@ -186,16 +186,16 @@ Arch-derivative) host:
 The shim runs `makepkg -f` against
 [`build-aux/PKGBUILD`](build-aux/PKGBUILD), which has `source=()` and
 builds `$startdir/..` in place, and drops the resulting
-`obsbot-cam-control-<version>-1-x86_64.pkg.tar.zst` under
+`obsbot-control-<version>-1-x86_64.pkg.tar.zst` under
 `build-aux/dist/`. That one is deliberately not self-contained: it
 exists to package an unreleased revision.
 
 Install / uninstall:
 
 ```sh
-sudo pacman -U ./build-aux/dist/obsbot-cam-control-*-x86_64.pkg.tar.zst
-obsbot-cam-control                              # launches the GUI
-sudo pacman -R obsbot-cam-control               # removes everything
+sudo pacman -U ./build-aux/dist/obsbot-control-*-x86_64.pkg.tar.zst
+obsbot-control                              # launches the GUI
+sudo pacman -R obsbot-control               # removes everything
 ```
 
 Build dependencies pulled from official repos:

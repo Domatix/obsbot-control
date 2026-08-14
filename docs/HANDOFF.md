@@ -13,7 +13,7 @@ libadwaita) to control **OBSBOT Tiny 2 family** webcams (Tiny 2,
 Tiny 2 Lite) over USB / UVC / V4L2 — **without** the vendor's
 proprietary SDK. The end goal is GNOME Circle + Flathub.
 
-- **App ID**: `io.github.domatix.ObsbotCamControl`
+- **App ID**: `io.github.domatix.obsbot-control`
 - **License**: GPL-3.0-or-later (metadata CC0-1.0)
 - **Platform**: Linux x86_64 only
 - **Repo**: `github.com/Domatix/obsbot-control` (public)
@@ -24,7 +24,7 @@ Three crates:
 |---------------|------|-------------------------|------|
 | `obsbot-core` | lib  | —                       | device/V4L2/UVC logic, protocol |
 | `obsbot-cli`  | bin  | `obsbot-cli`            | headless control |
-| `obsbot-gui`  | bin  | `obsbot-cam-control`    | the GTK app |
+| `obsbot-gui`  | bin  | `obsbot-control`    | the GTK app |
 
 ---
 
@@ -61,7 +61,7 @@ Native dev build (needs the GNOME 4 / GStreamer dev stack + Rust):
 ```sh
 meson setup builddir          # add -Dlive-preview=true for the camera preview
 meson compile -C builddir
-./builddir/obsbot-cam-control            # the GUI
+./builddir/obsbot-control            # the GUI
 cargo run -p obsbot-cli -- --help        # the CLI (cargo-only; meson does not build it)
 ```
 
@@ -81,7 +81,7 @@ Packaging artifacts (all in `build-aux/`, outputs land in
 `build-aux/dist/`, which is git-ignored):
 
 - **Flatpak** (supported channel, target Flathub):
-  `io.github.domatix.ObsbotCamControl.json`, runtime
+  `io.github.domatix.obsbot-control.json`, runtime
   `org.gnome.Platform//50`.
 - **.deb** (Debian/Ubuntu test artifact): `build-deb.sh`.
 - **Arch .pkg.tar.zst** (test artifact): `build-arch.sh` + `PKGBUILD`.

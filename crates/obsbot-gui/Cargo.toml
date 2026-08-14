@@ -18,10 +18,10 @@ module_name_repetitions = "allow"
 
 # Binary name follows ADR-0012 (kebab-case of the App ID's last segment).
 # The crate name (`obsbot-gui`) stays as a workspace handle; `cargo run
-# -p obsbot-gui` and `obsbot-cam-control` (installed) refer to the same
+# -p obsbot-gui` and `obsbot-control` (installed) refer to the same
 # program.
 [[bin]]
-name = "obsbot-cam-control"
+name = "obsbot-control"
 path = "src/main.rs"
 
 [dependencies]
@@ -83,7 +83,7 @@ glib-build-tools = "0.20"
 # manifest dir (`crates/obsbot-gui/`), so generated files reach in via
 # `../../builddir/...` and unmodified ones via `../../data/...`.
 [package.metadata.deb]
-name = "obsbot-cam-control"
+name = "obsbot-control"
 maintainer = "Domatix and contributors <noreply@domatix.com>"
 copyright = "2026, Domatix and contributors"
 license-file = ["../../LICENSE", "0"]
@@ -103,15 +103,15 @@ features = ["live-preview"]
 depends = "$auto"
 recommends = "gstreamer1.0-gtk4, gstreamer1.0-plugins-good, gstreamer1.0-plugins-base"
 assets = [
-    ["target/release/obsbot-cam-control", "usr/bin/", "755"],
+    ["target/release/obsbot-control", "usr/bin/", "755"],
     # T-225: the GSettings schema. Without it the installed binary looks
     # for a schema the package never shipped, and persistence silently
     # does nothing. Installing under `usr/share/glib-2.0/schemas/` is
     # enough on Debian: dpkg fires libglib2.0-0's trigger on that
     # directory, which recompiles the schema cache.
-    ["../../data/io.github.domatix.ObsbotCamControl.gschema.xml", "usr/share/glib-2.0/schemas/", "644"],
-    ["../../builddir/data/io.github.domatix.ObsbotCamControl.desktop", "usr/share/applications/", "644"],
-    ["../../builddir/data/io.github.domatix.ObsbotCamControl.metainfo.xml", "usr/share/metainfo/", "644"],
-    ["../../data/icons/scalable/apps/io.github.domatix.ObsbotCamControl.svg", "usr/share/icons/hicolor/scalable/apps/", "644"],
-    ["../../data/icons/symbolic/apps/io.github.domatix.ObsbotCamControl-symbolic.svg", "usr/share/icons/hicolor/symbolic/apps/", "644"],
+    ["../../data/io.github.domatix.obsbot-control.gschema.xml", "usr/share/glib-2.0/schemas/", "644"],
+    ["../../builddir/data/io.github.domatix.obsbot-control.desktop", "usr/share/applications/", "644"],
+    ["../../builddir/data/io.github.domatix.obsbot-control.metainfo.xml", "usr/share/metainfo/", "644"],
+    ["../../data/icons/scalable/apps/io.github.domatix.obsbot-control.svg", "usr/share/icons/hicolor/scalable/apps/", "644"],
+    ["../../data/icons/symbolic/apps/io.github.domatix.obsbot-control-symbolic.svg", "usr/share/icons/hicolor/symbolic/apps/", "644"],
 ]

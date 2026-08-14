@@ -82,7 +82,7 @@ pub const PTZ_PAD_IDS: &[u32] = &[
     CID_TILT_SPEED,
 ];
 
-const PTZ_PAD_UI: &str = "/io/github/domatix/ObsbotCamControl/ptz-pad.ui";
+const PTZ_PAD_UI: &str = "/io/github/domatix/obsbot-control/ptz-pad.ui";
 
 /// V4L2 pan/tilt units: 3600 units per degree per `PROTOCOL §2.2`.
 const UNITS_PER_DEGREE: i64 = 3600;

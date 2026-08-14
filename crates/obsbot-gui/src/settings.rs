@@ -20,7 +20,7 @@
 //! Saves the last-set V4L2 control value per `(camera serial, control
 //! name)` pair so subsequent app launches can restore each camera's
 //! state. The on-disk schema is shipped in `data/io.github.domatix.
-//! ObsbotCamControl.gschema.xml` and installed via meson under
+//! obsbot-control.gschema.xml` and installed via meson under
 //! `$datadir/glib-2.0/schemas/`; for `cargo run` (no `meson install`)
 //! the `build.rs` shim recompiles the schema into `OUT_DIR/schemas/`
 //! and this module loads it directly via
@@ -50,7 +50,7 @@ use obsbot_core::{read_controls, write_control, ControlValue};
 
 use crate::i18n::gettext;
 
-const APP_ID: &str = "io.github.domatix.ObsbotCamControl";
+const APP_ID: &str = "io.github.domatix.obsbot-control";
 const KEY: &str = "control-values";
 /// `GSettings` key for the T-200 preview-on-open default. Only
 /// consulted when the `live-preview` Cargo feature is enabled; the

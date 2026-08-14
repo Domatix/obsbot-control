@@ -38,7 +38,7 @@ host. The current OS is reported as '${ID:-unknown}' (ID_LIKE='${ID_LIKE:-}').
 
 Per [[ADR-0015]], the .pkg.tar.zst is a convenience test artifact for
 the Arch stakeholder; the supported distribution channels on other
-hosts are the Flatpak (build-aux/io.github.domatix.ObsbotCamControl.json)
+hosts are the Flatpak (build-aux/io.github.domatix.obsbot-control.json)
 or the .deb (build-aux/build-deb.sh).
 
 To build on a non-Arch host you would need a containerised Arch

@@ -14,7 +14,7 @@
 #   * T-105 (v0.2) compiles the GSettings schema.
 
 project(
-  'obsbot-cam-control',
+  'obsbot-control',
   version: '0.5.0',
   license: 'GPL-3.0-or-later',
   meson_version: '>= 1.0.0',
@@ -24,7 +24,7 @@ project(
 )
 
 # Project identity (resolved in ADR-0012).
-app_id = 'io.github.domatix.ObsbotCamControl'
+app_id = 'io.github.domatix.obsbot-control'
 app_name = 'Obsbot Cam Control'
 
 # Runtime libraries: presence + minimum-version checks per
@@ -66,7 +66,7 @@ manifest         = meson.project_source_root() / 'Cargo.toml'
 
 # The binary cargo produces and that we install. Its name comes from
 # crates/obsbot-gui/Cargo.toml's `[[bin]] name`, fixed by ADR-0012.
-bin_name = 'obsbot-cam-control'
+bin_name = 'obsbot-control'
 
 # Optional cargo feature flag (T-200 / T-203). When the `live-preview`
 # meson option is true the wrapper appends --features live-preview to
