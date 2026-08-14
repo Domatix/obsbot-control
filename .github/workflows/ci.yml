@@ -103,7 +103,7 @@ jobs:
             rust cargo git meson ninja-build clang-libs \
             gtk4-devel libadwaita-devel \
             gstreamer1-devel gstreamer1-plugins-base-devel \
-            blueprint-compiler gettext-devel
+            blueprint-compiler gettext-devel desktop-file-utils
           # Exact version, not a caret range: a future 2.x lands in the
           # build without review otherwise.
           cargo install cargo-deb --locked --version '=2.10.0'
@@ -125,7 +125,9 @@ jobs:
       - name: Install build dependencies
         run: |
           pacman -Sy --noconfirm base-devel rust meson clang pkgconf \
-            gtk4 libadwaita git blueprint-compiler
+            gtk4 libadwaita git blueprint-compiler \
+            desktop-file-utils gtk-update-icon-cache \
+            gst-plugins-base gst-plugins-good gst-plugin-gtk4
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: Build the package (as unprivileged user; makepkg refuses root)
         run: |
@@ -152,7 +154,9 @@ jobs:
       - name: Install build dependencies
         run: |
           pacman -Sy --noconfirm base-devel rust meson clang pkgconf \
-            gtk4 libadwaita git blueprint-compiler
+            gtk4 libadwaita git blueprint-compiler \
+            desktop-file-utils gtk-update-icon-cache \
+            gst-plugins-base gst-plugins-good gst-plugin-gtk4
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: Build the package (as unprivileged user; makepkg refuses root)
         run: |

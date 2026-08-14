@@ -27,7 +27,7 @@
 # you have checked out.
 
 pkgname=obsbot-control
-pkgver=0.4.2
+pkgver=0.5.0
 pkgrel=1
 pkgdesc="Native GNOME app to control OBSBOT Tiny 2 family webcams over UVC/V4L2"
 arch=('x86_64')
