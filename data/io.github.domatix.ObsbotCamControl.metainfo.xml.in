@@ -100,6 +100,29 @@
   </supports>
 
   <releases>
+    <release version="0.5.0" date="2026-08-14" type="development">
+      <description>
+        <p>
+          First release packaged for Flathub, with an offline
+          reproducible Flatpak build and an AppStream listing with
+          screenshots:
+        </p>
+        <ul>
+          <li>Gesture control: one switch per on-device gesture, so
+            you can enable or disable hand tracking, silence and zoom
+            gestures from the app.</li>
+          <li>Zoom lock: a switch in the PTZ group pins the current
+            zoom and keeps it there even when the camera tries to
+            reframe on its own.</li>
+          <li>Settings persistence now works on installed builds: the
+            GSettings schema is looked up at runtime instead of
+            assuming the source tree layout.</li>
+          <li>The Flatpak is now built fully offline: every crate and
+            git dependency is pinned and hashed, so the package
+            builds reproducibly with no network access.</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.4.2" date="2026-06-18" type="development">
       <description>
         <p>

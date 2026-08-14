@@ -27,7 +27,7 @@ GTK 4, libadwaita, and Rust. Targets GNOME Circle inclusion.
 
 ## Status
 
-**Current release: v0.4.2** (2026-06-18). What works today, validated
+**Current release: v0.5.0** (2026-08-14). What works today, validated
 against the Tiny 2 Lite:
 
 - **AI tracking** with ten framing modes (Normal, Upper body, Close-up,

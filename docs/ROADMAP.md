@@ -157,5 +157,6 @@ AI tracking.
 | `v0.4.0`   | Live Preview (Flatpak)     | shipped (2026-06-02) |
 | `v0.4.1`   | Preview power handling     | shipped (2026-06-11) |
 | `v0.4.2`   | Single-page UX             | shipped (2026-06-18) |
+| `v0.5.0`   | Flathub submission release | shipped (2026-08-14) |
 | `v0.6.0`   | Polish                     | active   |
 | `v1.0.0`   | GNOME Circle               | goal     |
