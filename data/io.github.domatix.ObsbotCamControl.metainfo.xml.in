@@ -40,6 +40,25 @@
     </p>
   </description>
 
+  <screenshots>
+    <screenshot type="default">
+      <caption>Main controls with the live preview active</caption>
+      <image>https://raw.githubusercontent.com/Domatix/obsbot-control/main/data/screenshots/main-page-with-preview.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Image adjustments: brightness, contrast, saturation and more</caption>
+      <image>https://raw.githubusercontent.com/Domatix/obsbot-control/main/data/screenshots/image-controls.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Pan, tilt and zoom controls</caption>
+      <image>https://raw.githubusercontent.com/Domatix/obsbot-control/main/data/screenshots/ptz-zoom-controls.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Recall of the camera's preset positions</caption>
+      <image>https://raw.githubusercontent.com/Domatix/obsbot-control/main/data/screenshots/presets.png</image>
+    </screenshot>
+  </screenshots>
+
   <categories>
     <category>AudioVideo</category>
     <category>Video</category>
