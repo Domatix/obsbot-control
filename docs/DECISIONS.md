@@ -1498,5 +1498,54 @@ is recorded in the manifest's `x-comment-network`.
 
 ---
 
+## ADR-0032 — Flathub submission release is v0.5.0; manifest pins the tag (T-232)
+
+**Status**: Accepted, 2026-08-14.
+
+**Context**: T-232 requires the Flathub manifest to build from an
+immutable release source. Since v0.4.2 the tree has shipped
+user-visible features (gesture control T-229, zoom lock T-223,
+installed-schema lookup T-225) plus the offline Flatpak build
+(T-230) and the AppStream screenshots (T-231). None of that had a
+version number of its own, and the ROADMAP's next planned version
+was v0.6.0 (the full Polish milestone), which is not yet complete.
+
+**Decision**:
+
+- Bump the workspace version to **0.5.0** and cut tag `v0.5.0` as
+  the Flathub submission release. New user-visible features justify
+  a minor bump; jumping to v0.6.0 would misrepresent the unfinished
+  Polish milestone, and a 0.4.x patch would hide real features.
+- The submission manifest's app source switches from `type: dir` to
+  a `type: git` source pinned to `v0.5.0` with a full commit hash
+  (the T-226 pattern: tag is a mutable ref, the commit is what
+  actually builds).
+- The submission material lives in a self-contained
+  `build-aux/flathub/` bundle (manifest + the two `cargo-sources*.json`
+  copies + a README with the exact submit steps), because
+  flatpak-builder resolves the inline string sources relative to the
+  manifest file, so the `flathub/<app-id>` repo must carry them next
+  to the manifest. The bundle is what gets pushed there.
+- No `flathub.json`: modern Flathub does not require one for a
+  basic app; an empty config file would only add noise. (T-232's
+  original criterion to add one is dropped on this ground.)
+- `--device=all` stays. The XU control surface needs raw access to
+  `/dev/videoN` plus USB ioctls, for which no portal exists;
+  the manifest documents this justification for reviewers.
+
+**Consequences**:
+
+- `v0.5.0` becomes the first version listed on Flathub; release
+  notes live in the metainfo `<releases>` entry added with this
+  release.
+- The in-repo `build-aux/io.github.domatix.ObsbotCamControl.json`
+  keeps `type: dir` for local development; the submission variant
+  is the `build-aux/flathub/` copy. Both must be kept in sync
+  manually (deps, runtime, build options).
+- The ADR-0031 regeneration contract now applies to **both** copies
+  of `cargo-sources*.json`.
+
+---
+
 <!-- Append new ADRs above this line, never below. Newest ADRs go at the bottom
      of the list but new entries are added; do not edit old ones. -->

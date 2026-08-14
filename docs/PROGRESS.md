@@ -88,6 +88,23 @@ URLs (live once pushed). `appstreamcli validate --no-net` passes;
 the only warnings are the four `screenshot-image-not-found` ones
 that resolve when the PNGs land on `main`. T-231 → DONE.
 
+### [2026-08-14T13:00:00Z] [T-232] submission release cut and bundle verified — IN PROGRESS
+
+Version bumped to 0.5.0 across Cargo.toml / Cargo.lock / meson.build
+/ README, with a metainfo `<release>` entry (gesture control, zoom
+lock, installed-schema lookup, offline Flatpak build) and a ROADMAP
+mapping row; gates green; tag `v0.5.0` cut and pushed (commit
+`afb9609a`). The submission bundle was assembled at
+`build-aux/flathub/` (submission manifest with the app source pinned
+to the tag + commit, both `cargo-sources*.json` copies, README with
+the submit/release steps and reviewer notes) per [[ADR-0032]], which
+also dropped the planned `flathub.json` and documents keeping
+`--device=all`. Verified: `flatpak-builder` builds the bundle
+manifest clean from the git source with no network (exit 0), and the
+built metainfo carries the 0.5.0 release entry plus the screenshots
+block. Remaining user steps: flathub.org sign-in + submit, then push
+the three files to the provisioned `flathub/<app-id>` repo.
+
 ---
 
 ## 2026-08-06 (T-223 lock zoom)

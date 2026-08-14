@@ -6,23 +6,20 @@
 
 ---
 
-active_task: none  # T-230 and T-231 complete (gates/build green). T-232 pending user. Work uncommitted; commit pending user go-ahead.
-active_task_state: IDLE
+active_task: T-232  # Flathub submission — release cut + bundle built and verified. Only user steps remain.
+active_task_state: IN_PROGRESS
 active_branch: main
-last_completed_task: T-231  # AppStream screenshots wired (4 PNGs in data/screenshots/, metainfo <screenshots>). Prior: T-230 offline Flatpak build (closes #6).
-last_milestone: v0.4.2  # v0.6 (Polish / Flathub) is the active milestone.
-last_commit_on_main: e9fc39c  # ci: build a CachyOS .pkg.tar.zst test artifact (#18). Working tree holds T-230 + T-231 changes, not yet committed.
-last_step: 2026-08-14 — Tiny 2 Lite (3564:fef9) connected; offline-built Flatpak exported to a local repo, reinstalled and launched (libgstgtk4.so bundled, no errors); user verified tabs/preview/zoom; user captured 6 screenshots; 4 selected into data/screenshots/; metainfo <screenshots> added; appstreamcli --no-net exit 0. gh CLI authed as alvaro-domatix.
-next_step: user gives the go-ahead → 3 commits: (1) build(flatpak) T-230 manifest + cargo-sources, (2) feat(flatpak) T-231 screenshots + metainfo, (3) docs T-230/231 + ADR-0031; then push. After that T-232: cut release tag, switch manifest app source type:dir → pinned git, flathub.org login (user), submit, push to flathub/<app-id>.
+last_completed_task: T-232 (prep half)  # v0.5.0 tagged (afb9609a), build-aux/flathub/ bundle verified offline (exit 0). T-230/T-231 DONE earlier.
+last_milestone: v0.5.0  # Flathub submission release, tagged 2026-08-14. v0.6 (Polish) next.
+last_commit_on_main: afb9609  # chore(release): bump version to 0.5.0 (T-232). Bundle + docs commits pending below.
+last_step: 2026-08-14 — version bump 0.5.0 + tag pushed; build-aux/flathub/ bundle (submission manifest pinned to tag afb9609a + cargo-sources copies + README) built offline end-to-end exit 0; built metainfo shows 0.5.0 + screenshots. ADR-0032 recorded.
+next_step: commit bundle + docs (ADR-0032, PLAN T-232, PROGRESS, STATE) and push; then USER: flathub.org login → submit → push the 3 bundle files to flathub/io.github.domatix.ObsbotCamControl. Future release = bump tag+commit in bundle, regen cargo-sources, add metainfo <release>.
 blockers:
-  - T-232 submit needs the user's flathub.org login (interactive OAuth) and a cut release tag.
+  - T-232 submit needs the user's flathub.org login (interactive OAuth). Everything up to that point is done and verified.
   - native /usr/local install pending user sudo (from v0.4.2); T-017b Arch validation pending an Arch host.
 working_tree:  # matches `git status --short`
-  - M build-aux/io.github.domatix.ObsbotCamControl.json  # offline cargo build (T-230)
-  - ?? build-aux/cargo-sources.json, build-aux/cargo-sources-gst.json  # generated vendor sources (T-230)
-  - M data/io.github.domatix.ObsbotCamControl.metainfo.xml.in  # <screenshots> (T-231)
-  - ?? data/screenshots/{main-page-with-preview,image-controls,ptz-zoom-controls,presets}.png  # captures (T-231)
-  - M docs/{DECISIONS,PLAN,PROGRESS,STATE}.md  # ADR-0031, tasks T-230/231/232, journal
+  - M docs/{DECISIONS,PLAN,PROGRESS,STATE}.md  # ADR-0032, T-232 updates, journal
+  - ?? build-aux/flathub/{io.github.domatix.ObsbotCamControl.json,README.md,cargo-sources.json,cargo-sources-gst.json}  # submission bundle (T-232)
 firmware_notes: Tiny 2 Lite fw 5.10 — XU Sleep IGNORED ~3s after streaming stops (cold Sleep immediate); rapid open/close/sleep churn can hang capture until USB replug (ADR-0025). Q9: pan/tilt_speed write but no motion; PTZ via discrete steps (T-101d).
 flatpak_build_note: rofiles-fuse cannot mount on /tmp (nodev tmpfs) — run flatpak-builder with --state-dir and build dir under $HOME, never /tmp.
-updated_at: 2026-08-14T12:35:00Z
+updated_at: 2026-08-14T13:05:00Z

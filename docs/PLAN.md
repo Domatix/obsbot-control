@@ -2234,26 +2234,37 @@
 
 ### T-232 — Flathub submission
 
-- **State**: TODO
+- **State**: IN_PROGRESS
+- **Started**: 2026-08-14T12:35:00Z
 - **Depends on**: T-230 (offline build), T-231 (screenshots).
 - **Origin**: `ROADMAP` v0.6 lists "Flathub submission of the
   package" as a milestone item; `ADR-0015` makes Flathub the
   supported distribution channel. This task is the actual upload.
-- **Description**: convert the in-repo manifest's app source from
-  `type: dir` to a pinned release git/archive source, add a
-  `flathub.json` (with the branch/arches), sign in at flathub.org,
-  submit the app, and after review push the manifest to the
-  provisioned `flathub/io.github.domatix.ObsbotCamControl` repo.
+- **Description**: cut the submission release (`v0.5.0`, see
+  [[ADR-0032]]), prepare the self-contained submission bundle under
+  `build-aux/flathub/` (submission manifest with the app source
+  pinned to the tag, the two `cargo-sources*.json` copies, and a
+  README with the exact steps), then have the user submit via
+  flathub.org and push the bundle to the provisioned
+  `flathub/io.github.domatix.ObsbotCamControl` repo.
+- **How it went (so far)**: version bumped to 0.5.0 (Cargo,
+  meson, README, metainfo `<release>`, ROADMAP mapping), tag
+  `v0.5.0` cut and pushed (commit `afb9609a`), bundle assembled.
+  The originally planned `flathub.json` was dropped — modern
+  Flathub does not require one for a basic app (ADR-0032).
 - **Acceptance criteria**:
-  - [ ] A release tag (`vX.Y.0`) is cut; the manifest app source
-        points at it with a commit + sha256.
-  - [ ] `flatpak-builder` builds clean from the manifest as it will
-        live on Flathub (release source, not `type: dir`).
-  - [ ] `flathub.json` committed.
+  - [x] A release tag (`v0.5.0`) is cut; the submission manifest's
+        app source points at it with a commit pin.
+  - [x] `build-aux/flathub/` holds the three-file bundle plus a
+        README documenting the submission and release-bump steps.
+  - [x] `flatpak-builder` builds clean from the submission manifest
+        (git source, offline) — verified 2026-08-14, exit 0; the
+        built metainfo carries the 0.5.0 release entry and the
+        screenshots block.
   - [ ] App accepted; first build green on the `flathub/` repo; the
         app is installable via `flatpak install flathub <app-id>`.
-- **Note**: the submit step and the GitHub sign-in require the user;
-  the AI prepares the manifest and documents the exact steps.
+- **Remaining user steps**: flathub.org sign-in + submit, then push
+  the bundle to `flathub/io.github.domatix.ObsbotCamControl`.
 
 ---
 
