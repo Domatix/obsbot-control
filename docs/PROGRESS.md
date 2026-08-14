@@ -105,6 +105,25 @@ built metainfo carries the 0.5.0 release entry plus the screenshots
 block. Remaining user steps: flathub.org sign-in + submit, then push
 the three files to the provisioned `flathub/<app-id>` repo.
 
+### [2026-08-14T13:30:00Z] [T-232] app id renamed; v0.5.0 tag re-cut — IN PROGRESS
+
+The official Flathub linter (`flatpak-builder-lint` via
+`org.flatpak.Builder`) flagged one blocking error on the bundle:
+`appid-url-not-reachable` — Flathub derives the repo URL from the app
+id and `io.github.domatix.ObsbotCamControl` mapped to a non-existent
+repo. The user chose the rename option ([[ADR-0033]]): app id is now
+`io.github.domatix.obsbot-control` (exact map to
+`github.com/Domatix/obsbot-control`), with the schema id/path,
+GResource prefix, textdomain, icon/metadata filenames, binary name
+(`obsbot-control` per ADR-0012), both manifests, CI, PKGBUILDs and
+packaging scripts following. Committed as `0e35052`; the v0.5.0 tag
+(no consumers yet) was deleted and re-cut on it. The appstream lint
+passes (1 pedantic note). Bundle rebuild + linter re-run against the
+renamed manifest in progress; submission is now a human-opened PR
+against `flathub/flathub`@`new-pr` (Flathub's Generative-AI policy
+forbids AI-opened submission PRs — the bundle README documents the
+steps).
+
 ---
 
 ## 2026-08-06 (T-223 lock zoom)

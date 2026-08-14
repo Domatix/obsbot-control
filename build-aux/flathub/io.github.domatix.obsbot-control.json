@@ -96,7 +96,7 @@
                     "type": "git",
                     "url": "https://github.com/Domatix/obsbot-control.git",
                     "tag": "v0.5.0",
-                    "commit": "afb9609a103862f8d53b391ffc8b22eae7c54d26"
+                    "commit": "0e350527e86037cee15016e727ed943c6cfc7215"
                 },
                 "cargo-sources.json"
             ]
