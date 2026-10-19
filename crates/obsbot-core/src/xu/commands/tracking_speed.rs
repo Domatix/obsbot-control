@@ -11,7 +11,7 @@
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-//! Tracking speed — selector `0x02` 36-byte frame,
+//! Tracking speed — selector `0x02` frame,
 //! `function_group = [0x0a, 0x04, 0xc4, 0x0c, 0x01, 0x00]`.
 //!
 //! Tiny4Linux-only. Status reflected at byte `0x21` of the 60-byte
@@ -29,22 +29,17 @@ use crate::xu::transport::{set_cur, BUNIT_ID, SELECTOR_FRAME};
 /// `function_group` for tracking-speed frames.
 pub const FUNCTION_GROUP: [u8; 6] = [0x0a, 0x04, 0xc4, 0x0c, 0x01, 0x00];
 
-/// Build the 36-byte payload for the given tracking speed.
+/// Build the selector-0x02 frame for the given tracking speed.
+///
+/// The checksum bytes of the captured command block are no longer
+/// used: [`build`] recomputes both checksums from the frame contents.
 #[must_use]
-pub fn payload(speed: TrackingSpeed) -> [u8; 36] {
-    let (seq, cks, cmd) = match speed {
-        TrackingSpeed::Standard => (
-            [0x20, 0x00],
-            [0xab, 0xcb],
-            [0xe6, 0x3f, 0x00, 0x00, 0x00, 0x00],
-        ),
-        TrackingSpeed::Sport => (
-            [0x21, 0x00],
-            [0xfa, 0x0e],
-            [0x67, 0xfe, 0x02, 0x00, 0x00, 0x00],
-        ),
+pub fn payload(speed: TrackingSpeed) -> Vec<u8> {
+    let (seq, cmd) = match speed {
+        TrackingSpeed::Standard => (0x0020, [0xe6, 0x3f, 0x00, 0x00, 0x00, 0x00]),
+        TrackingSpeed::Sport => (0x0021, [0x67, 0xfe, 0x02, 0x00, 0x00, 0x00]),
     };
-    build(FUNCTION_GROUP, seq, cks, cmd, None)
+    build(FUNCTION_GROUP, seq, cmd, None)
 }
 
 /// Set the camera's tracking speed.
@@ -60,28 +55,25 @@ mod tests {
     use super::*;
 
     #[test]
-    fn payload_standard_matches_tiny4linux() {
-        let frame = payload(TrackingSpeed::Standard);
+    fn payload_standard_matches_capture() {
         assert_eq!(
-            frame,
-            [
-                0xaa, 0x25, 0x20, 0x00, 0x0c, 0x00, 0xab, 0xcb, 0x0a, 0x04, 0xc4, 0x0c, 0x01, 0x00,
-                0xe6, 0x3f, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            ]
+            payload(TrackingSpeed::Standard),
+            hex("aa2520000c00abcb0a04c40c0100e63f00")
         );
     }
 
     #[test]
-    fn payload_sport_matches_tiny4linux() {
-        let frame = payload(TrackingSpeed::Sport);
+    fn payload_sport_matches_capture() {
         assert_eq!(
-            frame,
-            [
-                0xaa, 0x25, 0x21, 0x00, 0x0c, 0x00, 0xfa, 0x0e, 0x0a, 0x04, 0xc4, 0x0c, 0x01, 0x00,
-                0x67, 0xfe, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            ]
+            payload(TrackingSpeed::Sport),
+            hex("aa2521000c00fa0e0a04c40c010067fe02")
         );
+    }
+
+    fn hex(s: &str) -> Vec<u8> {
+        (0..s.len())
+            .step_by(2)
+            .map(|i| u8::from_str_radix(&s[i..i + 2], 16).expect("hex"))
+            .collect()
     }
 }
