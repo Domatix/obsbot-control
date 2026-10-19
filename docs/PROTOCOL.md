@@ -416,8 +416,10 @@ Optional payload block at offset `header_length`:
 | +2-3   | payload CRC16, little endian, computed over `length + 4` bytes with this field zeroed |
 | +4..   | payload bytes |
 
-CRC16 is table driven: two 256-entry tables (low and high byte of the
-next state), state initialised to `0xFF`, result complemented.
+CRC16 is the standard CRC-16/USB variant: polynomial `0xA001`
+(reflected `0x8005`), initial value `0xFFFF`, final XOR `0xFFFF`. The
+firmware implements it with two 256-entry tables, which produce the
+same values as the bitwise form.
 
 With this layout the "command" bytes of the tables above decompose as
 `CRC16 + payload`; for example the sleep frame payload is four zero
