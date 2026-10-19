@@ -54,6 +54,11 @@ pub enum XuError {
     /// See `PROTOCOL.md §3.2 Q7`.
     #[error("preset index out of range (must be 0..=2, got {0})")]
     InvalidPresetIndex(i8),
+
+    /// A preset slot outside the range the camera exposes to the
+    /// create/update/rename/delete commands (1..=3).
+    #[error("preset slot out of range (must be 1..=3, got {0})")]
+    InvalidPresetSlot(u8),
 }
 
 impl From<XuError> for crate::Error {

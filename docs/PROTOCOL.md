@@ -388,6 +388,47 @@ are `[0x00, 0x00, 0x80, 0x3f]` repeated four times; their semantic
 meaning is unknown but the camera rejects the recall without them.
 Copy verbatim.
 
+#### Preset commands (decoded)
+
+The function group of a frame is `sender, receiver, command`:
+
+| Action | Command | Receiver | Payload |
+|--------|---------|----------|---------|
+| Recall | `0x39C4` | `0x04` (AI) | `index u32` + four `1.0f32` |
+| Create | `0x3944` | `0x04` (AI) | `index u32` + pan/tilt/roll/zoom `f32` + `-1000.0f32` |
+| Update | `0x3E04` | `0x04` (AI) | same as create |
+| Delete | `0x3984` | `0x04` (AI) | `index u32` |
+| Rename | `0x3A84` | `0x04` (AI) | `index u32` + ASCII name |
+
+`index` is zero-based in the frame (slot 1 is index 0). Recall was
+verified against captured frames; create, update, delete and rename
+come from the vendor application's own command table and have not been
+exercised on hardware yet.
+
+#### Replies
+
+A reply arrives on the same selector and reuses the frame layout, with
+these differences:
+
+- byte 1 is `0x29` when the reply carries a payload and `0x89` when it
+  does not.
+- the length field (bytes 4-5) is the length of the header itself, 12
+  for data replies and 16 for error replies.
+- the payload block starts at `header_length`.
+
+Error replies carry no payload and add four header bytes: `0x0200`
+followed by `0xFFFD`. This signature was confirmed by sending an
+unknown command (`0x1234`): it produces the same 16-byte reply as
+commands the firmware does not implement on this model (see below).
+
+Commands confirmed working on a Tiny 2 Lite (firmware 6.2.5.3):
+`CAM_GET_DEV_STATUS` (`0xA042`, 12-byte payload) and `CAM_GET_EXPOSURE`
+(`0x2942`, 5-byte payload).
+
+Commands that answer with the error signature, i.e. not implemented on
+this model: `CAM_GET_USB_MODE` (`0x6042`), `CAM_GET_UVC_MODE`
+(`0xC442`) and `AI_GET_GIM_STATE` (`0x6604`).
+
 #### Frame layout and checksum (decoded)
 
 The frames above are not opaque byte strings: the layout and both
