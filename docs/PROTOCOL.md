@@ -388,6 +388,42 @@ are `[0x00, 0x00, 0x80, 0x3f]` repeated four times; their semantic
 meaning is unknown but the camera rejects the recall without them.
 Copy verbatim.
 
+#### Frame layout and checksum (decoded)
+
+The frames above are not opaque byte strings: the layout and both
+checksums were recovered from the shipping firmware (`PacketParser` in
+the `route` daemon, `getcrc16` in `libremocpp_core`) and validated
+against every captured frame in this section (header and payload, 18
+checksums, all matching). `obsbot_core::xu::frame::encode` builds them
+from fields.
+
+Header, 12 bytes:
+
+| Offset | Field |
+|--------|-------|
+| 0      | `0xAA` |
+| 1      | flags; captured frames use `0x25`, and bit `0x60` means a payload block follows |
+| 2-3    | sequence number, little endian |
+| 4-5    | header length, little endian (12) |
+| 6-7    | header CRC16, little endian, computed with this field zeroed |
+| 8-11   | function group |
+
+Optional payload block at offset `header_length`:
+
+| Offset | Field |
+|--------|-------|
+| +0-1   | payload length, little endian |
+| +2-3   | payload CRC16, little endian, computed over `length + 4` bytes with this field zeroed |
+| +4..   | payload bytes |
+
+CRC16 is table driven: two 256-entry tables (low and high byte of the
+next state), state initialised to `0xFF`, result complemented.
+
+With this layout the "command" bytes of the tables above decompose as
+`CRC16 + payload`; for example the sleep frame payload is four zero
+bytes and the preset recall payload is a one-byte slot index plus four
+`1.0f32` values.
+
 #### Selector `0x06` — GET_CUR returns 60-byte status struct
 
 | Offset | Field          | Encoding                                                               | Source |
@@ -507,13 +543,11 @@ anyone who wants to resume the discovery work.
   and it was implemented the wrong way round first.
   This is the answer to Q10: the gesture zoom cannot be constrained from
   the V4L2 side, but the gesture itself can be turned off here.
-  **Checksum still unknown.** Bytes 2-3 are a sequence number and 6-7 a
-  checksum that varies with it. Fourteen captured frames were tested
-  against ten common CRC-16 variants (CCITT-FALSE, XMODEM, KERMIT,
-  MODBUS, ARC, MAXIM, USB, CMS, DNP, X.25) over six byte ranges in both
-  endiannesses; none reproduces it. As with `sleep`, `preset` and
-  `tracking_speed`, captured `(sequence, checksum)` pairs are replayed
-  verbatim, and the firmware accepts a replayed pair repeatedly.
+  **Checksum: decoded.** Bytes 2-3 are a sequence number and 6-7 a
+  header CRC16; the payload block carries its own CRC16. The format was
+  recovered from the firmware and every captured pair validates against
+  it, so frames no longer need to be replayed verbatim. See "Frame
+  layout and checksum (decoded)" above.
 
 - **Q5 resolution (Auto / Manual exposure label swap).** Live
   validation on 2026-05-14 showed cgevans's labelling produces

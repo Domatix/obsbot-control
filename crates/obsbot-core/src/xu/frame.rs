@@ -1,0 +1,185 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+//
+// Copyright (C) 2026 Domatix and contributors
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+
+//! Encoder for the selector `0x02` frame protocol.
+//!
+//! Layout of a frame, in bytes:
+//!
+//! ```text
+//! 0     0xAA
+//! 1     flags (captured frames use 0x25; bit 0x60 means a payload follows)
+//! 2-3   sequence number, little endian
+//! 4-5   header length, little endian (12)
+//! 6-7   header CRC16, little endian, computed with this field zeroed
+//! 8-11  function group
+//! 12..  optional payload block:
+//!         +0-1 payload length, little endian
+//!         +2-3 payload CRC16 over `length + 4` bytes, field zeroed
+//!         +4.. payload bytes
+//! ```
+//!
+//! Before this module existed the command helpers replayed captured
+//! byte arrays verbatim, checksum included, because the checksum
+//! algorithm was unknown (see `PROTOCOL.md` §3.2 Q7). [`encode`] builds
+//! the same bytes from fields and computes both checksums, which is
+//! what makes new frames possible.
+
+use crate::xu::crc16::crc16;
+
+/// Frame leader byte.
+pub const LEADER: u8 = 0xaa;
+
+/// Flags byte used by every frame captured so far. Bit `0x60` tells the
+/// receiver that a payload block follows the header.
+pub const FLAGS: u8 = 0x25;
+
+/// Fixed header length, in bytes.
+pub const HEADER_LEN: usize = 12;
+
+/// Build a selector `0x02` frame.
+///
+/// `function_group` is the four-byte identifier of the command (for
+/// example `0a 04 c4 0c` recalls tracking speed). `payload` is empty
+/// for commands without arguments.
+///
+/// The result is byte-identical to the frames captured from the
+/// vendor application for every command documented in `PROTOCOL.md`
+/// §3.2, both checksums included.
+///
+/// # Panics
+/// Panics if `payload` is longer than `u16::MAX` bytes, which the
+/// protocol cannot express.
+#[must_use]
+pub fn encode(seq: u16, function_group: [u8; 4], payload: &[u8]) -> Vec<u8> {
+    let mut hdr = [0u8; HEADER_LEN];
+    hdr[0] = LEADER;
+    hdr[1] = FLAGS;
+    hdr[2..4].copy_from_slice(&seq.to_le_bytes());
+    hdr[4..6].copy_from_slice(&12u16.to_le_bytes());
+    hdr[8..12].copy_from_slice(&function_group);
+    let hdr_crc = crc16(&hdr);
+    hdr[6..8].copy_from_slice(&hdr_crc.to_le_bytes());
+
+    if payload.is_empty() {
+        return hdr.to_vec();
+    }
+
+    let mut block = Vec::with_capacity(4 + payload.len());
+    let len = u16::try_from(payload.len()).expect("payload fits in u16");
+    block.extend_from_slice(&len.to_le_bytes());
+    block.extend_from_slice(&[0, 0]);
+    block.extend_from_slice(payload);
+    let payload_crc = crc16(&block);
+    block[2..4].copy_from_slice(&payload_crc.to_le_bytes());
+
+    let mut out = hdr.to_vec();
+    out.extend_from_slice(&block);
+    out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::encode;
+
+    fn hex(s: &str) -> Vec<u8> {
+        (0..s.len())
+            .step_by(2)
+            .map(|i| u8::from_str_radix(&s[i..i + 2], 16).expect("hex"))
+            .collect()
+    }
+
+    /// Preset recall payload: four leading zero bytes plus four 1.0f32
+    /// values, as captured from the vendor app (20 bytes).
+    fn preset_payload(index: u8) -> [u8; 20] {
+        [
+            index, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0x3f, 0x00, 0x00, 0x80, 0x3f, 0x00, 0x00,
+            0x80, 0x3f, 0x00, 0x00, 0x80, 0x3f,
+        ]
+    }
+
+    /// Every frame captured from the vendor app, as documented in
+    /// `PROTOCOL.md` §3.2. Expected bytes include the captured
+    /// checksums, so a regression in the encoder or in the CRC tables
+    /// fails here.
+    #[test]
+    fn matches_captured_frames() {
+        let cases: [(u16, [u8; 4], &[u8], &str); 9] = [
+            (
+                0x00a5,
+                [0x0a, 0x02, 0xc2, 0xa0],
+                &[0, 0, 0, 0],
+                "aa25a5000c005fef0a02c2a00400be0700000000",
+            ),
+            (
+                0x0042,
+                [0x0a, 0x02, 0xc2, 0xa0],
+                &[0x01, 0, 0, 0],
+                "aa2542000c00ea630a02c2a00400bffb01000000",
+            ),
+            (
+                0x0020,
+                [0x0a, 0x04, 0xc4, 0x0c],
+                &[0x00],
+                "aa2520000c00abcb0a04c40c0100e63f00",
+            ),
+            (
+                0x0021,
+                [0x0a, 0x04, 0xc4, 0x0c],
+                &[0x02],
+                "aa2521000c00fa0e0a04c40c010067fe02",
+            ),
+            (
+                0x0020,
+                [0x0a, 0x04, 0xc4, 0x39],
+                &preset_payload(0),
+                "aa2520000c006bdc0a04c4391400d6fb000000000000803f0000803f0000803f0000803f",
+            ),
+            (
+                0x001a,
+                [0x0a, 0x04, 0xc4, 0x39],
+                &preset_payload(1),
+                "aa251a000c004b030a04c4391400eb2a010000000000803f0000803f0000803f0000803f",
+            ),
+            (
+                0x0026,
+                [0x0a, 0x04, 0xc4, 0x39],
+                &preset_payload(2),
+                "aa2526000c008bc30a04c4391400af19020000000000803f0000803f0000803f0000803f",
+            ),
+            (
+                0x0015,
+                [0x0a, 0x02, 0x82, 0x29],
+                &[0x01, 0x32, 0x00, 0x00, 0x00],
+                "aa2515000c00a89e0a0282290500f9270132000000",
+            ),
+            (
+                0x0016,
+                [0x0a, 0x02, 0x82, 0x29],
+                &[0x02, 0x04, 0x00, 0x00, 0x00],
+                "aa2516000c0058910a0282290500b2af0204000000",
+            ),
+        ];
+        for (seq, group, payload, expected) in cases {
+            let got = encode(seq, group, payload);
+            assert_eq!(
+                got,
+                hex(expected),
+                "frame mismatch for seq {seq:#06x} group {group:02x?}"
+            );
+        }
+    }
+
+    #[test]
+    fn header_only_when_payload_is_empty() {
+        let frame = encode(0x0030, [0x0a, 0x02, 0xc2, 0xa0], &[]);
+        assert_eq!(frame.len(), 12);
+        assert_eq!(frame[0], 0xaa);
+        assert_eq!(frame[4..6], [12, 0]);
+    }
+}
