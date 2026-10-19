@@ -377,8 +377,8 @@ unless noted.
 | Exposure → Manual    | `0a 02 82 29 05 00`                  | `16 00`     | `58 91`     | `b2 af 02 04 00 00`                  | zero                  | n/a      | cgevans |
 | Sleep → Awake        | `0a 02 c2 a0 04 00`                  | `a5 00`     | `5f ef`     | `be 07 00 00 00 00`                  | zero                  | `0x02`   | Tiny4Linux |
 | Sleep → Sleep        | `0a 02 c2 a0 04 00`                  | `42 00`     | `ea 63`     | `bf fb 01 00 00 00`                  | zero                  | `0x02`   | Tiny4Linux |
-| Tracking → Standard  | `0a 04 c4 0c 01 00`                  | `20 00`     | `ab cb`     | `e6 3f 00 00 00 00`                  | zero                  | `0x21`   | Tiny4Linux |
-| Tracking → Sport     | `0a 04 c4 0c 01 00`                  | `21 00`     | `fa 0e`     | `67 fe 02 00 00 00`                  | zero                  | `0x21`   | Tiny4Linux |
+| Tracking → Standard  | `0a 04 c4 0c 01 00`                  | `20 00`     | `ab cb`     | `e6 3f 00 00 00 00`                  | zero                  | `0x24`   | measured 6.2.5.x |
+| Tracking → Sport     | `0a 04 c4 0c 01 00`                  | `21 00`     | `fa 0e`     | `67 fe 02 00 00 00`                  | zero                  | `0x24`   | measured 6.2.5.x |
 | Recall Preset 1 (idx 0) | `0a 04 c4 39 14 00`               | `20 00`     | `6b dc`     | `d6 fb 00 00 00 00`                  | `(1.0f32)x4` (16 B)   | none     | Tiny4Linux |
 | Recall Preset 2 (idx 1) | `0a 04 c4 39 14 00`               | `1a 00`     | `4b 03`     | `eb 2a 01 00 00 00`                  | `(1.0f32)x4`          | none     | Tiny4Linux |
 | Recall Preset 3 (idx 2) | `0a 04 c4 39 14 00`               | `26 00`     | `8b c3`     | `af 19 02 00 00 00`                  | `(1.0f32)x4`          | none     | Tiny4Linux |
@@ -396,7 +396,7 @@ Copy verbatim.
 | `0x06` | HDR flag       | `0x00` off, non-zero on                                                | cgevans + T4L |
 | `0x18` | AI mode `m`    | first byte of `(m, n)` per the table above                             | cgevans + T4L |
 | `0x1c` | AI mode `n`    | second byte of `(m, n)` per the table above                            | cgevans + T4L |
-| `0x21` | Tracking speed | `0x00` Standard, `0x02` Sport, anything else defaults to Standard      | Tiny4Linux |
+| `0x24` | Tracking speed | `0x00` Standard, `0x02` Sport (0x21 on firmware older than 6.2.5) | measured 6.2.5.x |
 
 Bytes `0x00`, `0x01`, `0x03`-`0x05`, `0x07`-`0x17`, `0x19`-`0x1b`,
 `0x1d`-`0x20`, `0x22`-`0x3b` are returned by the camera but
