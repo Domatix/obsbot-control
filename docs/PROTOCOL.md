@@ -388,6 +388,48 @@ are `[0x00, 0x00, 0x80, 0x3f]` repeated four times; their semantic
 meaning is unknown but the camera rejects the recall without them.
 Copy verbatim.
 
+#### Selector map (measured on a Tiny 2 Lite, firmware 6.2.5.x)
+
+All fourteen selectors answer `GET_LEN = 60`. Idle `GET_CUR` values and
+what the experiments pinned down:
+
+| Selector | Value | Meaning |
+|----------|-------|---------|
+| `0x01` | `00` | unknown |
+| `0x02` | `00` | framed command channel and its replies |
+| `0x03` | `00` / `01` | tracking active (follows AI tracking on/off) |
+| `0x04` | `01` | unknown constant |
+| `0x05` | `00` | unknown |
+| `0x06` | 60-byte status struct | see below |
+| `0x07` | `06` | unknown; the vendor app sends gimbal preset commands through property id 7 |
+| `0x08` | `"Tiny 2 Lite StreamCamera"` | stream name |
+| `0x09` | `00` / `01` | tracking active (same toggle as 0x03) |
+| `0x0A` | `FF` | unknown constant |
+| `0x0B` | `00` / `01` | tracking speed (0 Standard, 1 Sport) |
+| `0x0C` | `00` | unknown; static across all stimuli tried |
+| `0x0D` | `03` | unknown constant |
+| `0x0E` | `FE 20` | unknown constant |
+
+Status bytes measured by diffing the struct across known state changes:
+
+| Offset | Meaning |
+|--------|---------|
+| `0x02` | sleep state |
+| `0x04` | crop level (`0x05` wide, `0x0F` normal) |
+| `0x06` | HDR flag |
+| `0x07` | zoom gesture flag (1 by default, 0 after the gesture is enabled) |
+| `0x11` | field of view (1 wide, 2 normal; narrow is a no-op) |
+| `0x18`, `0x1C` | AI mode tuple |
+| `0x24` | tracking speed (0 Standard, 2 Sport) |
+
+`CAM_GET_DEV_STATUS` (`0xA042`) returns a 12-byte payload: byte 0 is a
+read counter, bytes 1-3 are constant, and bytes 4-7 hold a little-endian
+value that decreases by roughly 96,000 per second, which looks like an
+audio-rate counter.
+
+Still unknown: selectors 1, 4, 5, 7, 10, 12, 13 and 14 semantics, and
+whether preset read-back lives behind a different request shape.
+
 #### Selector `0x06` — GET_CUR returns 60-byte status struct
 
 | Offset | Field          | Encoding                                                               | Source |
