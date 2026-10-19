@@ -24,7 +24,7 @@ use std::fs::File;
 
 use crate::xu::command02::{build, PRESET_RECALL_APPENDIX};
 use crate::xu::errors::XuError;
-use crate::xu::transport::{set_cur, BUNIT_ID, SELECTOR_FRAME};
+use crate::xu::transport::{get_cur, set_cur, BUNIT_ID, SELECTOR_FRAME};
 
 /// `function_group` for preset-recall frames.
 pub const FUNCTION_GROUP: [u8; 6] = [0x0a, 0x04, 0xc4, 0x39, 0x14, 0x00];
@@ -203,6 +203,8 @@ const CMD_UPDATE: u16 = 0x3e04;
 const CMD_DELETE: u16 = 0x3984;
 /// Wire command for renaming a preset.
 const CMD_SET_NAME: u16 = 0x3a84;
+/// Wire command that lists the stored presets.
+const CMD_LIST: u16 = 0x3b44;
 
 /// Sequence numbers are advisory: the device echoes them back. A shared
 /// counter keeps them distinct across calls.
@@ -321,4 +323,32 @@ pub fn delete_preset(camera: &File, slot: u8) -> Result<(), XuError> {
 pub fn rename_preset(camera: &File, slot: u8, name: &str) -> Result<(), XuError> {
     let frame = rename_payload(next_seq(), slot, name)?;
     set_cur(camera, BUNIT_ID, SELECTOR_FRAME, &frame)
+}
+
+/// Ask the camera for the list of stored presets.
+///
+/// Returns the raw payload of the reply. An empty vector means the
+/// camera answered with its acknowledgement form (no payload), which is
+/// what it does when no preset is stored. The payload encoding for a
+/// non-empty list is not fully decoded yet, so callers should treat the
+/// bytes as opaque and only rely on emptiness for now.
+///
+/// The device fills the reply asynchronously, hence the short settle
+/// before reading the selector back.
+///
+/// # Errors
+/// Propagates transport errors and reports a malformed reply as
+/// [`XuError::Io`].
+pub fn list_presets(camera: &File) -> Result<Vec<u8>, XuError> {
+    let frame = crate::xu::frame::encode_get(next_seq(), 0x04, CMD_LIST);
+    set_cur(camera, BUNIT_ID, SELECTOR_FRAME, &frame)?;
+    std::thread::sleep(std::time::Duration::from_millis(250));
+    let mut buf = [0u8; crate::xu::status::STATUS_LEN];
+    get_cur(camera, BUNIT_ID, SELECTOR_FRAME, &mut buf)?;
+    match crate::xu::frame::parse_reply(&buf) {
+        Ok(reply) => Ok(reply.payload),
+        Err(err) => Err(XuError::Io(std::io::Error::other(format!(
+            "malformed reply: {err:?}"
+        )))),
+    }
 }

@@ -681,3 +681,22 @@ To be filled if needed.
   http://www.mail-archive.com/linuxtv-commits@linuxtv.org/msg48291.html
 - EUPL-1.2 → GPL-3 compatibility (EUPL Appendix):
   https://eupl.eu/1.2/en/
+
+#### Preset list
+
+`AI_GET_GIMBAL_PRESET_LIST` (`0x3B44`, receiver `0x04`) is a
+header-only GET. The reply arrives in the frame selector:
+
+- flags `0x09` and no payload: acknowledgement, empty list;
+- flags `0x29` with a short payload: a list entry. With one preset
+  stored in slot 2 the payload was `02 01` and it went back to empty
+  after deleting it.
+
+The payload encoding for a populated list is not decoded yet. Treat the
+bytes as opaque and use emptiness as the reliable signal, which is also
+the only way to verify that a delete actually removed something: the
+delete command answers `Ok` even for a slot that does not exist.
+
+Reply flags: bit `0x20` announces a payload block, and replies without
+it carry a 12-byte header whose length field is the header length, not
+a payload length.
