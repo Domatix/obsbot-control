@@ -82,4 +82,4 @@ pub mod v4l2_ptz;
 pub use enums::{AiMode, ExposureMode, FaceAeMode, FovMode, SleepState, TrackingSpeed};
 pub use errors::XuError;
 pub use status::{get_status, Status, STATUS_LEN};
-pub use transport::{BUNIT_ID, SELECTOR_FRAME, SELECTOR_OPCODE};
+pub use transport::{probe, BUNIT_ID, SELECTOR_FRAME, SELECTOR_OPCODE};

@@ -54,6 +54,21 @@ pub enum XuError {
     /// See `PROTOCOL.md §3.2 Q7`.
     #[error("preset index out of range (must be 0..=2, got {0})")]
     InvalidPresetIndex(i8),
+
+    /// The vendor XU did not answer `GET_LEN` on a selector the app
+    /// depends on. The descriptor surface differs between firmware
+    /// versions (see `PROTOCOL.md §3.1`), so a unit whose unit or
+    /// selector layout changed lands here instead of failing later
+    /// with a bare ioctl error.
+    #[error(
+        "vendor XU not available: unit {unit:#x} selector {selector:#x} did not answer GET_LEN"
+    )]
+    XuUnavailable {
+        /// The XU unit that was probed.
+        unit: u8,
+        /// The XU selector that did not answer.
+        selector: u8,
+    },
 }
 
 impl From<XuError> for crate::Error {
