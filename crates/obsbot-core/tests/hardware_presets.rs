@@ -42,7 +42,9 @@ use obsbot_core::xu::commands::preset_read::{list_preset_slots, read_preset_entr
 static DEVICE: Mutex<()> = Mutex::new(());
 
 fn lock() -> MutexGuard<'static, ()> {
-    DEVICE.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+    DEVICE
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
 /// Path of the first `/dev/videoN` that answers a preset list read.
@@ -102,10 +104,7 @@ fn save_rename_read_and_delete_roundtrip() {
         .expect("open device");
 
     let slot: u8 = 1;
-    let _guard = SlotGuard {
-        file: &file,
-        slot,
-    };
+    let _guard = SlotGuard { file: &file, slot };
 
     // Save the current pose so the test never moves the gimbal.
     preset::add_preset(
