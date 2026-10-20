@@ -67,9 +67,15 @@ pub struct PresetEntry {
 /// yields an empty vector.
 pub fn list_preset_slots(camera: &File) -> Result<Vec<u8>, XuError> {
     let len = get_len(camera, BUNIT_ID, SEL_PRESET_LIST)?;
+    if len == 0 {
+        return Ok(Vec::new());
+    }
     let mut buf = vec![0u8; usize::from(len)];
     get_cur(camera, BUNIT_ID, SEL_PRESET_LIST, &mut buf)?;
-    let count = usize::from(buf[0]).min(buf.len().saturating_sub(1));
+    let Some(&first) = buf.first() else {
+        return Ok(Vec::new());
+    };
+    let count = usize::from(first).min(buf.len().saturating_sub(1));
     if count == 0 {
         return Ok(Vec::new());
     }
@@ -88,6 +94,9 @@ pub fn list_preset_slots(camera: &File) -> Result<Vec<u8>, XuError> {
 /// [`XuError::Io`].
 pub fn read_preset_entries(camera: &File) -> Result<Vec<PresetEntry>, XuError> {
     let len = get_len(camera, BUNIT_ID, SEL_PRESET_LIST)?;
+    if len == 0 {
+        return Ok(Vec::new());
+    }
     let mut block = vec![0u8; usize::from(len)];
     get_cur(camera, BUNIT_ID, SEL_PRESET_LIST, &mut block)?;
     set_cur(camera, BUNIT_ID, SEL_PRESET_LIST, &block)?;
