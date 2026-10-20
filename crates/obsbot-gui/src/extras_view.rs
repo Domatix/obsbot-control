@@ -40,6 +40,7 @@
 // code references are still backticked manually.
 #![allow(clippy::doc_markdown)]
 
+use std::cell::RefCell;
 use std::fs::{File, OpenOptions};
 use std::path::Path;
 use std::rc::Rc;
@@ -49,6 +50,7 @@ use libadwaita as adw;
 
 use adw::prelude::*;
 use obsbot_core::xu::commands::preset::{self, Pose};
+use obsbot_core::xu::commands::preset_read;
 use obsbot_core::xu::v4l2_ptz::{
     V4L2_CID_PAN_ABSOLUTE, V4L2_CID_TILT_ABSOLUTE, V4L2_CID_ZOOM_ABSOLUTE,
 };
@@ -90,20 +92,38 @@ pub fn build_extras_group(cam: &CameraInfo) -> Option<adw::PreferencesGroup> {
     let group = adw::PreferencesGroup::builder()
         .title(gettext("Presets"))
         .build();
-    refresh_description(&group, &file);
 
+    let shared = Rc::new(State {
+        group: group.clone(),
+        file: Rc::clone(&file),
+        rows: RefCell::new(Vec::new()),
+    });
     for index in 0..3 {
-        group.add(&preset_row(&file, path, index));
+        let row = preset_row(&file, path, index, &shared);
+        group.add(&row);
+        shared.rows.borrow_mut().push((index, row));
     }
+
+    refresh_state(&shared);
 
     Some(group)
 }
 
-/// Update the group description from the live preset list. The list
-/// payload's per-slot encoding is not decoded yet (see
-/// `docs/PROTOCOL.md`), so only emptiness is surfaced.
-fn refresh_description(group: &adw::PreferencesGroup, file: &File) {
-    let stored = preset::list_presets(file).is_ok_and(|p| !p.is_empty());
+/// Live preset state shared by the row actions so every save and
+/// delete re-renders the group description and the per-row subtitles.
+struct State {
+    group: adw::PreferencesGroup,
+    file: Rc<File>,
+    rows: RefCell<Vec<(i8, adw::ActionRow)>>,
+}
+
+/// Update the group description and the per-row subtitles from the
+/// camera: the framed list says whether anything is stored, and the
+/// entry cursor (selector `0x0D`, see `docs/PROTOCOL.md`) supplies
+/// per-slot occupancy and names. Failures leave the previous
+/// rendering in place.
+fn refresh_state(state: &State) {
+    let stored = preset::list_presets(&state.file).is_ok_and(|p| !p.is_empty());
     let description = if stored {
         gettext("Presets stored on the camera.")
     } else {
@@ -111,10 +131,29 @@ fn refresh_description(group: &adw::PreferencesGroup, file: &File) {
             "No presets stored yet. Use the save button on a row to store the current position.",
         )
     };
-    group.set_description(Some(&description));
+    state.group.set_description(Some(&description));
+
+    let entries = preset_read::read_preset_entries(&state.file).unwrap_or_default();
+    for (index, row) in state.rows.borrow().iter() {
+        let slot_idx = u8::try_from(*index).unwrap_or(0);
+        let subtitle = entries
+            .iter()
+            .find(|entry| entry.slot == slot_idx)
+            .map_or_else(
+                || gettext("Empty"),
+                |entry| {
+                    if entry.name.is_empty() {
+                        gettext("Stored")
+                    } else {
+                        entry.name.clone()
+                    }
+                },
+            );
+        row.set_subtitle(&subtitle);
+    }
 }
 
-fn preset_row(file: &Rc<File>, path: &Path, index: i8) -> adw::ActionRow {
+fn preset_row(file: &Rc<File>, path: &Path, index: i8, state: &Rc<State>) -> adw::ActionRow {
     // User-visible numbering is 1-based ("Preset 1") but the
     // wire-level slot index is 0-based.
     let title = gettext("Preset {n}").replace("{n}", &(index + 1).to_string());
@@ -159,11 +198,19 @@ fn preset_row(file: &Rc<File>, path: &Path, index: i8) -> adw::ActionRow {
     {
         let file = Rc::clone(file);
         let path = path.to_path_buf();
-        save.connect_clicked(move |_| save_with_feedback(&file, &path, index));
+        let state = Rc::clone(state);
+        save.connect_clicked(move |_| {
+            save_with_feedback(&file, &path, index);
+            refresh_state(&state);
+        });
     }
     {
         let file = Rc::clone(file);
-        delete.connect_clicked(move |_| delete_with_feedback(&file, index));
+        let state = Rc::clone(state);
+        delete.connect_clicked(move |_| {
+            delete_with_feedback(&file, index);
+            refresh_state(&state);
+        });
     }
 
     row
