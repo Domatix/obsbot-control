@@ -328,3 +328,30 @@ msgstr "Cámara desconectada: {product}"
 #: crates/obsbot-gui/src/window.rs:311
 msgid "Cameras disconnected: {products}"
 msgstr "Cámaras desconectadas: {products}"
+
+msgid "Delete"
+msgstr "Eliminar"
+
+msgid "Empty"
+msgstr "Vacío"
+
+msgid "Save current position"
+msgstr "Guardar posición actual"
+
+msgid "Stored"
+msgstr "Ocupado"
+
+msgid "Saved preset {n}."
+msgstr "Preajuste {n} guardado."
+
+msgid "Deleted preset {n}."
+msgstr "Preajuste {n} eliminado."
+
+msgid "Presets stored on the camera."
+msgstr "Hay preajustes guardados en la cámara."
+
+msgid "Could not read the current camera position."
+msgstr "No se pudo leer la posición actual de la cámara."
+
+msgid "No presets stored yet. Use the save button on a row to store the current position."
+msgstr "Aún no hay preajustes guardados. Usa el botón de guardar en una fila para almacenar la posición actual."
