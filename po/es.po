@@ -370,3 +370,9 @@ msgstr "Renombrar el preajuste {n}"
 
 msgid "Renamed preset {n}."
 msgstr "Preajuste {n} renombrado."
+
+msgid "Preset {n} is empty. Save a position first."
+msgstr "El preajuste {n} está vacío. Guarda una posición primero."
+
+msgid "Preset {n} is already empty."
+msgstr "El preajuste {n} ya está vacío."
