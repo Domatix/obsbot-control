@@ -40,6 +40,8 @@ const SEL_PRESET_LIST: u8 = 0x0c;
 const SEL_PRESET_ENTRY: u8 = 0x0d;
 /// Cursor status byte meaning "no more entries".
 const ENTRY_EXHAUSTED: u8 = 0x02;
+/// Cursor status byte carrying a real entry.
+const ENTRY_VALID: u8 = 0x00;
 /// Upper bound on slots walked before giving up (3 on the Lite;
 /// headroom for other models).
 const MAX_ENTRIES: usize = 8;
@@ -106,7 +108,13 @@ pub fn read_preset_entries(camera: &File) -> Result<Vec<PresetEntry>, XuError> {
     for _ in 0..MAX_ENTRIES {
         let mut buf = [0u8; 60];
         get_cur(camera, BUNIT_ID, SEL_PRESET_ENTRY, &mut buf)?;
+        // Only status 0x00 is an entry. 0x02 is "exhausted", and 0x03
+        // is what an empty store returns (it repeats, so treating it
+        // as an entry fabricates ghost presets in slot 0).
         if buf[0] == ENTRY_EXHAUSTED {
+            break;
+        }
+        if buf[0] != ENTRY_VALID {
             break;
         }
         let name_field = &buf[10..];

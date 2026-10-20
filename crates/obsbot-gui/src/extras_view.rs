@@ -97,6 +97,8 @@ pub fn build_extras_group(cam: &CameraInfo) -> Option<adw::PreferencesGroup> {
         group: group.clone(),
         file: Rc::clone(&file),
         rows: RefCell::new(Vec::new()),
+        ids: RefCell::new(Vec::new()),
+        names: RefCell::new(Vec::new()),
     });
     for index in 0..3 {
         let row = preset_row(&file, path, index, &shared);
@@ -115,6 +117,10 @@ struct State {
     group: adw::PreferencesGroup,
     file: Rc<File>,
     rows: RefCell<Vec<(i8, adw::ActionRow)>>,
+    /// Stored slot ids from the last refresh (authoritative occupancy).
+    ids: RefCell<Vec<u8>>,
+    /// Entries from the last refresh, for names and dialog prefill.
+    names: RefCell<Vec<preset_read::PresetEntry>>,
 }
 
 /// Update the group description and the per-row subtitles from the
@@ -135,6 +141,8 @@ fn refresh_state(state: &State) {
     state.group.set_description(Some(&description));
 
     let entries = preset_read::read_preset_entries(&state.file).unwrap_or_default();
+    state.ids.borrow_mut().clone_from(&ids);
+    state.names.borrow_mut().clone_from(&entries);
     for (index, row) in state.rows.borrow().iter() {
         let slot_idx = u8::try_from(*index).unwrap_or(0);
         let subtitle = entries
@@ -220,17 +228,29 @@ fn preset_row(file: &Rc<File>, path: &Path, index: i8, state: &Rc<State>) -> adw
         });
     }
     {
-        let file = Rc::clone(file);
         let state = Rc::clone(state);
         rename.connect_clicked(move |_| {
-            ask_name(&file, index, &state);
+            let slot_idx = u8::try_from(index).unwrap_or(0);
+            if !state.ids.borrow().contains(&slot_idx) {
+                let msg = gettext("Preset {n} is empty. Save a position first.")
+                    .replace("{n}", &(index + 1).to_string());
+                settings::surface_error(&msg);
+                return;
+            }
+            ask_name(&state.file, index, &state);
         });
     }
     {
-        let file = Rc::clone(file);
         let state = Rc::clone(state);
         delete.connect_clicked(move |_| {
-            delete_with_feedback(&file, index);
+            let slot_idx = u8::try_from(index).unwrap_or(0);
+            if !state.ids.borrow().contains(&slot_idx) {
+                let msg = gettext("Preset {n} is already empty.")
+                    .replace("{n}", &(index + 1).to_string());
+                settings::surface_error(&msg);
+                return;
+            }
+            delete_with_feedback(&state.file, index);
             refresh_state(&state);
         });
     }
@@ -321,8 +341,16 @@ fn ask_name(file: &Rc<File>, index: i8, state: &Rc<State>) {
     dialog.set_default_response(Some("rename"));
     dialog.set_close_response("cancel");
 
+    let current = state
+        .names
+        .borrow()
+        .iter()
+        .find(|entry| entry.slot == u8::try_from(index).unwrap_or(0))
+        .map(|entry| entry.name.clone())
+        .unwrap_or_default();
     let entry = gtk::Entry::builder()
         .placeholder_text(gettext("Preset name"))
+        .text(&current)
         .activates_default(true)
         .build();
     dialog.set_extra_child(Some(&entry));
