@@ -34,8 +34,9 @@
 //! the advertised range, and writes the absolute target.
 //!
 //! Keyboard arrows mirror this: Left/Right pan, Up/Down tilt (Up =
-//! camera looks up), `Home` recenters to 0/0. **One key-press event =
-//! one step.** No press-and-hold, no continuous-motion timers, no
+//! the view moves up, i.e. the camera body tilts down — the arrows
+//! follow the mirrored preview, not the gimbal). `Home` recenters to
+//! 0/0. **One key-press event = one step.** No press-and-hold, no continuous-motion timers, no
 //! per-axis accumulators, no auto-repeat suppression — the earlier
 //! (v0.3.x, T-101a/b/c) hold machinery was removed in T-101d because
 //! it bugged out (sticky timers, drift). If the OS auto-repeats a held
@@ -128,15 +129,21 @@ pub fn build_ptz_pad(
         serial: owned_serial.clone(),
     };
     // Eight directional buttons, each a plain one-click-one-step.
+    // Vertical signs are inverted relative to the kernel's tilt
+    // convention so the pressed arrow matches the direction the
+    // content moves in the (mirrored) preview: "Up" sends the view
+    // up, which means the camera body tilts down. Horizontal signs
+    // stay as-is: with the T-210 mirror on (the default users
+    // actually run), pan+ already reads as "content moves right".
     for (button_id, dx, dy) in [
-        ("btn_n", 0, 1),
-        ("btn_s", 0, -1),
+        ("btn_n", 0, -1),
+        ("btn_s", 0, 1),
         ("btn_e", 1, 0),
         ("btn_w", -1, 0),
-        ("btn_ne", 1, 1),
-        ("btn_nw", -1, 1),
-        ("btn_se", 1, -1),
-        ("btn_sw", -1, -1),
+        ("btn_ne", 1, -1),
+        ("btn_nw", -1, -1),
+        ("btn_se", 1, 1),
+        ("btn_sw", -1, 1),
     ] {
         wire_direction(&builder, button_id, dx, dy, &ctx);
     }
@@ -365,11 +372,12 @@ fn current_axis(path: &Path, id: u32) -> Option<i64> {
 /// Attach an `EventControllerKey` to `target` so the arrow keys + Home
 /// drive the PTZ from the keyboard (T-101b, simplified by T-101d).
 ///
-/// Mapping mirrors the on-screen pad: Left / Right pan, Up / Down tilt
-/// (Up = camera looks up, matching `btn_n`), `Home` recenters to
-/// pan = tilt = 0. **One key-press = one [`PAN_TILT_STEP`] step** — no
-/// timers, no hold. Modifiers (Ctrl / Alt / Super) abort propagation so
-/// app-level shortcuts (e.g. Ctrl+Q) keep working.
+/// Mapping mirrors the on-screen pad: Left / Right pan, Up / Down
+/// tilt (Up = view moves up / camera tilts down, matching `btn_n`),
+/// `Home` recenters to pan = tilt = 0. **One key-press = one
+/// [`PAN_TILT_STEP`] step** — no timers, no hold. Modifiers (Ctrl /
+/// Alt / Super) abort propagation so app-level shortcuts (e.g.
+/// Ctrl+Q) keep working.
 ///
 /// Propagation phase is **Bubble** so a focused `gtk::Scale` /
 /// `gtk::SpinButton` / `adw::ComboRow` consumes the arrow first; the
@@ -410,8 +418,11 @@ pub fn wire_keyboard_arrows<W>(
         let (dx, dy) = match keyval {
             gtk::gdk::Key::Left | gtk::gdk::Key::KP_Left => (-1, 0),
             gtk::gdk::Key::Right | gtk::gdk::Key::KP_Right => (1, 0),
-            gtk::gdk::Key::Up | gtk::gdk::Key::KP_Up => (0, 1),
-            gtk::gdk::Key::Down | gtk::gdk::Key::KP_Down => (0, -1),
+            // Up/Down follow the same preview-content convention as
+            // `btn_n` / `btn_s`: Up sends the view up (camera tilts
+            // down), matching the mirrored preview.
+            gtk::gdk::Key::Up | gtk::gdk::Key::KP_Up => (0, -1),
+            gtk::gdk::Key::Down | gtk::gdk::Key::KP_Down => (0, 1),
             gtk::gdk::Key::Home | gtk::gdk::Key::KP_Home => {
                 write(
                     &owned_path,

@@ -49,8 +49,11 @@ use libadwaita as adw;
 
 use adw::prelude::*;
 use obsbot_core::xu::commands::preset::{self, Pose};
+use obsbot_core::xu::v4l2_ptz::{
+    V4L2_CID_PAN_ABSOLUTE, V4L2_CID_TILT_ABSOLUTE, V4L2_CID_ZOOM_ABSOLUTE,
+};
 use obsbot_core::xu::XuError;
-use obsbot_core::{read_controls, CameraInfo, ControlKind, TINY2_FAMILY};
+use obsbot_core::{read_controls, CameraInfo, ControlDescriptor, ControlKind, TINY2_FAMILY};
 
 use crate::i18n::gettext;
 use crate::settings;
@@ -170,29 +173,30 @@ fn preset_row(file: &Rc<File>, path: &Path, index: i8) -> adw::ActionRow {
 /// `zoom_absolute`) over V4L2 and convert it into the preset command's
 /// float units. Returns `None` when any of the three controls is
 /// unavailable or inactive.
+///
+/// Controls are matched by V4L2 CID, not by name: the kernel reports
+/// label-style names ("Pan, Absolute"), so the `v4l2-ctl`-style
+/// identifiers never appear in a [`ControlDescriptor`].
 fn current_pose(path: &Path) -> Option<Pose> {
     let controls = read_controls(path).ok()?;
-    // UVC pan/tilt/zoom absolute values stay far below 2^24, so the
-    // i64 -> f32 conversion is exact for every value the driver can
-    // report; the lint cannot know that bound.
-    #[allow(clippy::cast_precision_loss)]
-    let value = |name: &str| -> Option<f32> {
-        controls.iter().find_map(|ctrl| {
-            if ctrl.name != name {
-                return None;
-            }
-            match ctrl.kind {
-                ControlKind::Integer { current, .. } => Some(current as f32 * POSE_SCALE),
-                _ => None,
-            }
-        })
-    };
     Some(Pose {
-        pan: value("pan_absolute")?,
-        tilt: value("tilt_absolute")?,
+        pan: axis_current(&controls, V4L2_CID_PAN_ABSOLUTE)?,
+        tilt: axis_current(&controls, V4L2_CID_TILT_ABSOLUTE)?,
         roll: 0.0,
-        zoom: value("zoom_absolute")?,
+        zoom: axis_current(&controls, V4L2_CID_ZOOM_ABSOLUTE)?,
     })
+}
+
+// UVC pan/tilt/zoom absolute values stay far below 2^24, so the
+// i64 -> f32 conversion is exact for every value the driver can
+// report; the lint cannot know that bound.
+#[allow(clippy::cast_precision_loss)]
+fn axis_current(controls: &[ControlDescriptor], id: u32) -> Option<f32> {
+    let ctrl = controls.iter().find(|c| c.id == id)?;
+    match ctrl.kind {
+        ControlKind::Integer { current, .. } => Some(current as f32 * POSE_SCALE),
+        _ => None,
+    }
 }
 
 /// Recall preset `index` and acknowledge the click with a toast. The
