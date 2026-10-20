@@ -17,13 +17,23 @@
 //! "Show XU status (hex dump)" row was removed in T-220).
 //!
 //! Hosts the Tiny4Linux-only XU surface: the three preset-position
-//! recall buttons.
+//! rows, each with a recall, a save (overwrite with the current pose)
+//! and a delete action.
 //!
-//! Preset recall is **recall-only** per quirk Q7: programming a
-//! preset position into the camera firmware requires the OBSBOT
-//! Center app or the on-device gesture mechanism. The group's
-//! subtitle states this explicitly so users do not expect a "save
-//! preset" button.
+//! Quirk Q7 documented recall-only behavior for the original group.
+//! The save/delete wire commands (`AI_ADD_GIMBAL_PRESET`,
+//! `AI_DEL_GIMBAL_PRESET`) are now implemented in `obsbot-core`, so
+//! the group exposes them. The group description reflects the live
+//! preset list (`AI_GET_GIMBAL_PRESET_LIST`): the camera only answers
+//! "list empty" vs "list non-empty" reliably, so per-slot occupancy is
+//! not shown.
+//!
+//! The saved pose is the current `pan_absolute` / `tilt_absolute` /
+//! `zoom_absolute` triplet read over V4L2. `POSE_SCALE` converts the
+//! V4L2 integer units into the float units the preset command expects;
+//! it was verified on a Tiny 2 Lite with `scripts/verify-recall.sh`
+//! (save, move, recall, frame-compare). Do not change it without
+//! re-running that check.
 
 // Same rationale as `ai_effects_view`: doc-markdown false-positives
 // on `Tiny4Linux`, `cgevans`, `GET_CUR` etc. are noise; the genuine
@@ -31,27 +41,32 @@
 #![allow(clippy::doc_markdown)]
 
 use std::fs::{File, OpenOptions};
+use std::path::Path;
 use std::rc::Rc;
 
 use gtk4 as gtk;
 use libadwaita as adw;
 
 use adw::prelude::*;
-use obsbot_core::xu::commands::recall_preset;
+use obsbot_core::xu::commands::preset::{self, Pose};
 use obsbot_core::xu::XuError;
-use obsbot_core::{CameraInfo, TINY2_FAMILY};
+use obsbot_core::{read_controls, CameraInfo, ControlKind, TINY2_FAMILY};
 
 use crate::i18n::gettext;
 use crate::settings;
+
+/// Unit conversion from the V4L2 integer triplet into the preset
+/// command's float pose. Verified by `scripts/verify-recall.sh`.
+const POSE_SCALE: f32 = 1.0;
 
 /// Returns `true` if `(vid, pid)` is an OBSBOT Tiny 2 family unit.
 fn is_tiny_2_family(vid: u16, pid: u16) -> bool {
     TINY2_FAMILY.iter().any(|&(v, p)| v == vid && p == pid)
 }
 
-/// Build the "Power state & Presets" preferences group, or `None`
-/// for cameras that are not Tiny 2 family or have no `/dev/videoN`
-/// path. Symmetric with `ai_effects_view::build_ai_effects_group`.
+/// Build the "Presets" preferences group, or `None` for cameras that
+/// are not Tiny 2 family or have no `/dev/videoN` path. Symmetric with
+/// `ai_effects_view::build_ai_effects_group`.
 pub fn build_extras_group(cam: &CameraInfo) -> Option<adw::PreferencesGroup> {
     if !is_tiny_2_family(cam.vid, cam.pid) {
         return None;
@@ -62,7 +77,7 @@ pub fn build_extras_group(cam: &CameraInfo) -> Option<adw::PreferencesGroup> {
         Err(err) => {
             eprintln!(
                 "warning: extras_view: open {} for XU writes failed: {err}; \
-                 skipping Power & Presets group",
+                 skipping Presets group",
                 path.display()
             );
             return None;
@@ -71,17 +86,32 @@ pub fn build_extras_group(cam: &CameraInfo) -> Option<adw::PreferencesGroup> {
 
     let group = adw::PreferencesGroup::builder()
         .title(gettext("Presets"))
-        .description(gettext("This app can only recall presets, not save them."))
         .build();
+    refresh_description(&group, &file);
 
-    group.add(&preset_row(&file, 0));
-    group.add(&preset_row(&file, 1));
-    group.add(&preset_row(&file, 2));
+    for index in 0..3 {
+        group.add(&preset_row(&file, path, index));
+    }
 
     Some(group)
 }
 
-fn preset_row(file: &Rc<File>, index: i8) -> adw::ActionRow {
+/// Update the group description from the live preset list. The list
+/// payload's per-slot encoding is not decoded yet (see
+/// `docs/PROTOCOL.md`), so only emptiness is surfaced.
+fn refresh_description(group: &adw::PreferencesGroup, file: &File) {
+    let stored = preset::list_presets(file).is_ok_and(|p| !p.is_empty());
+    let description = if stored {
+        gettext("Presets stored on the camera.")
+    } else {
+        gettext(
+            "No presets stored yet. Use the save button on a row to store the current position.",
+        )
+    };
+    group.set_description(Some(&description));
+}
+
+fn preset_row(file: &Rc<File>, path: &Path, index: i8) -> adw::ActionRow {
     // User-visible numbering is 1-based ("Preset 1") but the
     // wire-level slot index is 0-based.
     let title = gettext("Preset {n}").replace("{n}", &(index + 1).to_string());
@@ -91,23 +121,78 @@ fn preset_row(file: &Rc<File>, index: i8) -> adw::ActionRow {
         .activatable(true)
         .build();
 
-    let button = gtk::Button::builder()
+    let recall = gtk::Button::builder()
         .icon_name("go-next-symbolic")
         .valign(gtk::Align::Center)
         .css_classes(vec!["flat"])
         .tooltip_text(gettext("Recall"))
         .build();
-    row.add_suffix(&button);
+    row.add_suffix(&recall);
 
-    let file_for_button = Rc::clone(file);
-    button.connect_clicked(move |_| recall_with_feedback(&file_for_button, index));
+    let save = gtk::Button::builder()
+        .icon_name("document-save-symbolic")
+        .valign(gtk::Align::Center)
+        .css_classes(vec!["flat"])
+        .tooltip_text(gettext("Save current position"))
+        .build();
+    row.add_suffix(&save);
 
-    // The whole row is `activatable` so clicking the body works too;
-    // mirror the button's behaviour for that path.
-    let file_for_row = Rc::clone(file);
-    row.connect_activated(move |_| recall_with_feedback(&file_for_row, index));
+    let delete = gtk::Button::builder()
+        .icon_name("user-trash-symbolic")
+        .valign(gtk::Align::Center)
+        .css_classes(vec!["flat"])
+        .tooltip_text(gettext("Delete"))
+        .build();
+    row.add_suffix(&delete);
+
+    {
+        let file = Rc::clone(file);
+        recall.connect_clicked(move |_| recall_with_feedback(&file, index));
+    }
+    {
+        let file = Rc::clone(file);
+        row.connect_activated(move |_| recall_with_feedback(&file, index));
+    }
+    {
+        let file = Rc::clone(file);
+        let path = path.to_path_buf();
+        save.connect_clicked(move |_| save_with_feedback(&file, &path, index));
+    }
+    {
+        let file = Rc::clone(file);
+        delete.connect_clicked(move |_| delete_with_feedback(&file, index));
+    }
 
     row
+}
+
+/// Read the current gimbal pose (`pan_absolute` / `tilt_absolute` /
+/// `zoom_absolute`) over V4L2 and convert it into the preset command's
+/// float units. Returns `None` when any of the three controls is
+/// unavailable or inactive.
+fn current_pose(path: &Path) -> Option<Pose> {
+    let controls = read_controls(path).ok()?;
+    // UVC pan/tilt/zoom absolute values stay far below 2^24, so the
+    // i64 -> f32 conversion is exact for every value the driver can
+    // report; the lint cannot know that bound.
+    #[allow(clippy::cast_precision_loss)]
+    let value = |name: &str| -> Option<f32> {
+        controls.iter().find_map(|ctrl| {
+            if ctrl.name != name {
+                return None;
+            }
+            match ctrl.kind {
+                ControlKind::Integer { current, .. } => Some(current as f32 * POSE_SCALE),
+                _ => None,
+            }
+        })
+    };
+    Some(Pose {
+        pan: value("pan_absolute")?,
+        tilt: value("tilt_absolute")?,
+        roll: 0.0,
+        zoom: value("zoom_absolute")?,
+    })
 }
 
 /// Recall preset `index` and acknowledge the click with a toast. The
@@ -117,12 +202,42 @@ fn preset_row(file: &Rc<File>, index: i8) -> adw::ActionRow {
 /// slot leaves the camera still (the colleague-reported "nothing
 /// happens" confusion). A transport failure still reports as an error.
 fn recall_with_feedback(file: &File, index: i8) {
-    match recall_preset(file, index) {
+    match preset::recall_preset(file, index) {
         Ok(()) => {
             let msg = gettext("Recalling preset {n}…").replace("{n}", &(index + 1).to_string());
             settings::surface_error(&msg);
         }
         Err(err) => report_xu_error("Preset recall", &err),
+    }
+}
+
+/// Overwrite `index` with the current pose. The delete answer is not
+/// proof of removal (the firmware ACKs even unknown slots), so after
+/// a save or delete the group description is refreshed from the
+/// preset list, which is the only reliable signal.
+fn save_with_feedback(file: &File, path: &Path, index: i8) {
+    let Some(pose) = current_pose(path) else {
+        settings::surface_error(&gettext("Could not read the current camera position."));
+        return;
+    };
+    let slot = u8::try_from(index + 1).unwrap_or(1);
+    match preset::add_preset(file, slot, pose) {
+        Ok(()) => {
+            let msg = gettext("Saved preset {n}.").replace("{n}", &(index + 1).to_string());
+            settings::surface_error(&msg);
+        }
+        Err(err) => report_xu_error("Preset save", &err),
+    }
+}
+
+fn delete_with_feedback(file: &File, index: i8) {
+    let slot = u8::try_from(index + 1).unwrap_or(1);
+    match preset::delete_preset(file, slot) {
+        Ok(()) => {
+            let msg = gettext("Deleted preset {n}.").replace("{n}", &(index + 1).to_string());
+            settings::surface_error(&msg);
+        }
+        Err(err) => report_xu_error("Preset delete", &err),
     }
 }
 

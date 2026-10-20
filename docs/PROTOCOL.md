@@ -513,12 +513,16 @@ anyone who wants to resume the discovery work.
   unused enum). Decoder defaults the gap value to Standard;
   re-investigate if a user reports a third speed slider in the
   proprietary app.
-- **Q7 — Preset save is not implemented in either FOSS project.**
-  Only recall (3 slots) is supported. Presets must be programmed
-  via the OBSBOT Center app or the camera's on-device gesture
-  mechanism beforehand. Adding preset save is deferred to a
-  follow-on milestone pending USB capture against the proprietary
-  app.
+- **Q7 — Preset save is implemented in this app since the
+  `feat/xu-preset-admin` work.** The create (`0x3944`), update
+  (`0x3E04`), delete (`0x3984`) and rename (`0x3A84`) commands are
+  accepted by the Tiny 2 Lite and reflected in
+  `AI_GET_GIMBAL_PRESET_LIST`. Two caveats: the delete ACKs even
+  for slots that do not exist (so only the list proves a removal),
+  and the pose unit scale baked into the GUI (`POSE_SCALE` in
+  `extras_view.rs`) was verified on one Tiny 2 Lite with
+  `scripts/verify-recall.sh` — re-run that script before changing
+  it.
 
 - **Q8 — FOV Narrow (65°) is a no-op on Tiny 2 Lite firmware 5.10.**
   Sending `[0x04, 0x01, 0x03]` (the byte sequence cgevans declares
