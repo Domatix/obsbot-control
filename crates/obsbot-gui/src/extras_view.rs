@@ -96,12 +96,13 @@ pub fn build_extras_group(cam: &CameraInfo) -> Option<adw::PreferencesGroup> {
     let shared = Rc::new(State {
         group: group.clone(),
         file: Rc::clone(&file),
+        path: path.to_path_buf(),
         rows: RefCell::new(Vec::new()),
         ids: RefCell::new(Vec::new()),
         names: RefCell::new(Vec::new()),
     });
     for index in 0..3 {
-        let row = preset_row(&file, path, index, &shared);
+        let row = preset_row(&file, index, &shared);
         group.add(&row);
         shared.rows.borrow_mut().push((index, row));
     }
@@ -116,6 +117,7 @@ pub fn build_extras_group(cam: &CameraInfo) -> Option<adw::PreferencesGroup> {
 struct State {
     group: adw::PreferencesGroup,
     file: Rc<File>,
+    path: std::path::PathBuf,
     rows: RefCell<Vec<(i8, adw::ActionRow)>>,
     /// Stored slot ids from the last refresh (authoritative occupancy).
     ids: RefCell<Vec<u8>>,
@@ -168,7 +170,7 @@ fn refresh_state(state: &State) {
     }
 }
 
-fn preset_row(file: &Rc<File>, path: &Path, index: i8, state: &Rc<State>) -> adw::ActionRow {
+fn preset_row(file: &Rc<File>, index: i8, state: &Rc<State>) -> adw::ActionRow {
     // User-visible numbering is 1-based ("Preset 1") but the
     // wire-level slot index is 0-based.
     let title = gettext("Preset {n}").replace("{n}", &(index + 1).to_string());
@@ -219,13 +221,8 @@ fn preset_row(file: &Rc<File>, path: &Path, index: i8, state: &Rc<State>) -> adw
         row.connect_activated(move |_| recall_with_feedback(&file, index));
     }
     {
-        let file = Rc::clone(file);
-        let path = path.to_path_buf();
         let state = Rc::clone(state);
-        save.connect_clicked(move |_| {
-            save_with_feedback(&file, &path, index);
-            refresh_state(&state);
-        });
+        save.connect_clicked(move |_| ask_save(&state, index));
     }
     {
         let state = Rc::clone(state);
@@ -308,19 +305,70 @@ fn recall_with_feedback(file: &File, index: i8) {
 /// proof of removal (the firmware ACKs even unknown slots), so after
 /// a save or delete the group description is refreshed from the
 /// preset list, which is the only reliable signal.
-fn save_with_feedback(file: &File, path: &Path, index: i8) {
-    let Some(pose) = current_pose(path) else {
+/// Ask for a name and store the current pose in that slot, in one
+/// step. The name is optional: an empty field stores the position
+/// without a name, which the row then shows as "Stored".
+fn ask_save(state: &Rc<State>, index: i8) {
+    let Some(window) = gio::Application::default()
+        .and_downcast::<gtk::Application>()
+        .and_then(|app| app.active_window())
+    else {
+        return;
+    };
+    let title = gettext("Save preset {n}").replace("{n}", &(index + 1).to_string());
+    let dialog = adw::AlertDialog::new(Some(&title), None);
+    dialog.add_response("cancel", &gettext("Cancel"));
+    dialog.add_response("save", &gettext("Save"));
+    dialog.set_response_appearance("save", adw::ResponseAppearance::Suggested);
+    dialog.set_default_response(Some("save"));
+    dialog.set_close_response("cancel");
+
+    let current = state
+        .names
+        .borrow()
+        .iter()
+        .find(|entry| entry.slot == u8::try_from(index).unwrap_or(0))
+        .map(|entry| entry.name.clone())
+        .unwrap_or_default();
+    let entry = gtk::Entry::builder()
+        .placeholder_text(gettext("Preset name"))
+        .text(&current)
+        .activates_default(true)
+        .build();
+    dialog.set_extra_child(Some(&entry));
+
+    let state_for_dialog = Rc::clone(state);
+    dialog.choose(&window, gio::Cancellable::NONE, move |response| {
+        if response.as_str() != "save" {
+            return;
+        }
+        let name = entry.text().trim().to_string();
+        save_with_feedback(&state_for_dialog, index, &name);
+        refresh_state(&state_for_dialog);
+    });
+}
+
+/// Write the current pose into `index`, then apply `name` when the
+/// user typed one. Both commands go to the camera; the refresh after
+/// the caller returns reads them back.
+fn save_with_feedback(state: &State, index: i8, name: &str) {
+    let Some(pose) = current_pose(&state.path) else {
         settings::surface_error(&gettext("Could not read the current camera position."));
         return;
     };
     let slot = u8::try_from(index + 1).unwrap_or(1);
-    match preset::add_preset(file, slot, pose) {
-        Ok(()) => {
-            let msg = gettext("Saved preset {n}.").replace("{n}", &(index + 1).to_string());
-            settings::surface_error(&msg);
-        }
-        Err(err) => report_xu_error("Preset save", &err),
+    if let Err(err) = preset::add_preset(&state.file, slot, pose) {
+        report_xu_error("Preset save", &err);
+        return;
     }
+    if !name.is_empty() {
+        if let Err(err) = preset::rename_preset(&state.file, slot, name) {
+            report_xu_error("Preset rename", &err);
+            return;
+        }
+    }
+    let msg = gettext("Saved preset {n}.").replace("{n}", &(index + 1).to_string());
+    settings::surface_error(&msg);
 }
 
 /// Ask for a name in a modal dialog, then rename the slot on the
