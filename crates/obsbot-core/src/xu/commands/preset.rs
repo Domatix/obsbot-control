@@ -327,11 +327,13 @@ pub fn rename_preset(camera: &File, slot: u8, name: &str) -> Result<(), XuError>
 
 /// Ask the camera for the list of stored presets.
 ///
-/// Returns the raw payload of the reply. An empty vector means the
-/// camera answered with its acknowledgement form (no payload), which is
-/// what it does when no preset is stored. The payload encoding for a
-/// non-empty list is not fully decoded yet, so callers should treat the
-/// bytes as opaque and only rely on emptiness for now.
+/// The reply payload is the plain list of stored slot ids (0-based, in
+/// store order, no count byte): the vendor server sets the packet
+/// payload length to the preset count and copies one id per preset, so
+/// `[]` means nothing stored, `[1]` is one preset in slot 2, and
+/// `[2, 1]` is two presets. Confirmed against the camera firmware (the
+/// AI module's `rpcHandlerCenter` dispatch for index `0xED`) and
+/// against every capture taken on the Tiny 2 Lite.
 ///
 /// The device fills the reply asynchronously, hence the short settle
 /// before reading the selector back.

@@ -326,12 +326,12 @@ record blocks and cursors is actually live. Status as of 2026-10-20
 | `0x06` | tagged command channel **and** the 60-byte status block | hardware + RE |
 | `0x07` | legacy gimbal-preset pose records (6 x 10 bytes) | hardware |
 | `0x08` | model / stream name string (`"Tiny 2 Lite StreamCamera"`) | hardware |
-| `0x09` | `00`, unknown | hardware only |
-| `0x0A` | `ff`, unknown | hardware only |
-| `0x0B` | one state byte that follows camera state | hardware only |
+| `0x09` | 4-state enum (observed 00 idle / 01 with AI tracking); setter exists in the camera app | hardware + RE |
+| `0x0A` | 3-state enum, proxied to the AI module (index `0x25`, wire cmd `0x0944`) | hardware + RE |
+| `0x0B` | 2-state enum, proxied to the AI module (index `0x33`, wire cmd `0x0CC4`) | hardware + RE |
 | `0x0C` | flat preset slot list `[count, slotIdx...]` | hardware + RE |
 | `0x0D` | preset entry cursor, **consuming** (each read advances) | hardware + RE |
-| `0x0E` | `fe 20`, unknown (looks like a two-byte record) | hardware only |
+| `0x0E` | constant read-only block (`fe 20` + flags); SET is rejected | hardware + RE |
 | `0x0F`+ | `ENOENT` from the kernel, not zeros | hardware |
 
 Reading `0x0D` has a side effect, which is how it was mistaken for a
@@ -482,6 +482,32 @@ reproduces every captured opcode: index `0x35` gives `0x3B44` (list),
 `0x38` gives `0x3984` (delete), `0x39` and `0x41` both give `0x3E04`
 (update, two aliases), add gives `0x3944` and trigger gives `0x39C4`.
 
+The camera side confirms the split: its `rpcHandlerCenter::execute`
+(libremoproto, used by the AI module) takes the u16 command, derives
+`receiver = cmd & 0x3F` and `index = cmd >> 6`, and looks the pair up
+in a two-level map of registered handlers.
+
+The preset server is **not in the camera application** but in the AI
+module (`aisdk.cross`, which keeps C++ symbols):
+`register_gimbal_options_handler` registers receiver 4 with these
+indices:
+
+| Index | Wire cmd | Action |
+|---|---|---|
+| `0xE5` | `0x3944` | create |
+| `0xE6` | `0x3984` | delete |
+| `0xE7` | `0x39C4` | recall (trigger) |
+| `0xE9` | `0x3A44` | read pose |
+| `0xEA` | `0x3A84` | rename |
+| `0xEC` | `0x3B04` | read name |
+| `0xED` | `0x3B44` | list |
+| `0xF8` | `0x3E04` | update |
+
+The store behind them is `USettings::Preset` (`Settings/Preset.cpp`).
+The camera application is a client of some of these itself (it reads
+the flat selectors through index `0xED`/`0xEC`/`0xE9`), which is why
+both the framed commands and the flat selectors work.
+
 Worth recording because it means unknown commands in the same category
 can be derived from their index instead of guessed, and because it
 explains why some opcodes look unrelated at first glance.
@@ -489,18 +515,23 @@ explains why some opcodes look unrelated at first glance.
 #### Preset list
 
 `AI_GET_GIMBAL_PRESET_LIST` (`0x3B44`, receiver `0x04`) is a
-header-only GET. The reply arrives in the frame selector:
+header-only GET. **The reply payload is the plain list of stored slot
+ids**, one byte per preset, zero-based, in store order, with **no count
+byte**: the RPC packet carries the count in its payload length. So
+`[]` means nothing stored, `[01]` is one preset in slot 2, `[02, 01]`
+is presets in slots 3 and 2, and `[01, 02, 00]` is slots 2, 3 and 1.
 
-- flags `0x09` and no payload: acknowledgement, empty list;
-- flags `0x29` with a short payload: the occupied slots as 0-based
-  indices after a first byte whose meaning is unreliable (tiny2 warns
-  the same for the flat selector). Example: a leftover preset in
-  slot 3 produced `01 02`, and creating one in slot 1 on top gave
-  `01 02 00`.
+Resolved from the camera firmware, where the preset server lives in
+the AI module (`aisdk.cross`): `register_gimbal_options_handler`
+registers receiver 4 with index `0xED` for the list, whose handler
+fills a buffer of exactly `count` bytes with one id per preset and
+sends it with `payload.len = count`. The camera app is only a client
+of that command (its own `FUN_0007c900` reads `count = payload_len`).
 
-Because the first byte cannot be trusted as a count, use the flat
-selector `0x0C` for occupancy instead (below), and treat the framed
-list as a presence signal only.
+An earlier revision of this document called the first byte an
+unreliable count; that was an artefact of treating the id list as
+count-prefixed. The flat selector `0x0C` is the one that does carry a
+count (`[count, ids...]`, count not including itself).
 
 Reply flags: bit `0x20` announces a payload block, and replies without
 it carry a 12-byte header whose length field is the header length, not
@@ -757,13 +788,20 @@ anyone who wants to resume the discovery work.
   tracker speed @0x24. On the Lite (bcdDevice 5.10) the observed
   baseline matches several of these (zoom 0 = 1.0x, status 01 =
   run, HDR 01, mirror 01 with the T-210 mirror on, auto-sleep 120 s)
-  and a Ctrl-side diff run on the Lite (2026-10-20) confirms the
-  offset map by observation: toggling HDR moves `0x06` 01->00,
-  setting Sport moves `0x24` 00->02, and the FOV byte `0x11` reads
-  01 for Wide, 02 for Normal (Narrow leaves it at 02, consistent
-  with Q8). The u32 at bytes 4-7 that seemed to decrement ~96k/s on
-  an early capture matches no known field — treat it as a Lite
-  delta.
+  and a diff run on the Lite (2026-10-20) confirms the offset map by
+  observation: toggling HDR moves `0x06` 01->00, setting Sport moves
+  `0x24` 00->02, and the FOV byte `0x11` reads 01 for Wide, 02 for
+  Normal (Narrow leaves it at 02, consistent with Q8).
+  **No counter exists.** The camera builds the block on demand
+  (`FUN_0004a348` case 6) with `payload[0] = 0x27` and writes only
+  these fields: zoom u16 @0x04, HDR @0x06, face-AE @0x07, device
+  status @0x09 (raw `{0,1,2,6}` mapped to `{1,2,3,4}`, anything else
+  to 8), auto-sleep seconds @0x0a-0x0b, FOV @0x11, mirror @0x13,
+  AI mode/submode @0x18/0x1c, fps @0x1f, LED @0x21, tracker speed
+  @0x24; bytes 0x25-0x3b are never written. Repeated reads one
+  second apart return identical bytes, so the earlier "u32
+  decrementing ~96000/s" reading was an artefact of decoding three
+  separate fields as one integer.
   Our `Status` decoder keeps the Lite-observed offsets (sleep @0x02,
   HDR @0x06, AI @0x18/0x1c, speed @0x24) until a fuller Lite map is
   diffed.
@@ -851,7 +889,7 @@ the vendor binary without a hardware check.
 | CRC-16/USB over header and payload block, field zeroed | `cgevans/tiny2` (`crc16_usb`), this repo, vendor firmware `getcrc16` | verified, three independent derivations |
 | Status offsets: zoom `0x04`, HDR `0x06`, face-AE `0x07`, dev status `0x09`, auto-sleep `0x0a`, FOV `0x11`, mirror `0x13`, AI `0x18/0x1c`, fps `0x1f`, LED `0x21`, speed `0x24` | `cgevans/tiny2` `CameraStatus::decode` (regular Tiny 2) | verified there; partly re-verified on the Lite here (HDR `0x06`, speed `0x24`, FOV `0x11`) |
 | Flat preset list on selector `0x0C`, entry cursor on `0x0D`, cursor reset by echo-writing `0x0C` | `cgevans/tiny2` (`XU_SEL_PRESET_LIST` / `XU_SEL_PRESET_ENTRY`), `lxman/obsbot-mcp` (`decodePresetList`, `decodePresetEntry`) | verified here on the Lite |
-| "The first byte of the flat list is not a reliable count" | `cgevans/tiny2` | confirmed here: the framed `0x3B44` reply shows the same unreliability |
+| The framed preset list payload is ids only, no count byte | this repo (camera firmware: AI module RPC handler for index `0xED`) | resolved here; explains every capture taken before the fix |
 | Preset names are base64, `=` padded | `lxman/obsbot-mcp` | verified here (`TestA` -> `VGVzdEE=`) |
 | Opcode `0xA042` is `CAM_GET_SYS_TIME`, `CAM_SET_DEV_STATUS` is `0xA0C2` | `lxman/obsbot-mcp` opcode table (from `libdev.dll` PDB symbols) | static, accepted (matches our captures showing a status block, not a data frame) |
 | Wire command = `(index << 6) | 0x04` for the preset family | this repo, from `libdev.dll` | static, reproduces every capture |
@@ -864,16 +902,15 @@ the vendor binary without a hardware check.
 
 Open questions, unanswered anywhere:
 
-- Who publishes the 60-byte status ring on the camera side, and what
-  the bytes past `0x24` mean.
-- What selectors `0x09`, `0x0A`, `0x0B` and `0x0E` carry.
-- The camera-side handler for the framed preset list (`0x3B44`), which
-  would settle whether its first byte is a count.
 - Whether `AI_GET_GIMBAL_PRESET_ID_NAME` (`0x3B04`) works on the
   regular Tiny 2 (it returns error `0x000a` on the Lite).
-- Whether the `u32` at status bytes 4-7 is a timer at all: an early
-  capture appeared to decrement around 96000/s, later samples were
-  static.
+- What the four states of selector `0x09` and the three states of
+  `0x0A` mean, beyond "tracking is one of the `0x09` states".
+- What the 10-bit index range `0xE1`-`0xE4`, `0xEE`, `0xF6`, `0xF7`
+  and `0xF9`-`0xFB` in the gimbal options table do; they are
+  registered but not exercised by this app.
+- Whether the vendor UI ever writes a preset name longer than 63
+  bytes (the host parser clamps to 63).
 
 Upstream contributions from this repo are listed in §7.
 
