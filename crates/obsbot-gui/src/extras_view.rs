@@ -179,6 +179,14 @@ fn preset_row(file: &Rc<File>, path: &Path, index: i8, state: &Rc<State>) -> adw
         .build();
     row.add_suffix(&save);
 
+    let rename = gtk::Button::builder()
+        .icon_name("document-edit-symbolic")
+        .valign(gtk::Align::Center)
+        .css_classes(vec!["flat"])
+        .tooltip_text(gettext("Rename"))
+        .build();
+    row.add_suffix(&rename);
+
     let delete = gtk::Button::builder()
         .icon_name("user-trash-symbolic")
         .valign(gtk::Align::Center)
@@ -202,6 +210,13 @@ fn preset_row(file: &Rc<File>, path: &Path, index: i8, state: &Rc<State>) -> adw
         save.connect_clicked(move |_| {
             save_with_feedback(&file, &path, index);
             refresh_state(&state);
+        });
+    }
+    {
+        let file = Rc::clone(file);
+        let state = Rc::clone(state);
+        rename.connect_clicked(move |_| {
+            ask_name(&file, index, &state);
         });
     }
     {
@@ -279,6 +294,52 @@ fn save_with_feedback(file: &File, path: &Path, index: i8) {
         }
         Err(err) => report_xu_error("Preset save", &err),
     }
+}
+
+/// Ask for a name in a modal dialog, then rename the slot on the
+/// camera. The camera stores the name base64-encoded; the cursor read
+/// in [`refresh_state`] decodes it back.
+fn ask_name(file: &Rc<File>, index: i8, state: &Rc<State>) {
+    let Some(window) = gio::Application::default()
+        .and_downcast::<gtk::Application>()
+        .and_then(|app| app.active_window())
+    else {
+        return;
+    };
+    let title = gettext("Rename preset {n}").replace("{n}", &(index + 1).to_string());
+    let dialog = adw::AlertDialog::new(Some(&title), None);
+    dialog.add_response("cancel", &gettext("Cancel"));
+    dialog.add_response("rename", &gettext("Rename"));
+    dialog.set_response_appearance("rename", adw::ResponseAppearance::Suggested);
+    dialog.set_default_response(Some("rename"));
+    dialog.set_close_response("cancel");
+
+    let entry = gtk::Entry::builder()
+        .placeholder_text(gettext("Preset name"))
+        .activates_default(true)
+        .build();
+    dialog.set_extra_child(Some(&entry));
+
+    let file_for_dialog = Rc::clone(file);
+    let state_for_dialog = Rc::clone(state);
+    dialog.choose(&window, gio::Cancellable::NONE, move |response| {
+        if response.as_str() != "rename" {
+            return;
+        }
+        let name = entry.text().trim().to_string();
+        if name.is_empty() {
+            return;
+        }
+        let slot = u8::try_from(index + 1).unwrap_or(1);
+        match preset::rename_preset(&file_for_dialog, slot, &name) {
+            Ok(()) => {
+                let msg = gettext("Renamed preset {n}.").replace("{n}", &(index + 1).to_string());
+                settings::surface_error(&msg);
+                refresh_state(&state_for_dialog);
+            }
+            Err(err) => report_xu_error("Preset rename", &err),
+        }
+    });
 }
 
 fn delete_with_feedback(file: &File, index: i8) {
