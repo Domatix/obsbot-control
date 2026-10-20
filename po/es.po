@@ -270,8 +270,6 @@ msgid "Exposure"
 msgstr "Exposición"
 
 #: crates/obsbot-gui/src/extras_view.rs:74
-msgid "This app can only recall presets, not save them."
-msgstr "Esta aplicación solo puede recuperar preajustes, no guardarlos."
 
 #: crates/obsbot-gui/src/extras_view.rs:87
 msgid "Preset {n}"
@@ -382,3 +380,54 @@ msgstr "Guardar el preajuste {n}"
 
 msgid "Save"
 msgstr "Guardar"
+
+msgid "About Obsbot Cam Control"
+msgstr "Acerca de Obsbot Cam Control"
+
+msgid "Appearance"
+msgstr "Apariencia"
+
+msgid "Dark"
+msgstr "Oscuro"
+
+msgid "Light"
+msgstr "Claro"
+
+msgid "Follow system"
+msgstr "Seguir el sistema"
+
+msgid "Main Menu"
+msgstr "Menú principal"
+
+msgid "Quit"
+msgstr "Salir"
+
+msgid "Pan / Tilt / Zoom"
+msgstr "Paneo / Inclinación / Zoom"
+
+msgid "Pan left 5°"
+msgstr "Paneo a la izquierda 5°"
+
+msgid "Pan right 5°"
+msgstr "Paneo a la derecha 5°"
+
+msgid "Tilt down 5°"
+msgstr "Inclinar hacia abajo 5°"
+
+msgid "Tilt up 5°"
+msgstr "Inclinar hacia arriba 5°"
+
+msgid "Up + Left"
+msgstr "Arriba + izquierda"
+
+msgid "Up + Right"
+msgstr "Arriba + derecha"
+
+msgid "Down + Left"
+msgstr "Abajo + izquierda"
+
+msgid "Down + Right"
+msgstr "Abajo + derecha"
+
+msgid "Reset pan / tilt to (0, 0)"
+msgstr "Restablecer paneo / inclinación a (0, 0)"
