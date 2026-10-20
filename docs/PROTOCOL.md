@@ -640,9 +640,13 @@ anyone who wants to resume the discovery work.
   tracker speed @0x24. On the Lite (bcdDevice 5.10) the observed
   baseline matches several of these (zoom 0 = 1.0x, status 01 =
   run, HDR 01, mirror 01 with the T-210 mirror on, auto-sleep 120 s)
-  but the tracker-speed byte reads 01 where tiny2 expects 0/2, and
-  the u32 at bytes 4-7 that seemed to decrement ~96k/s on an early
-  capture matches no known field — treat both as Lite deltas.
+  and a Ctrl-side diff run on the Lite (2026-10-20) confirms the
+  offset map by observation: toggling HDR moves `0x06` 01->00,
+  setting Sport moves `0x24` 00->02, and the FOV byte `0x11` reads
+  01 for Wide, 02 for Normal (Narrow leaves it at 02, consistent
+  with Q8). The u32 at bytes 4-7 that seemed to decrement ~96k/s on
+  an early capture matches no known field — treat it as a Lite
+  delta.
   Our `Status` decoder keeps the Lite-observed offsets (sleep @0x02,
   HDR @0x06, AI @0x18/0x1c, speed @0x24) until a fuller Lite map is
   diffed.
@@ -786,10 +790,11 @@ Hardware-verified on the Tiny 2 Lite (2026-10-20), implemented in
   yaw 984 / pitch -196, i.e. centidegrees within gimbal positioning
   error (~1.6% in that sample).
 - **Names are base64** (standard alphabet, `=` padding) in the cursor
-  entry: renaming a preset "TestA" stored `VGVzdEE=`. Quirk: a 4-letter
-  rename ("Diez") came back as "Dieg" — last-character mangling on
-  short names; 5+ letter names round-trip cleanly. Verify before
-  relying on exact names.
+  entry: renaming a preset "TestA" stored `VGVzdEE=`. One rename in
+  the first test session ("Diez") was later read back as "Dieg"; seven
+  subsequent round-trips (3-5 letters, lowercase and mixed case) came
+  back byte-exact, so treat that instance as a transient, not as a
+  length-dependent rule.
 - **`AI_GET_GIMBAL_PRESET_ID_NAME` (`0x3B04`) is not usable on this
   firmware** despite being in the vendor opcode table: the Lite
   answers a structured error (`00 02 0a 00` in a 16-byte header,

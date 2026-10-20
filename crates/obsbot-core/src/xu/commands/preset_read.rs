@@ -162,9 +162,9 @@ mod tests {
     fn decodes_camera_captured_names() {
         // Captured on a Tiny 2 Lite after renaming a preset "TestA".
         assert_eq!(decode_base64(b"VGVzdEE=").unwrap(), "TestA");
-        // And after renaming one "Diez" — the camera stored "Dieg"
-        // (last-character mangling on 4-letter names, see
-        // docs/PROTOCOL.md).
+        // And a capture where a rename to "Diez" was read back as
+        // "Dieg". Not reproducible (seven later round-trips were
+        // byte-exact), kept as a regression fixture for the decoder.
         assert_eq!(decode_base64(b"RGllZw==").unwrap(), "Dieg");
     }
 
