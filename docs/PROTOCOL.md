@@ -594,6 +594,35 @@ anyone who wants to resume the discovery work.
   it, so frames no longer need to be replayed verbatim. See "Frame
   layout and checksum (decoded)" above.
 
+- **Q12 — Preset pose units are the raw V4L2 integers, and the
+  firmware is fragile around streaming restarts.** Both facts
+  verified live on a Tiny 2 Lite (3564:fef9, bcdDevice 5.10) on
+  2026-10-20 with `scripts/verify-recall.sh`.
+  **Pose units.** `AI_ADD_GIMBAL_PRESET` takes the
+  `pan_absolute` / `tilt_absolute` / `zoom_absolute` integers
+  converted straight to `f32` (scale 1.0; alternatives 1/3600,
+  100 and 3600 all failed). Phase correlation between captured
+  frames shows the recalled view returns to within 2 px of the
+  saved view after a 6-degree pan away. This is the `POSE_SCALE`
+  constant in `extras_view.rs`.
+  **Streaming fragility.** Two failure patterns make the camera
+  drop off the USB bus (`-71 EPROTO`, device re-enumerates after
+  ~20 s or stays gone until a replug):
+  1. Starting a streaming client in the first ~minute after USB
+     enumeration. One drop happened 20 s after a replug with no
+     host traffic at all, then a self-reset; runs that waited
+     several idle minutes survived.
+  2. More than ~2 cycles of (streaming negotiation open/close
+     interleaved with XU writes and absolute pan sets) in quick
+     succession. A single save / pan / recall / capture round
+     trips is safe; looping it killed the device twice at the
+     start of the third pass.
+  **Consequence.** The GUI's own usage (one long-lived streaming
+  session, XU traffic in between) matches the pattern the vendor
+  app uses and is safe. Test harnesses must keep to one cycle and
+  give the camera idle time after replug before streaming.
+  `scripts/verify-recall.sh` encodes exactly that discipline.
+
 - **Q5 resolution (Auto / Manual exposure label swap).** Live
   validation on 2026-05-14 showed cgevans's labelling produces
   the opposite of the V4L2 standard `auto_exposure` control —
