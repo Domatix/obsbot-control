@@ -355,3 +355,18 @@ msgstr "No se pudo leer la posición actual de la cámara."
 
 msgid "No presets stored yet. Use the save button on a row to store the current position."
 msgstr "Aún no hay preajustes guardados. Usa el botón de guardar en una fila para almacenar la posición actual."
+
+msgid "Cancel"
+msgstr "Cancelar"
+
+msgid "Rename"
+msgstr "Renombrar"
+
+msgid "Preset name"
+msgstr "Nombre del preajuste"
+
+msgid "Rename preset {n}"
+msgstr "Renombrar el preajuste {n}"
+
+msgid "Renamed preset {n}."
+msgstr "Preajuste {n} renombrado."
