@@ -25,8 +25,16 @@
   no longer a v0.3 prerequisite (it was the old v0.4's prereq before
   the milestone collapse); it remains a *future, optional* avenue for
   probing the still-unmapped opcodes (selector `0x06` opcodes
-  `0x02`, `0x05`, `0x06`-`0x15`, `0x17`+) and the 55 still-undecoded
-  bytes of the 60-byte GET_CUR status struct.
+  `0x02`, `0x05`, `0x06`-`0x15`, `0x17`+) and the status bytes past
+  `0x24`.
+- **Presets**: read **and** write verified on hardware (2026-10-20).
+  Create/update/delete/rename are accepted and reflected in the store;
+  occupancy comes from the flat selector `0x0C` and names from the
+  entry cursor `0x0D` (base64). The read path was the last functional
+  gap for a preset UI, and it is now the source of truth the GUI
+  refreshes from.
+- **Status block**: field map per `cgevans/tiny2`, three offsets
+  re-verified on the Lite (`0x06` HDR, `0x11` FOV, `0x24` speed).
 
 ---
 
@@ -307,19 +315,33 @@ numbering in UVC XU is 1-based and vendor-defined.
 
 #### Per-selector decode
 
-The 19 advertised selectors on this XU turn out to be **largely
-unused**. The OBSBOT firmware multiplexes the entire vendor surface
-across just **two** selectors:
+The descriptor advertises 19 selectors; a mix of framed channels, flat
+record blocks and cursors is actually live. Status as of 2026-10-20
+(hardware reads on the Lite plus static RE of the vendor library):
 
-- **Selector `0x06`** — opcode-multiplexed. Payload format is
-  `[opcode, payload_len, ...payload_bytes]`. Four opcodes known.
-- **Selector `0x02`** — structured 18/36-byte frames. Five frame
-  shapes known (Manual/Auto exposure, Sleep/Wake, Tracking Speed,
-  three Preset recalls).
+| Selector | Role | Evidence |
+|---|---|---|
+| `0x02` | framed command channel (36-byte frames) | hardware + RE |
+| `0x03`-`0x05` | further framed sub-channels | xrefs in the vendor library; unused by this app |
+| `0x06` | tagged command channel **and** the 60-byte status block | hardware + RE |
+| `0x07` | legacy gimbal-preset pose records (6 x 10 bytes) | hardware |
+| `0x08` | model / stream name string (`"Tiny 2 Lite StreamCamera"`) | hardware |
+| `0x09` | `00`, unknown | hardware only |
+| `0x0A` | `ff`, unknown | hardware only |
+| `0x0B` | one state byte that follows camera state | hardware only |
+| `0x0C` | flat preset slot list `[count, slotIdx...]` | hardware + RE |
+| `0x0D` | preset entry cursor, **consuming** (each read advances) | hardware + RE |
+| `0x0E` | `fe 20`, unknown (looks like a two-byte record) | hardware only |
+| `0x0F`+ | `ENOENT` from the kernel, not zeros | hardware |
 
-The remaining 17 selector slots in `bmControls` are advertised by the
-descriptor but not addressed by either of the two FOSS reference
-projects (see §3.2 for the full citation table).
+Reading `0x0D` has a side effect, which is how it was mistaken for a
+status byte for a while: it walks the preset list one entry per read
+and stays exhausted (`status 0x02`) until the `0x0C` block is echoed
+back. Never poll it casually.
+
+The flat selectors this app consumes are documented where they are
+used: presets in "Reading presets back" below, status in `§3.2`
+("Selector `0x06` GET_CUR returns 60-byte status struct").
 
 ### 3.2 Tiny 2 XU command table — known surface (FOSS-extracted)
 
@@ -400,10 +422,11 @@ The function group of a frame is `sender, receiver, command`:
 | Delete | `0x3984` | `0x04` (AI) | `index u32` |
 | Rename | `0x3A84` | `0x04` (AI) | `index u32` + ASCII name |
 
-`index` is zero-based in the frame (slot 1 is index 0). Recall was
-verified against captured frames; create, update, delete and rename
-come from the vendor application's own command table and have not been
-exercised on hardware yet.
+`index` is zero-based in the frame (slot 1 is index 0). All five were
+exercised on hardware on 2026-10-20 (Tiny 2 Lite, firmware 6.2.5.3):
+create, update, delete and rename are accepted and reflected in the
+store, and the pose floats take the raw V4L2 integer values (see
+"Preset pose units" below).
 
 #### Replies
 
@@ -428,6 +451,100 @@ Commands confirmed working on a Tiny 2 Lite (firmware 6.2.5.3):
 Commands that answer with the error signature, i.e. not implemented on
 this model: `CAM_GET_USB_MODE` (`0x6042`), `CAM_GET_UVC_MODE`
 (`0xC442`) and `AI_GET_GIM_STATE` (`0x6604`).
+
+#### Preset pose units (verified)
+
+The `f32` pose in create/update is the raw V4L2 integer value of
+`pan_absolute` / `tilt_absolute` / `zoom_absolute`, converted straight
+to `f32` with no scaling (1/3600, 100 and 3600 all fail; edge 1.0 is
+the shipped `POSE_SCALE`). Verified by saving at a known pose, panning
+6 degrees away, recalling, and comparing captured frames by phase
+correlation: the view returns to within 2 px of the saved framing.
+
+Reading a pose back through the entry cursor (`0x0D`) uses
+centidegrees and inverts the pitch sign: a save at pan 10.00° /
+tilt 2.00° reported yaw 984 / pitch -196, i.e. centidegrees within
+gimbal positioning error (about 1.6% in that sample).
+
+#### Wire command construction (from the vendor library)
+
+Static RE of the vendor host library (`libdev.dll`, PDB symbols) shows
+how the 16-bit wire command is assembled from a category and an index:
+
+```
+wire_cmd = (index_table[category][index] << 6) | (category_table[category] & 0x3f)
+```
+
+For the gimbal-preset family the low six bits are always `0x04` (the
+AI receiver), and the index table supplies the high bits. This
+reproduces every captured opcode: index `0x35` gives `0x3B44` (list),
+`0x3b` gives `0x3B04` (name get), `0x3d` gives `0x3A84` (set name),
+`0x38` gives `0x3984` (delete), `0x39` and `0x41` both give `0x3E04`
+(update, two aliases), add gives `0x3944` and trigger gives `0x39C4`.
+
+Worth recording because it means unknown commands in the same category
+can be derived from their index instead of guessed, and because it
+explains why some opcodes look unrelated at first glance.
+
+#### Preset list
+
+`AI_GET_GIMBAL_PRESET_LIST` (`0x3B44`, receiver `0x04`) is a
+header-only GET. The reply arrives in the frame selector:
+
+- flags `0x09` and no payload: acknowledgement, empty list;
+- flags `0x29` with a short payload: the occupied slots as 0-based
+  indices after a first byte whose meaning is unreliable (tiny2 warns
+  the same for the flat selector). Example: a leftover preset in
+  slot 3 produced `01 02`, and creating one in slot 1 on top gave
+  `01 02 00`.
+
+Because the first byte cannot be trusted as a count, use the flat
+selector `0x0C` for occupancy instead (below), and treat the framed
+list as a presence signal only.
+
+Reply flags: bit `0x20` announces a payload block, and replies without
+it carry a 12-byte header whose length field is the header length, not
+a payload length.
+
+#### Reading presets back (flat list and entry cursor)
+
+Hardware-verified on the Tiny 2 Lite (2026-10-20), implemented in
+`obsbot-core::xu::commands::preset_read`:
+
+- **Selector `0x0C`** (flat, reliable): `[count:u8, slotIdx:u8 x
+  count]`, zeros when empty. This is the occupancy source the GUI
+  renders.
+- **Selector `0x0D`** (entry cursor): each `GET_CUR` returns one entry
+  and **advances the cursor**:
+  `[status:u8, slotIdx:u8, _pad:u16, pitch:i16 centideg @4,
+  yaw:i16 centideg @6, zoom_x100:u16 @8, base64 name @10
+  NUL-terminated]`. `status == 0x02` means exhausted. Entries created
+  through the framed channel appear here. **Echo-writing the `0x0C`
+  block back resets the cursor** — without that reset a cursor left
+  exhausted answers `0x02` immediately. Pitch sign is inverted vs
+  `tilt_absolute`; a save at pan 10.00° / tilt 2.00° reported
+  yaw 984 / pitch -196, i.e. centidegrees within gimbal positioning
+  error (~1.6% in that sample).
+- **Names are base64** (standard alphabet, `=` padding) in the cursor
+  entry: renaming a preset "TestA" stored `VGVzdEE=`. One rename in
+  the first test session ("Diez") was later read back as "Dieg"; seven
+  subsequent round-trips (3-5 letters, lowercase and mixed case) came
+  back byte-exact, so treat that instance as a transient, not as a
+  length-dependent rule.
+- **`AI_GET_GIMBAL_PRESET_ID_NAME` (`0x3B04`) is not usable on this
+  firmware** despite being in the vendor opcode table: the Lite
+  answers a structured error (`00 02 0a 00` in a 16-byte header,
+  error code `0x000a`) to the documented 4-byte index request. The
+  cursor is the working read path.
+
+#### Preset factory records (selector 7)
+
+Selector `0x07` is the legacy gimbal-preset channel holding six 10-byte
+pose records: record 0 is empty; records 1-5 are factory defaults
+(pitch 10.02°, yaw 8.04°, zoom 1.0x — centidegree `i16` values
+`0x03EA 0x0324`, zoom `0x0064`). They survive preset create/delete and
+are not listed by `0x0C`, so treat them as read-only factory residue,
+not user data.
 
 #### Frame layout and checksum (decoded)
 
@@ -722,7 +839,45 @@ To be filled if needed.
 
 ---
 
-## 6. References
+## 6. Cross-project knowledge map
+
+What each project knows, so a future reader does not re-derive it or
+trust the wrong source. "Verified" below means verified on physical
+hardware by that project; "static" means read out of the firmware or
+the vendor binary without a hardware check.
+
+| Claim | Source | Status |
+|---|---|---|
+| CRC-16/USB over header and payload block, field zeroed | `cgevans/tiny2` (`crc16_usb`), this repo, vendor firmware `getcrc16` | verified, three independent derivations |
+| Status offsets: zoom `0x04`, HDR `0x06`, face-AE `0x07`, dev status `0x09`, auto-sleep `0x0a`, FOV `0x11`, mirror `0x13`, AI `0x18/0x1c`, fps `0x1f`, LED `0x21`, speed `0x24` | `cgevans/tiny2` `CameraStatus::decode` (regular Tiny 2) | verified there; partly re-verified on the Lite here (HDR `0x06`, speed `0x24`, FOV `0x11`) |
+| Flat preset list on selector `0x0C`, entry cursor on `0x0D`, cursor reset by echo-writing `0x0C` | `cgevans/tiny2` (`XU_SEL_PRESET_LIST` / `XU_SEL_PRESET_ENTRY`), `lxman/obsbot-mcp` (`decodePresetList`, `decodePresetEntry`) | verified here on the Lite |
+| "The first byte of the flat list is not a reliable count" | `cgevans/tiny2` | confirmed here: the framed `0x3B44` reply shows the same unreliability |
+| Preset names are base64, `=` padded | `lxman/obsbot-mcp` | verified here (`TestA` -> `VGVzdEE=`) |
+| Opcode `0xA042` is `CAM_GET_SYS_TIME`, `CAM_SET_DEV_STATUS` is `0xA0C2` | `lxman/obsbot-mcp` opcode table (from `libdev.dll` PDB symbols) | static, accepted (matches our captures showing a status block, not a data frame) |
+| Wire command = `(index << 6) | 0x04` for the preset family | this repo, from `libdev.dll` | static, reproduces every capture |
+| Preset create/update/delete/rename opcodes and payloads | vendor application table, `OpenFoxes/Tiny4Linux` (`command02` call sites) | verified here on hardware |
+| Preset recall needs the four `1.0f32` floats in the payload | `OpenFoxes/Tiny4Linux` captures, this repo | verified (camera rejects the recall without them) |
+| Selector `0x06` tag commands (suspend time, vertical, face AE, FOV, AI mode, LED, mirror, boot mode) | `cgevans/tiny2` (`TAG_*`), `libdev.dll` xrefs | verified there; this app uses its own framed commands instead |
+| Sleep/Wake and Tracking Speed commands | `OpenFoxes/Tiny4Linux` | verified there and here |
+| Gesture on/off frames and the backwards naming of Zoom vs Dynamic zoom | this repo (captures under an `LD_PRELOAD` shim) | verified here, see Q11 |
+| Manual zoom travels selector `0x0B` on the Camera Terminal (`controlWrite(0x21, 0x01, 0x0B00, 0x0100, ...)`) | `taxfromdk/obsbot_tiny_reversing` (`research/rosetta.txt`) | historical model, consistent with V4L2 `zoom_absolute` |
+
+Open questions, unanswered anywhere:
+
+- Who publishes the 60-byte status ring on the camera side, and what
+  the bytes past `0x24` mean.
+- What selectors `0x09`, `0x0A`, `0x0B` and `0x0E` carry.
+- The camera-side handler for the framed preset list (`0x3B44`), which
+  would settle whether its first byte is a count.
+- Whether `AI_GET_GIMBAL_PRESET_ID_NAME` (`0x3B04`) works on the
+  regular Tiny 2 (it returns error `0x000a` on the Lite).
+- Whether the `u32` at status bytes 4-7 is a timer at all: an early
+  capture appeared to decrement around 96000/s, later samples were
+  static.
+
+Upstream contributions from this repo are listed in §7.
+
+## 7. References
 
 - Linux UVC driver documentation:
   https://kernel.org/doc/html/latest/userspace-api/media/drivers/uvcvideo.html
@@ -749,63 +904,3 @@ To be filled if needed.
   http://www.mail-archive.com/linuxtv-commits@linuxtv.org/msg48291.html
 - EUPL-1.2 → GPL-3 compatibility (EUPL Appendix):
   https://eupl.eu/1.2/en/
-
-#### Preset list
-
-`AI_GET_GIMBAL_PRESET_LIST` (`0x3B44`, receiver `0x04`) is a
-header-only GET. The reply arrives in the frame selector:
-
-- flags `0x09` and no payload: acknowledgement, empty list;
-- flags `0x29` with a short payload: the occupied slots as 0-based
-  indices after a first byte whose meaning is unreliable (tiny2 warns
-  the same for the flat selector). Example: a leftover preset in
-  slot 3 produced `01 02`, and creating one in slot 1 on top gave
-  `01 02 00`.
-
-Because the first byte cannot be trusted as a count, use the flat
-selector `0x0C` for occupancy instead (below), and treat the framed
-list as a presence signal only.
-
-Reply flags: bit `0x20` announces a payload block, and replies without
-it carry a 12-byte header whose length field is the header length, not
-a payload length.
-
-#### Reading presets back (flat list and entry cursor)
-
-Hardware-verified on the Tiny 2 Lite (2026-10-20), implemented in
-`obsbot-core::xu::commands::preset_read`:
-
-- **Selector `0x0C`** (flat, reliable): `[count:u8, slotIdx:u8 x
-  count]`, zeros when empty. This is the occupancy source the GUI
-  renders.
-- **Selector `0x0D`** (entry cursor): each `GET_CUR` returns one entry
-  and **advances the cursor**:
-  `[status:u8, slotIdx:u8, _pad:u16, pitch:i16 centideg @4,
-  yaw:i16 centideg @6, zoom_x100:u16 @8, base64 name @10
-  NUL-terminated]`. `status == 0x02` means exhausted. Entries created
-  through the framed channel appear here. **Echo-writing the `0x0C`
-  block back resets the cursor** — without that reset a cursor left
-  exhausted answers `0x02` immediately. Pitch sign is inverted vs
-  `tilt_absolute`; a save at pan 10.00° / tilt 2.00° reported
-  yaw 984 / pitch -196, i.e. centidegrees within gimbal positioning
-  error (~1.6% in that sample).
-- **Names are base64** (standard alphabet, `=` padding) in the cursor
-  entry: renaming a preset "TestA" stored `VGVzdEE=`. One rename in
-  the first test session ("Diez") was later read back as "Dieg"; seven
-  subsequent round-trips (3-5 letters, lowercase and mixed case) came
-  back byte-exact, so treat that instance as a transient, not as a
-  length-dependent rule.
-- **`AI_GET_GIMBAL_PRESET_ID_NAME` (`0x3B04`) is not usable on this
-  firmware** despite being in the vendor opcode table: the Lite
-  answers a structured error (`00 02 0a 00` in a 16-byte header,
-  error code `0x000a`) to the documented 4-byte index request. The
-  cursor is the working read path.
-
-#### Preset factory records (selector 7)
-
-Selector `0x07` is the legacy gimbal-preset channel holding six 10-byte
-pose records: record 0 is empty; records 1-5 are factory defaults
-(pitch 10.02°, yaw 8.04°, zoom 1.0x — centidegree `i16` values
-`0x03EA 0x0324`, zoom `0x0064`). They survive preset create/delete and
-are not listed by `0x0C`, so treat them as read-only factory residue,
-not user data.
