@@ -59,6 +59,21 @@ for catalog in catalogs:
     if not missing and not empty:
         print(f"{catalog}: {len(sources)} strings, all translated")
 
+# Toasts must never show a bare literal: either a gettext() template or
+# a localised error from i18n_errors.
+import glob as _glob
+bad = []
+for path in _glob.glob("crates/obsbot-gui/src/*.rs"):
+    for number, line in enumerate(open(path, encoding="utf-8"), 1):
+        stripped = line.strip()
+        if re.match(r'surface_error\(&?"', stripped) or re.match(r'surface_error\(&format!\(\s*"', stripped):
+            bad.append(f"{path}:{number}: {stripped}")
+if bad:
+    failed = True
+    print("toasts with an untranslated literal:")
+    for entry in bad:
+        print(f"  {entry}")
+
 if failed:
     sys.exit(1)
 print("i18n coverage complete")

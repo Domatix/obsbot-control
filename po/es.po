@@ -431,3 +431,54 @@ msgstr "Abajo + derecha"
 
 msgid "Reset pan / tilt to (0, 0)"
 msgstr "Restablecer paneo / inclinación a (0, 0)"
+
+msgid "AI tracking mode"
+msgstr "Modo de seguimiento con IA"
+
+msgid "Gesture"
+msgstr "Gesto"
+
+msgid "Preset delete"
+msgstr "Borrado de preajuste"
+
+msgid "Preset recall"
+msgstr "Recuperación de preajuste"
+
+msgid "Preset rename"
+msgstr "Renombrado de preajuste"
+
+msgid "Preset save"
+msgstr "Guardado de preajuste"
+
+msgid "No frame available - start the preview first"
+msgstr "No hay imagen disponible - inicia primero la vista previa"
+
+msgid "The preview has no drawable surface yet."
+msgstr "La vista previa todavía no tiene una superficie donde dibujar."
+
+msgid "The window is not ready to render the preview yet."
+msgstr "La ventana aún no está lista para dibujar la vista previa."
+
+msgid "The camera did not answer ({error})."
+msgstr "La cámara no respondió ({error})."
+
+msgid "The camera reported an unrecognised state ({error})."
+msgstr "La cámara informó un estado no reconocido ({error})."
+
+msgid "The command is {payload} bytes long and the camera only accepts {limit} on this channel."
+msgstr "El comando ocupa {payload} bytes y la cámara solo acepta {limit} por este canal."
+
+msgid "Preset index {n} is out of range (0 to 2)."
+msgstr "El índice de preajuste {n} está fuera de rango (0 a 2)."
+
+msgid "Preset slot {n} is out of range (1 to 3)."
+msgstr "El hueco de preajuste {n} está fuera de rango (1 a 3)."
+
+msgid "The preview needs the GStreamer element {name}, which is not installed."
+msgstr "La vista previa necesita el elemento de GStreamer {name}, que no está instalado."
+
+msgid "The preview could not start. Is another application using the camera? ({error})"
+msgstr "La vista previa no pudo arrancar. ¿Hay otra aplicación usando la cámara? ({error})"
+
+msgid "GStreamer could not be initialised ({error})."
+msgstr "No se pudo inicializar GStreamer ({error})."
