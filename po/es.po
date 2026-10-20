@@ -376,3 +376,9 @@ msgstr "El preajuste {n} está vacío. Guarda una posición primero."
 
 msgid "Preset {n} is already empty."
 msgstr "El preajuste {n} ya está vacío."
+
+msgid "Save preset {n}"
+msgstr "Guardar el preajuste {n}"
+
+msgid "Save"
+msgstr "Guardar"
