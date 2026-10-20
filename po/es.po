@@ -566,3 +566,6 @@ msgstr "Modo manual"
 
 msgid "Aperture Priority Mode"
 msgstr "Modo prioridad a la apertura"
+
+msgid "This app can only recall presets, not save them."
+msgstr "Esta aplicación solo puede recuperar preajustes, no guardarlos."
