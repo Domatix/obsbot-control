@@ -123,13 +123,14 @@ struct State {
 /// per-slot occupancy and names. Failures leave the previous
 /// rendering in place.
 fn refresh_state(state: &State) {
-    let stored = preset::list_presets(&state.file).is_ok_and(|p| !p.is_empty());
-    let description = if stored {
-        gettext("Presets stored on the camera.")
-    } else {
+    // The framed list reply is the plain list of stored slot ids.
+    let ids = preset::list_presets(&state.file).unwrap_or_default();
+    let description = if ids.is_empty() {
         gettext(
             "No presets stored yet. Use the save button on a row to store the current position.",
         )
+    } else {
+        gettext("Presets stored on the camera: {n}.").replace("{n}", &ids.len().to_string())
     };
     state.group.set_description(Some(&description));
 
@@ -140,7 +141,13 @@ fn refresh_state(state: &State) {
             .iter()
             .find(|entry| entry.slot == slot_idx)
             .map_or_else(
-                || gettext("Empty"),
+                || {
+                    if ids.contains(&slot_idx) {
+                        gettext("Stored")
+                    } else {
+                        gettext("Empty")
+                    }
+                },
                 |entry| {
                     if entry.name.is_empty() {
                         gettext("Stored")
