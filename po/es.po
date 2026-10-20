@@ -347,8 +347,8 @@ msgstr "Preajuste {n} guardado."
 msgid "Deleted preset {n}."
 msgstr "Preajuste {n} eliminado."
 
-msgid "Presets stored on the camera."
-msgstr "Hay preajustes guardados en la cámara."
+msgid "Presets stored on the camera: {n}."
+msgstr "Hay {n} preajustes guardados en la cámara."
 
 msgid "Could not read the current camera position."
 msgstr "No se pudo leer la posición actual de la cámara."
