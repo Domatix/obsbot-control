@@ -65,6 +65,10 @@ fn device_path() -> PathBuf {
 
 /// Deletes `slot` when dropped, so a failing assertion does not leave
 /// the user's camera with a test preset in it.
+///
+/// Only ever constructed for a slot the test found free: the camera
+/// store belongs to whoever is using it, and a test that overwrites an
+/// occupied slot destroys a position nobody can recover.
 struct SlotGuard<'a> {
     file: &'a File,
     slot: u8,
@@ -74,6 +78,13 @@ impl Drop for SlotGuard<'_> {
     fn drop(&mut self) {
         let _ = preset::delete_preset(self.file, self.slot);
     }
+}
+
+/// First slot (1-based, as the admin commands take it) that the flat
+/// list reports as free, or `None` when the store is full.
+fn free_slot(file: &File) -> Option<u8> {
+    let used = list_preset_slots(file).expect("list preset slots");
+    (1..=3).find(|slot| !used.contains(&(slot - 1)))
 }
 
 #[test]
@@ -103,7 +114,13 @@ fn save_rename_read_and_delete_roundtrip() {
         .open(device_path())
         .expect("open device");
 
-    let slot: u8 = 1;
+    let Some(slot) = free_slot(&file) else {
+        eprintln!(
+            "skipping: all three preset slots are in use and this test will not overwrite \
+             a stored preset; delete one and run it again"
+        );
+        return;
+    };
     let _guard = SlotGuard { file: &file, slot };
 
     // Save the current pose so the test never moves the gimbal.
