@@ -1,9 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
-// Portions of this file are derived from EUPL-1.2 source:
-//   - OpenFoxes/Tiny4Linux (https://github.com/OpenFoxes/Tiny4Linux)
-// "Licensed under the EUPL"
-//
 // Copyright (C) 2026 Domatix and contributors
 //
 // This program is free software: you can redistribute it and/or modify
