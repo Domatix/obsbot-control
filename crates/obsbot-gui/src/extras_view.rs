@@ -297,7 +297,7 @@ fn recall_with_feedback(file: &File, index: i8) {
             let msg = gettext("Recalling preset {n}…").replace("{n}", &(index + 1).to_string());
             settings::surface_error(&msg);
         }
-        Err(err) => report_xu_error("Preset recall", &err),
+        Err(err) => report_xu_error(&gettext("Preset recall"), &err),
     }
 }
 
@@ -358,12 +358,12 @@ fn save_with_feedback(state: &State, index: i8, name: &str) {
     };
     let slot = u8::try_from(index + 1).unwrap_or(1);
     if let Err(err) = preset::add_preset(&state.file, slot, pose) {
-        report_xu_error("Preset save", &err);
+        report_xu_error(&gettext("Preset save"), &err);
         return;
     }
     if !name.is_empty() {
         if let Err(err) = preset::rename_preset(&state.file, slot, name) {
-            report_xu_error("Preset rename", &err);
+            report_xu_error(&gettext("Preset rename"), &err);
             return;
         }
     }
@@ -420,7 +420,7 @@ fn ask_name(file: &Rc<File>, index: i8, state: &Rc<State>) {
                 settings::surface_error(&msg);
                 refresh_state(&state_for_dialog);
             }
-            Err(err) => report_xu_error("Preset rename", &err),
+            Err(err) => report_xu_error(&gettext("Preset rename"), &err),
         }
     });
 }
@@ -432,7 +432,7 @@ fn delete_with_feedback(file: &File, index: i8) {
             let msg = gettext("Deleted preset {n}.").replace("{n}", &(index + 1).to_string());
             settings::surface_error(&msg);
         }
-        Err(err) => report_xu_error("Preset delete", &err),
+        Err(err) => report_xu_error(&gettext("Preset delete"), &err),
     }
 }
 

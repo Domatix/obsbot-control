@@ -51,6 +51,8 @@ jobs:
         run: cargo clippy --workspace --all-targets -- -D warnings
       - name: test
         run: cargo test --workspace
+      - name: i18n coverage
+        run: build-aux/check-i18n.sh
 
   audit:
     name: cargo audit
