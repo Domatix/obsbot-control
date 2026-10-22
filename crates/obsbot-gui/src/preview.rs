@@ -160,6 +160,14 @@ fn arm_deferred_sleep(path: PathBuf) {
 pub fn send_sleep(path: &Path) {
     match OpenOptions::new().read(true).write(true).open(path) {
         Ok(f) => {
+            // Probe first: skipping the sleep on a camera whose XU
+            // moved is safe, and beats a bare ioctl error. wake_camera
+            // deliberately does NOT probe — if the camera is asleep the
+            // wake frame must go out even when GET_LEN misbehaves.
+            if let Err(err) = obsbot_core::xu::probe(&f) {
+                eprintln!("preview: camera XU unavailable, not sleeping it: {err}");
+                return;
+            }
             if let Err(err) = set_sleep(&f, SleepState::Sleep) {
                 eprintln!("preview: failed to put camera to sleep: {err}");
             }

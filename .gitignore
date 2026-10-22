@@ -61,5 +61,3 @@ data/icons/scalable/apps/*.png
 .claude/cache/
 
 # Local verification ledger and hardware probe (not shipped)
-GATES.md
-scripts/verify-recall.sh

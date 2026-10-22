@@ -58,7 +58,8 @@ pub struct Status {
     pub hdr_on: bool,
     /// AI tracking mode (status bytes `0x18` and `0x1c`).
     pub ai_mode: AiMode,
-    /// Tracking speed (status byte `0x21`).
+    /// Tracking speed (status byte `0x24` on firmware 6.2.5.x,
+    /// `0x21` on older captures).
     pub tracking_speed: TrackingSpeed,
     /// Full 60-byte payload as returned by the camera; for the
     /// future debug "Dump status" page.
