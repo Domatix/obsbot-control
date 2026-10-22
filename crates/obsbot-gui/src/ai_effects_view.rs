@@ -81,7 +81,7 @@ use adw::prelude::*;
 use obsbot_core::xu::commands::{
     set_ai_mode, set_fov, set_gesture, set_hdr, set_tracking_speed, Gesture,
 };
-use obsbot_core::xu::{get_status, AiMode, FovMode, Status, TrackingSpeed, XuError};
+use obsbot_core::xu::{get_status, probe, AiMode, FovMode, Status, TrackingSpeed, XuError};
 use obsbot_core::{CameraInfo, TINY2_FAMILY};
 
 use crate::i18n::gettext;
@@ -140,6 +140,14 @@ pub fn build_ai_effects_group(cam: &CameraInfo) -> Option<adw::PreferencesGroup>
             return None;
         }
     };
+    if let Err(err) = probe(&file) {
+        eprintln!(
+            "warning: ai_effects_view: {} does not answer the vendor XU ({err}); \
+             skipping AI and effects group",
+            path.display()
+        );
+        return None;
+    }
 
     // Best-effort hydration. Failure here is non-fatal — non-Tiny-2
     // descriptors that happen to share the VID/PID would land here
@@ -189,6 +197,14 @@ pub fn build_hdr_group(cam: &CameraInfo) -> Option<adw::PreferencesGroup> {
             return None;
         }
     };
+    if let Err(err) = probe(&file) {
+        eprintln!(
+            "warning: ai_effects_view: {} does not answer the vendor XU ({err}); \
+             skipping image-enhancements group",
+            path.display()
+        );
+        return None;
+    }
     let baseline = get_status(&file).ok();
 
     let group = adw::PreferencesGroup::builder()

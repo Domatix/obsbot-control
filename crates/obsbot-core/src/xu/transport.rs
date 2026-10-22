@@ -217,3 +217,29 @@ pub fn get_cur(camera: &File, unit: u8, selector: u8, buf: &mut [u8]) -> Result<
     }
     xu_query(camera, unit, selector, uvc::GET_CUR, buf)
 }
+
+/// Check that the vendor XU answers `GET_LEN` on both selectors the
+/// app depends on.
+///
+/// The declared XU surface is firmware-dependent: a Tiny 2 Lite on
+/// firmware 6.2.5.x advertises 14 controls (`bControlSize` 2) while
+/// 6.2.8.x advertises 19 (`bControlSize` 4), and the unit ID or
+/// selector numbering could move in a future release. Probing once
+/// before the first command turns a silent no-op into an explicit
+/// [`XuError::XuUnavailable`] that the UI can report.
+///
+/// # Errors
+/// Returns [`XuError::XuUnavailable`] when either selector does not
+/// answer; propagates nothing else, since the probe is a capability
+/// check rather than a read of user data.
+pub fn probe(camera: &File) -> Result<(), XuError> {
+    for selector in [SELECTOR_FRAME, SELECTOR_OPCODE] {
+        if get_len(camera, BUNIT_ID, selector).is_err() {
+            return Err(XuError::XuUnavailable {
+                unit: BUNIT_ID,
+                selector,
+            });
+        }
+    }
+    Ok(())
+}

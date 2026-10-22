@@ -11,8 +11,9 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: obsbot-control 0.2.0\n"
-"Report-Msgid-Bugs-To: https://github.com/Domatix/obsbot-control/issues\n"
-"PO-Revision-Date: 2026-05-14 01:00+0000\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-08-14 12:25+0200\n"
+"PO-Revision-Date: 2026-10-19 22:00+0200\n"
 "Last-Translator: Domatix and contributors <noreply@domatix.com>\n"
 "Language-Team: Spanish\n"
 "Language: es\n"
@@ -20,3 +21,551 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#: crates/obsbot-gui/src/ai_effects_view.rs:155
+msgid "AI and effects"
+msgstr "IA y efectos"
+
+#: crates/obsbot-gui/src/ai_effects_view.rs:195
+msgid "Image enhancements"
+msgstr "Mejoras de imagen"
+
+#: crates/obsbot-gui/src/ai_effects_view.rs:216
+msgid "AI tracking"
+msgstr "Seguimiento con IA"
+
+#: crates/obsbot-gui/src/ai_effects_view.rs:250
+msgid "Gestures"
+msgstr "Gestos"
+
+#: crates/obsbot-gui/src/ai_effects_view.rs:251
+msgid "Hand poses the camera reacts to on its own"
+msgstr "Posturas de la mano a las que la cámara reacciona por sí sola"
+
+#: crates/obsbot-gui/src/ai_effects_view.rs:261
+msgid "Zoom"
+msgstr "Zoom"
+
+#: crates/obsbot-gui/src/ai_effects_view.rs:262
+msgid "The L-shaped hand pose that zooms in and out"
+msgstr "La postura en L que acerca y aleja"
+
+#: crates/obsbot-gui/src/ai_effects_view.rs:266
+msgid "Target selection"
+msgstr "Selección de objetivo"
+
+#: crates/obsbot-gui/src/ai_effects_view.rs:267
+msgid "Pick who the camera tracks"
+msgstr "Elige a quién sigue la cámara"
+
+#: crates/obsbot-gui/src/ai_effects_view.rs:271
+msgid "Dynamic zoom"
+msgstr "Zoom dinámico"
+
+#: crates/obsbot-gui/src/ai_effects_view.rs:272
+msgid "No observable effect on Tiny 2 Lite"
+msgstr "Sin efecto observable en la Tiny 2 Lite"
+
+#: crates/obsbot-gui/src/ai_effects_view.rs:276
+msgid "Dynamic zoom direction"
+msgstr "Dirección del zoom dinámico"
+
+#: crates/obsbot-gui/src/ai_effects_view.rs:277
+msgid "Which way the dynamic zoom gesture reads"
+msgstr "Hacia dónde interpreta el gesto de zoom dinámico"
+
+#: crates/obsbot-gui/src/ai_effects_view.rs:317
+msgid "Wide (86°)"
+msgstr "Amplio (86°)"
+
+#: crates/obsbot-gui/src/ai_effects_view.rs:318
+msgid "Normal (78°)"
+msgstr "Normal (78°)"
+
+#: crates/obsbot-gui/src/ai_effects_view.rs:319
+msgid "Narrow (65°)"
+msgstr "Estrecho (65°)"
+
+#: crates/obsbot-gui/src/ai_effects_view.rs:325
+msgid "Field of view"
+msgstr "Campo de visión"
+
+#: crates/obsbot-gui/src/ai_effects_view.rs:326
+msgid "Narrow does not apply on Tiny 2 Lite."
+msgstr "El modo estrecho no se aplica en la Tiny 2 Lite."
+
+#: crates/obsbot-gui/src/ai_effects_view.rs:348
+msgid "HDR"
+msgstr "HDR"
+
+#: crates/obsbot-gui/src/ai_effects_view.rs:385
+msgid "Standard"
+msgstr "Estándar"
+
+#: crates/obsbot-gui/src/ai_effects_view.rs:385
+msgid "Sport"
+msgstr "Deportivo"
+
+#: crates/obsbot-gui/src/ai_effects_view.rs:399
+msgid "Tracking speed"
+msgstr "Velocidad de seguimiento"
+
+#: crates/obsbot-gui/src/ai_effects_view.rs:421
+msgid "No tracking"
+msgstr "Sin seguimiento"
+
+#: crates/obsbot-gui/src/ai_effects_view.rs:422
+msgid "Normal tracking"
+msgstr "Seguimiento normal"
+
+#: crates/obsbot-gui/src/ai_effects_view.rs:423
+msgid "Upper body"
+msgstr "Medio cuerpo"
+
+#: crates/obsbot-gui/src/ai_effects_view.rs:424
+msgid "Close-up"
+msgstr "Primer plano"
+
+#: crates/obsbot-gui/src/ai_effects_view.rs:425
+msgid "Headless"
+msgstr "Sin cabeza"
+
+#: crates/obsbot-gui/src/ai_effects_view.rs:426
+msgid "Lower body"
+msgstr "Cuerpo inferior"
+
+#: crates/obsbot-gui/src/ai_effects_view.rs:427
+msgid "Group"
+msgstr "Grupo"
+
+#: crates/obsbot-gui/src/ai_effects_view.rs:428
+msgid "Desk mode"
+msgstr "Modo escritorio"
+
+#: crates/obsbot-gui/src/ai_effects_view.rs:429
+msgid "Whiteboard"
+msgstr "Pizarra"
+
+#: crates/obsbot-gui/src/ai_effects_view.rs:430
+msgid "Hand"
+msgstr "Mano"
+
+#: crates/obsbot-gui/src/ai_effects_view.rs:437
+#: crates/obsbot-gui/src/extras_view.rs:130
+#: crates/obsbot-gui/src/settings.rs:377
+msgid "Failed to set {name}: {error}"
+msgstr "No se pudo aplicar {name}: {error}"
+
+#: crates/obsbot-gui/src/application.rs:157
+msgid "© 2026 Domatix and contributors"
+msgstr "© 2026 Domatix y colaboradores"
+
+#: crates/obsbot-gui/src/application.rs:170
+msgid "Reverse-engineering references"
+msgstr "Referencias de ingeniería inversa"
+
+#: crates/obsbot-gui/src/controls_view.rs:128
+msgid "No video node"
+msgstr "No hay nodo de vídeo"
+
+#: crates/obsbot-gui/src/controls_view.rs:129
+msgid "This camera has no /dev/videoN path."
+msgstr "Esta cámara no tiene ruta /dev/videoN."
+
+#: crates/obsbot-gui/src/controls_view.rs:141
+msgid "No controls exposed"
+msgstr "No hay controles expuestos"
+
+#: crates/obsbot-gui/src/controls_view.rs:142
+msgid "The driver returned an empty control list."
+msgstr "El controlador devolvió una lista de controles vacía."
+
+#: crates/obsbot-gui/src/controls_view.rs:153
+msgid "Could not read V4L2 controls"
+msgstr "No se pudieron leer los controles V4L2"
+
+#: crates/obsbot-gui/src/controls_view.rs:326
+msgid "User Controls"
+msgstr "Controles de usuario"
+
+#: crates/obsbot-gui/src/controls_view.rs:329
+msgid "Camera Controls"
+msgstr "Controles de cámara"
+
+#: crates/obsbot-gui/src/controls_view.rs:331
+msgid "Other"
+msgstr "Otros"
+
+#: crates/obsbot-gui/src/controls_view.rs:364
+msgid "Main"
+msgstr "Principal"
+
+#: crates/obsbot-gui/src/controls_view.rs:385
+msgid "Image"
+msgstr "Imagen"
+
+#: crates/obsbot-gui/src/controls_view.rs:399
+msgid "Move"
+msgstr "Movimiento"
+
+#: crates/obsbot-gui/src/controls_view.rs:419
+#: crates/obsbot-gui/src/extras_view.rs:73
+msgid "Presets"
+msgstr "Preajustes"
+
+#: crates/obsbot-gui/src/controls_view.rs:527
+msgid "Live preview is off"
+msgstr "La vista previa está desactivada"
+
+#: crates/obsbot-gui/src/controls_view.rs:530
+msgid "Start preview"
+msgstr "Iniciar vista previa"
+
+#: crates/obsbot-gui/src/controls_view.rs:678
+msgid "Could not initialize preview"
+msgstr "No se pudo inicializar la vista previa"
+
+#: crates/obsbot-gui/src/controls_view.rs:689
+msgid "Could not start preview"
+msgstr "No se pudo iniciar la vista previa"
+
+#: crates/obsbot-gui/src/controls_view.rs:734
+msgid "Toggle grayscale filter"
+msgstr "Activar o desactivar el filtro de escala de grises"
+
+#: crates/obsbot-gui/src/controls_view.rs:763
+msgid "Toggle mirror (horizontal flip)"
+msgstr "Activar o desactivar el espejo (volteo horizontal)"
+
+#: crates/obsbot-gui/src/controls_view.rs:786
+msgid "Save snapshot to Pictures"
+msgstr "Guardar captura en Imágenes"
+
+#: crates/obsbot-gui/src/controls_view.rs:793
+msgid "Snapshot saved"
+msgstr "Captura guardada"
+
+#: crates/obsbot-gui/src/controls_view.rs:798
+msgid "Snapshot failed"
+msgstr "Error al capturar"
+
+#: crates/obsbot-gui/src/controls_view.rs:830
+msgid "No frame available — start the preview first"
+msgstr "No hay fotograma disponible. Inicia antes la vista previa."
+
+#: crates/obsbot-gui/src/controls_view.rs:840
+msgid "Preview produced no frame yet"
+msgstr "La vista previa aún no ha producido ningún fotograma"
+
+#: crates/obsbot-gui/src/controls_view.rs:1070
+msgid "Yes"
+msgstr "Sí"
+
+#: crates/obsbot-gui/src/controls_view.rs:1072
+msgid "No"
+msgstr "No"
+
+#: crates/obsbot-gui/src/exposure_group.rs:64
+msgid "Exposure"
+msgstr "Exposición"
+
+#: crates/obsbot-gui/src/extras_view.rs:74
+
+#: crates/obsbot-gui/src/extras_view.rs:87
+msgid "Preset {n}"
+msgstr "Preajuste {n}"
+
+#: crates/obsbot-gui/src/extras_view.rs:98
+msgid "Recall"
+msgstr "Recuperar"
+
+#: crates/obsbot-gui/src/extras_view.rs:122
+msgid "Recalling preset {n}…"
+msgstr "Recuperando el preajuste {n}…"
+
+#: crates/obsbot-gui/src/preview.rs:533
+msgid "Stop live preview"
+msgstr "Detener la vista previa"
+
+#: crates/obsbot-gui/src/preview.rs:535
+msgid "Start live preview"
+msgstr "Iniciar la vista previa"
+
+#: crates/obsbot-gui/src/ptz_pad.rs:223
+msgid "Focus"
+msgstr "Enfoque"
+
+#: crates/obsbot-gui/src/ptz_pad.rs:454
+msgid "Auto-focus"
+msgstr "Enfoque automático"
+
+#: crates/obsbot-gui/src/ptz_pad.rs:520
+msgid "Manual focus"
+msgstr "Enfoque manual"
+
+#: crates/obsbot-gui/src/wb_group.rs:86
+msgid "White balance"
+msgstr "Balance de blancos"
+
+#: crates/obsbot-gui/src/window.rs:130
+msgid "Select camera"
+msgstr "Seleccionar cámara"
+
+#: crates/obsbot-gui/src/window.rs:278
+msgid "No OBSBOT cameras detected"
+msgstr "No se ha detectado ninguna cámara OBSBOT"
+
+#: crates/obsbot-gui/src/window.rs:279
+msgid "Connect an OBSBOT Tiny 2 family camera via USB."
+msgstr "Conecta por USB una cámara de la familia OBSBOT Tiny 2."
+
+#: crates/obsbot-gui/src/window.rs:309
+msgid "Camera disconnected: {product}"
+msgstr "Cámara desconectada: {product}"
+
+#: crates/obsbot-gui/src/window.rs:311
+msgid "Cameras disconnected: {products}"
+msgstr "Cámaras desconectadas: {products}"
+
+msgid "Delete"
+msgstr "Eliminar"
+
+msgid "Empty"
+msgstr "Vacío"
+
+msgid "Save current position"
+msgstr "Guardar posición actual"
+
+msgid "Stored"
+msgstr "Ocupado"
+
+msgid "Saved preset {n}."
+msgstr "Preajuste {n} guardado."
+
+msgid "Deleted preset {n}."
+msgstr "Preajuste {n} eliminado."
+
+msgid "Presets stored on the camera: {n}."
+msgstr "Hay {n} preajustes guardados en la cámara."
+
+msgid "Could not read the current camera position."
+msgstr "No se pudo leer la posición actual de la cámara."
+
+msgid "No presets stored yet. Use the save button on a row to store the current position."
+msgstr "Aún no hay preajustes guardados. Usa el botón de guardar en una fila para almacenar la posición actual."
+
+msgid "Cancel"
+msgstr "Cancelar"
+
+msgid "Rename"
+msgstr "Renombrar"
+
+msgid "Preset name"
+msgstr "Nombre del preajuste"
+
+msgid "Rename preset {n}"
+msgstr "Renombrar el preajuste {n}"
+
+msgid "Renamed preset {n}."
+msgstr "Preajuste {n} renombrado."
+
+msgid "Preset {n} is empty. Save a position first."
+msgstr "El preajuste {n} está vacío. Guarda una posición primero."
+
+msgid "Preset {n} is already empty."
+msgstr "El preajuste {n} ya está vacío."
+
+msgid "Save preset {n}"
+msgstr "Guardar el preajuste {n}"
+
+msgid "Save"
+msgstr "Guardar"
+
+msgid "About Obsbot Cam Control"
+msgstr "Acerca de Obsbot Cam Control"
+
+msgid "Appearance"
+msgstr "Apariencia"
+
+msgid "Dark"
+msgstr "Oscuro"
+
+msgid "Light"
+msgstr "Claro"
+
+msgid "Follow system"
+msgstr "Seguir el sistema"
+
+msgid "Main Menu"
+msgstr "Menú principal"
+
+msgid "Quit"
+msgstr "Salir"
+
+msgid "Pan / Tilt / Zoom"
+msgstr "Paneo / Inclinación / Zoom"
+
+msgid "Pan left 5°"
+msgstr "Paneo a la izquierda 5°"
+
+msgid "Pan right 5°"
+msgstr "Paneo a la derecha 5°"
+
+msgid "Tilt down 5°"
+msgstr "Inclinar hacia abajo 5°"
+
+msgid "Tilt up 5°"
+msgstr "Inclinar hacia arriba 5°"
+
+msgid "Up + Left"
+msgstr "Arriba + izquierda"
+
+msgid "Up + Right"
+msgstr "Arriba + derecha"
+
+msgid "Down + Left"
+msgstr "Abajo + izquierda"
+
+msgid "Down + Right"
+msgstr "Abajo + derecha"
+
+msgid "Reset pan / tilt to (0, 0)"
+msgstr "Restablecer paneo / inclinación a (0, 0)"
+
+msgid "AI tracking mode"
+msgstr "Modo de seguimiento con IA"
+
+msgid "Gesture"
+msgstr "Gesto"
+
+msgid "Preset delete"
+msgstr "Borrado de preajuste"
+
+msgid "Preset recall"
+msgstr "Recuperación de preajuste"
+
+msgid "Preset rename"
+msgstr "Renombrado de preajuste"
+
+msgid "Preset save"
+msgstr "Guardado de preajuste"
+
+msgid "No frame available - start the preview first"
+msgstr "No hay imagen disponible - inicia primero la vista previa"
+
+msgid "The preview has no drawable surface yet."
+msgstr "La vista previa todavía no tiene una superficie donde dibujar."
+
+msgid "The window is not ready to render the preview yet."
+msgstr "La ventana aún no está lista para dibujar la vista previa."
+
+msgid "The camera did not answer ({error})."
+msgstr "La cámara no respondió ({error})."
+
+msgid "The camera reported an unrecognised state ({error})."
+msgstr "La cámara informó un estado no reconocido ({error})."
+
+msgid "The command is {payload} bytes long and the camera only accepts {limit} on this channel."
+msgstr "El comando ocupa {payload} bytes y la cámara solo acepta {limit} por este canal."
+
+msgid "Preset index {n} is out of range (0 to 2)."
+msgstr "El índice de preajuste {n} está fuera de rango (0 a 2)."
+
+msgid "Preset slot {n} is out of range (1 to 3)."
+msgstr "El hueco de preajuste {n} está fuera de rango (1 a 3)."
+
+msgid "The preview needs the GStreamer element {name}, which is not installed."
+msgstr "La vista previa necesita el elemento de GStreamer {name}, que no está instalado."
+
+msgid "The preview could not start. Is another application using the camera? ({error})"
+msgstr "La vista previa no pudo arrancar. ¿Hay otra aplicación usando la cámara? ({error})"
+
+msgid "GStreamer could not be initialised ({error})."
+msgstr "No se pudo inicializar GStreamer ({error})."
+
+msgid "Brightness"
+msgstr "Brillo"
+
+msgid "Contrast"
+msgstr "Contraste"
+
+msgid "Saturation"
+msgstr "Saturación"
+
+msgid "Hue"
+msgstr "Tono"
+
+msgid "White Balance, Automatic"
+msgstr "Balance de blancos, automático"
+
+msgid "Red Balance"
+msgstr "Balance de rojos"
+
+msgid "Blue Balance"
+msgstr "Balance de azules"
+
+msgid "Gain"
+msgstr "Ganancia"
+
+msgid "Power Line Frequency"
+msgstr "Frecuencia de la red eléctrica"
+
+msgid "White Balance Temperature"
+msgstr "Temperatura de balance de blancos"
+
+msgid "Sharpness"
+msgstr "Nitidez"
+
+msgid "Backlight Compensation"
+msgstr "Compensación de contraluz"
+
+msgid "Auto Exposure"
+msgstr "Exposición automática"
+
+msgid "Exposure Time, Absolute"
+msgstr "Tiempo de exposición, absoluto"
+
+msgid "Pan, Absolute"
+msgstr "Paneo, absoluto"
+
+msgid "Tilt, Absolute"
+msgstr "Inclinación, absoluta"
+
+msgid "Focus, Absolute"
+msgstr "Enfoque, absoluto"
+
+msgid "Focus, Automatic Continuous"
+msgstr "Enfoque automático continuo"
+
+msgid "Zoom, Absolute"
+msgstr "Zoom, absoluto"
+
+msgid "Zoom, Continuous"
+msgstr "Zoom, continuo"
+
+msgid "Pan, Speed"
+msgstr "Velocidad de paneo"
+
+msgid "Tilt, Speed"
+msgstr "Velocidad de inclinación"
+
+msgid "Disabled"
+msgstr "Desactivado"
+
+msgid "50 Hz"
+msgstr "50 Hz"
+
+msgid "60 Hz"
+msgstr "60 Hz"
+
+msgid "Auto Mode"
+msgstr "Modo automático"
+
+msgid "Manual Mode"
+msgstr "Modo manual"
+
+msgid "Aperture Priority Mode"
+msgstr "Modo prioridad a la apertura"
+
+msgid "This app can only recall presets, not save them."
+msgstr "Esta aplicación solo puede recuperar preajustes, no guardarlos."

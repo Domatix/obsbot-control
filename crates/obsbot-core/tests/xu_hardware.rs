@@ -25,7 +25,7 @@ use std::fs::OpenOptions;
 
 use obsbot_core::enumerate::enumerate_cameras;
 use obsbot_core::xu::commands::set_hdr;
-use obsbot_core::xu::{get_status, AiMode};
+use obsbot_core::xu::{get_status, probe, AiMode};
 
 #[test]
 #[ignore = "hardware-gated; run with --ignored when Tiny 2 is plugged in"]
@@ -42,6 +42,10 @@ fn hdr_round_trip_against_real_tiny_2() {
         .write(true)
         .open(&path)
         .unwrap_or_else(|e| panic!("opening {path:?} failed: {e}"));
+
+    // The XU surface is firmware-dependent (see PROTOCOL.md 3.1);
+    // fail here rather than with a bare ioctl error later.
+    probe(&file).expect("vendor XU answers GET_LEN on selectors 0x02 and 0x06");
 
     // Baseline.
     let baseline = get_status(&file).expect("get_status baseline");

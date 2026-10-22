@@ -377,8 +377,8 @@ unless noted.
 | Exposure → Manual    | `0a 02 82 29 05 00`                  | `16 00`     | `58 91`     | `b2 af 02 04 00 00`                  | zero                  | n/a      | cgevans |
 | Sleep → Awake        | `0a 02 c2 a0 04 00`                  | `a5 00`     | `5f ef`     | `be 07 00 00 00 00`                  | zero                  | `0x02`   | Tiny4Linux |
 | Sleep → Sleep        | `0a 02 c2 a0 04 00`                  | `42 00`     | `ea 63`     | `bf fb 01 00 00 00`                  | zero                  | `0x02`   | Tiny4Linux |
-| Tracking → Standard  | `0a 04 c4 0c 01 00`                  | `20 00`     | `ab cb`     | `e6 3f 00 00 00 00`                  | zero                  | `0x21`   | Tiny4Linux |
-| Tracking → Sport     | `0a 04 c4 0c 01 00`                  | `21 00`     | `fa 0e`     | `67 fe 02 00 00 00`                  | zero                  | `0x21`   | Tiny4Linux |
+| Tracking → Standard  | `0a 04 c4 0c 01 00`                  | `20 00`     | `ab cb`     | `e6 3f 00 00 00 00`                  | zero                  | `0x24`   | measured 6.2.5.x |
+| Tracking → Sport     | `0a 04 c4 0c 01 00`                  | `21 00`     | `fa 0e`     | `67 fe 02 00 00 00`                  | zero                  | `0x24`   | measured 6.2.5.x |
 | Recall Preset 1 (idx 0) | `0a 04 c4 39 14 00`               | `20 00`     | `6b dc`     | `d6 fb 00 00 00 00`                  | `(1.0f32)x4` (16 B)   | none     | Tiny4Linux |
 | Recall Preset 2 (idx 1) | `0a 04 c4 39 14 00`               | `1a 00`     | `4b 03`     | `eb 2a 01 00 00 00`                  | `(1.0f32)x4`          | none     | Tiny4Linux |
 | Recall Preset 3 (idx 2) | `0a 04 c4 39 14 00`               | `26 00`     | `8b c3`     | `af 19 02 00 00 00`                  | `(1.0f32)x4`          | none     | Tiny4Linux |
@@ -416,13 +416,57 @@ Optional payload block at offset `header_length`:
 | +2-3   | payload CRC16, little endian, computed over `length + 4` bytes with this field zeroed |
 | +4..   | payload bytes |
 
-CRC16 is table driven: two 256-entry tables (low and high byte of the
-next state), state initialised to `0xFF`, result complemented.
+CRC16 is the standard CRC-16/USB variant: polynomial `0xA001`
+(reflected `0x8005`), initial value `0xFFFF`, final XOR `0xFFFF`. The
+firmware implements it with two 256-entry tables, which produce the
+same values as the bitwise form.
 
 With this layout the "command" bytes of the tables above decompose as
 `CRC16 + payload`; for example the sleep frame payload is four zero
 bytes and the preset recall payload is a one-byte slot index plus four
 `1.0f32` values.
+
+#### Selector map (measured on a Tiny 2 Lite, firmware 6.2.5.x)
+
+All fourteen selectors answer `GET_LEN = 60`. Idle `GET_CUR` values and
+what the experiments pinned down:
+
+| Selector | Value | Meaning |
+|----------|-------|---------|
+| `0x01` | `00` | unknown |
+| `0x02` | `00` | framed command channel and its replies |
+| `0x03` | `00` / `01` | tracking active (follows AI tracking on/off) |
+| `0x04` | `01` | unknown constant |
+| `0x05` | `00` | unknown |
+| `0x06` | 60-byte status struct | see below |
+| `0x07` | `06` | unknown; the vendor app sends gimbal preset commands through property id 7 |
+| `0x08` | `"Tiny 2 Lite StreamCamera"` | stream name |
+| `0x09` | `00` / `01` | tracking active (same toggle as 0x03) |
+| `0x0A` | `FF` | unknown constant |
+| `0x0B` | `00` / `01` | tracking speed (0 Standard, 1 Sport) |
+| `0x0C` | `00` | unknown; static across all stimuli tried |
+| `0x0D` | `03` | unknown constant |
+| `0x0E` | `FE 20` | unknown constant |
+
+Status bytes measured by diffing the struct across known state changes:
+
+| Offset | Meaning |
+|--------|---------|
+| `0x02` | sleep state |
+| `0x04` | crop level (`0x05` wide, `0x0F` normal) |
+| `0x06` | HDR flag |
+| `0x07` | zoom gesture flag (1 by default, 0 after the gesture is enabled) |
+| `0x11` | field of view (1 wide, 2 normal; narrow is a no-op) |
+| `0x18`, `0x1C` | AI mode tuple |
+| `0x24` | tracking speed (0 Standard, 2 Sport) |
+
+`CAM_GET_DEV_STATUS` (`0xA042`) returns a 12-byte payload: byte 0 is a
+read counter, bytes 1-3 are constant, and bytes 4-7 hold a little-endian
+value that decreases by roughly 96,000 per second, which looks like an
+audio-rate counter.
+
+Still unknown: selectors 1, 4, 5, 7, 10, 12, 13 and 14 semantics, and
+whether preset read-back lives behind a different request shape.
 
 #### Selector `0x06` — GET_CUR returns 60-byte status struct
 
@@ -432,7 +476,7 @@ bytes and the preset recall payload is a one-byte slot index plus four
 | `0x06` | HDR flag       | `0x00` off, non-zero on                                                | cgevans + T4L |
 | `0x18` | AI mode `m`    | first byte of `(m, n)` per the table above                             | cgevans + T4L |
 | `0x1c` | AI mode `n`    | second byte of `(m, n)` per the table above                            | cgevans + T4L |
-| `0x21` | Tracking speed | `0x00` Standard, `0x02` Sport, anything else defaults to Standard      | Tiny4Linux |
+| `0x24` | Tracking speed | `0x00` Standard, `0x02` Sport (0x21 on firmware older than 6.2.5) | measured 6.2.5.x |
 
 Bytes `0x00`, `0x01`, `0x03`-`0x05`, `0x07`-`0x17`, `0x19`-`0x1b`,
 `0x1d`-`0x20`, `0x22`-`0x3b` are returned by the camera but
