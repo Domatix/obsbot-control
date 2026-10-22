@@ -11,7 +11,7 @@
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-//! Sleep / Wake toggle — selector `0x02` 36-byte frame,
+//! Sleep / Wake toggle — selector `0x02` frame,
 //! `function_group = [0x0a, 0x02, 0xc2, 0xa0, 0x04, 0x00]`.
 //!
 //! Tiny4Linux-only (not in cgevans/tiny2). Status reflected at byte
@@ -27,7 +27,7 @@ use crate::xu::transport::{set_cur, BUNIT_ID, SELECTOR_FRAME};
 /// `function_group` for sleep / wake frames.
 pub const FUNCTION_GROUP: [u8; 6] = [0x0a, 0x02, 0xc2, 0xa0, 0x04, 0x00];
 
-/// Build the 36-byte payload for Awake / Sleep.
+/// Build the selector-0x02 payload for Awake / Sleep.
 ///
 /// [`SleepState::Unknown`] is treated as a no-op caller-side; the
 /// transport function returns [`XuError::Io`] with `InvalidInput`
@@ -35,18 +35,10 @@ pub const FUNCTION_GROUP: [u8; 6] = [0x0a, 0x02, 0xc2, 0xa0, 0x04, 0x00];
 ///
 /// # Errors
 /// [`XuError::Io`] (`InvalidInput`) when given [`SleepState::Unknown`].
-pub fn payload(state: SleepState) -> Result<[u8; 36], XuError> {
-    let (seq, cks, cmd) = match state {
-        SleepState::Awake => (
-            [0xa5, 0x00],
-            [0x5f, 0xef],
-            [0xbe, 0x07, 0x00, 0x00, 0x00, 0x00],
-        ),
-        SleepState::Sleep => (
-            [0x42, 0x00],
-            [0xea, 0x63],
-            [0xbf, 0xfb, 0x01, 0x00, 0x00, 0x00],
-        ),
+pub fn payload(state: SleepState) -> Result<Vec<u8>, XuError> {
+    let (seq, cmd) = match state {
+        SleepState::Awake => (0x00a5, [0xbe, 0x07, 0x00, 0x00, 0x00, 0x00]),
+        SleepState::Sleep => (0x0042, [0xbf, 0xfb, 0x01, 0x00, 0x00, 0x00]),
         SleepState::Unknown => {
             return Err(XuError::Io(std::io::Error::new(
                 std::io::ErrorKind::InvalidInput,
@@ -54,7 +46,7 @@ pub fn payload(state: SleepState) -> Result<[u8; 36], XuError> {
             )))
         }
     };
-    Ok(build(FUNCTION_GROUP, seq, cks, cmd, None))
+    Ok(build(FUNCTION_GROUP, seq, cmd, None))
 }
 
 /// Put the camera to sleep or wake it up.
@@ -71,28 +63,18 @@ mod tests {
     use super::*;
 
     #[test]
-    fn payload_awake_matches_tiny4linux() {
-        let frame = payload(SleepState::Awake).unwrap();
+    fn payload_awake_matches_capture() {
         assert_eq!(
-            frame,
-            [
-                0xaa, 0x25, 0xa5, 0x00, 0x0c, 0x00, 0x5f, 0xef, 0x0a, 0x02, 0xc2, 0xa0, 0x04, 0x00,
-                0xbe, 0x07, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            ]
+            payload(SleepState::Awake).unwrap(),
+            hex("aa25a5000c005fef0a02c2a00400be0700000000")
         );
     }
 
     #[test]
-    fn payload_sleep_matches_tiny4linux() {
-        let frame = payload(SleepState::Sleep).unwrap();
+    fn payload_sleep_matches_capture() {
         assert_eq!(
-            frame,
-            [
-                0xaa, 0x25, 0x42, 0x00, 0x0c, 0x00, 0xea, 0x63, 0x0a, 0x02, 0xc2, 0xa0, 0x04, 0x00,
-                0xbf, 0xfb, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            ]
+            payload(SleepState::Sleep).unwrap(),
+            hex("aa2542000c00ea630a02c2a00400bffb01000000")
         );
     }
 
@@ -100,5 +82,12 @@ mod tests {
     fn payload_unknown_is_rejected() {
         let err = payload(SleepState::Unknown).unwrap_err();
         assert!(matches!(err, XuError::Io(_)));
+    }
+
+    fn hex(s: &str) -> Vec<u8> {
+        (0..s.len())
+            .step_by(2)
+            .map(|i| u8::from_str_radix(&s[i..i + 2], 16).expect("hex"))
+            .collect()
     }
 }

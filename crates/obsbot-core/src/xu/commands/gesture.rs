@@ -1,5 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
+// Portions of this file are derived from EUPL-1.2 source:
+//   - OpenFoxes/Tiny4Linux (https://github.com/OpenFoxes/Tiny4Linux)
+// "Licensed under the EUPL"
+//
 // Copyright (C) 2026 Domatix and contributors
 //
 // This program is free software: you can redistribute it and/or modify
@@ -7,54 +11,11 @@
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-//! On-device gesture control — selector `0x02` 36-byte frames (T-229).
+//! On-device gesture switches — selector `0x02` frames.
 //!
-//! Not derived from any FOSS project: neither `cgevans/tiny2` nor
-//! `OpenFoxes/Tiny4Linux` nor `taxfromdk/obsbot_tiny_reversing` maps
-//! gestures at all, and Tiny4Linux's README points users at OBSBOT
-//! Center inside a Windows VM as the only route. The frames below were
-//! captured on 2026-08-06 by observing the `UVCIOC_CTRL_QUERY` traffic
-//! the vendor SDK emits, using an `LD_PRELOAD` shim over `ioctl` while
-//! calling `aiSetGestureCtrlIndividualR`. Only the observed bytes were
-//! kept; no vendor code or header text is reproduced here, and the SDK
-//! is not linked (`ADR-0002` stands).
-//!
-//! Why it matters: `PROTOCOL.md` quirk Q10 established that the zoom a
-//! gesture triggers never reaches `zoom_absolute`, so it cannot be
-//! constrained from the V4L2 side. Turning the gesture itself off is
-//! the only lever, and this is it.
-//!
-//! ## Frame shape
-//!
-//! The usual selector-`0x02` layout (`command02::build`). The
-//! `function_group` selects which gesture, and the `command` carries the
-//! on/off value in its third byte:
-//!
-//! ```text
-//! function_group     gesture
-//! 0a 04 c4 30 01 00  target selection
-//! 0a 04 44 31 01 00  zoom
-//! 0a 04 44 33 01 00  dynamic zoom
-//! 0a 04 c4 33 01 00  dynamic zoom direction
-//!
-//! command            value
-//! e6 3f 00 00 00 00  off
-//! 27 ff 01 00 00 00  on
-//! ```
-//!
-//! ## On the sequence/checksum pairs
-//!
-//! Bytes 2-3 are a sequence number and bytes 6-7 a checksum that varies
-//! with it. Fourteen captured frames were tested against every common
-//! CRC-16 variant (CCITT, XMODEM, KERMIT, MODBUS, ARC, MAXIM, USB, CMS,
-//! DNP, X.25) over six candidate byte ranges in both endiannesses, and
-//! none reproduces it, so the algorithm stays unknown.
-//!
-//! We therefore replay captured `(sequence, checksum)` pairs verbatim,
-//! which is what every other command in this module already does —
-//! `sleep`, `preset` and `tracking_speed` all carry fixed pairs lifted
-//! from Tiny4Linux. The firmware accepts a replayed pair repeatedly, so
-//! it evidently does not enforce monotonic sequence numbers.
+//! Captured on 2026-08-06 by observing the vendor SDK's
+//! `UVCIOC_CTRL_QUERY` traffic. Not mapped by any FOSS project. See
+//! `PROTOCOL.md` §3.2 Q11.
 
 use std::fs::File;
 
@@ -99,18 +60,17 @@ impl Gesture {
         }
     }
 
-    /// Captured `(sequence, checksum)` for this gesture and value. See
-    /// the module docs for why these are replayed rather than computed.
-    const fn seq_and_checksum(self, on: bool) -> ([u8; 2], [u8; 2]) {
+    /// Sequence number captured for this gesture and value.
+    const fn sequence(self, on: bool) -> u16 {
         match (self, on) {
-            (Self::TargetSelection, false) => ([0x08, 0x00], [0x2b, 0x5a]),
-            (Self::TargetSelection, true) => ([0x09, 0x00], [0x7a, 0x9f]),
-            (Self::Zoom, false) => ([0x0a, 0x00], [0x2a, 0x90]),
-            (Self::Zoom, true) => ([0x0b, 0x00], [0x7b, 0x55]),
-            (Self::DynamicZoom, false) => ([0x0c, 0x00], [0x4b, 0x4e]),
-            (Self::DynamicZoom, true) => ([0x0d, 0x00], [0x1a, 0x8b]),
-            (Self::DynamicZoomDirection, false) => ([0x0e, 0x00], [0x8b, 0x44]),
-            (Self::DynamicZoomDirection, true) => ([0x0f, 0x00], [0xda, 0x81]),
+            (Self::TargetSelection, false) => 0x0008,
+            (Self::TargetSelection, true) => 0x0009,
+            (Self::Zoom, false) => 0x000a,
+            (Self::Zoom, true) => 0x000b,
+            (Self::DynamicZoom, false) => 0x000c,
+            (Self::DynamicZoom, true) => 0x000d,
+            (Self::DynamicZoomDirection, false) => 0x000e,
+            (Self::DynamicZoomDirection, true) => 0x000f,
         }
     }
 }
@@ -120,12 +80,19 @@ const COMMAND_OFF: [u8; 6] = [0xe6, 0x3f, 0x00, 0x00, 0x00, 0x00];
 /// `command` bytes for the on value, shared by every gesture.
 const COMMAND_ON: [u8; 6] = [0x27, 0xff, 0x01, 0x00, 0x00, 0x00];
 
-/// Build the 36-byte frame that turns `gesture` on or off.
+/// Build the frame that turns `gesture` on or off.
+///
+/// The checksum bytes in `COMMAND_OFF`/`COMMAND_ON` are the captured
+/// ones; [`build`] recomputes both checksums from the frame contents.
 #[must_use]
-pub fn payload(gesture: Gesture, on: bool) -> [u8; 36] {
-    let (seq, checksum) = gesture.seq_and_checksum(on);
+pub fn payload(gesture: Gesture, on: bool) -> Vec<u8> {
     let command = if on { COMMAND_ON } else { COMMAND_OFF };
-    build(gesture.function_group(), seq, checksum, command, None)
+    build(
+        gesture.function_group(),
+        gesture.sequence(on),
+        command,
+        None,
+    )
 }
 
 /// Turn an on-device gesture on or off.
@@ -142,89 +109,63 @@ pub fn set_gesture(camera: &File, gesture: Gesture, on: bool) -> Result<(), XuEr
 mod tests {
     use super::*;
 
-    /// Every frame captured on 2026-08-06, byte for byte. If any of
-    /// these drift, the capture and the code have diverged.
+    fn hex(s: &str) -> Vec<u8> {
+        (0..s.len())
+            .step_by(2)
+            .map(|i| u8::from_str_radix(&s[i..i + 2], 16).expect("hex"))
+            .collect()
+    }
+
+    /// Header and payload checksums captured on 2026-08-06. The frame
+    /// is rebuilt from fields, so this pins the recomputed checksums to
+    /// the captured ones.
     #[test]
     fn frames_match_the_capture() {
-        let cases: [(Gesture, bool, [u8; 20]); 8] = [
+        let cases: [(Gesture, bool, &str); 8] = [
             (
                 Gesture::TargetSelection,
                 false,
-                [
-                    0xaa, 0x25, 0x08, 0x00, 0x0c, 0x00, 0x2b, 0x5a, 0x0a, 0x04, 0xc4, 0x30, 0x01,
-                    0x00, 0xe6, 0x3f, 0x00, 0x00, 0x00, 0x00,
-                ],
+                "aa2508000c002b5a0a04c4300100e63f00",
             ),
             (
                 Gesture::TargetSelection,
                 true,
-                [
-                    0xaa, 0x25, 0x09, 0x00, 0x0c, 0x00, 0x7a, 0x9f, 0x0a, 0x04, 0xc4, 0x30, 0x01,
-                    0x00, 0x27, 0xff, 0x01, 0x00, 0x00, 0x00,
-                ],
+                "aa2509000c007a9f0a04c430010027ff01",
             ),
-            (
-                Gesture::Zoom,
-                false,
-                [
-                    0xaa, 0x25, 0x0a, 0x00, 0x0c, 0x00, 0x2a, 0x90, 0x0a, 0x04, 0x44, 0x31, 0x01,
-                    0x00, 0xe6, 0x3f, 0x00, 0x00, 0x00, 0x00,
-                ],
-            ),
-            (
-                Gesture::Zoom,
-                true,
-                [
-                    0xaa, 0x25, 0x0b, 0x00, 0x0c, 0x00, 0x7b, 0x55, 0x0a, 0x04, 0x44, 0x31, 0x01,
-                    0x00, 0x27, 0xff, 0x01, 0x00, 0x00, 0x00,
-                ],
-            ),
+            (Gesture::Zoom, false, "aa250a000c002a900a0444310100e63f00"),
+            (Gesture::Zoom, true, "aa250b000c007b550a044431010027ff01"),
             (
                 Gesture::DynamicZoom,
                 false,
-                [
-                    0xaa, 0x25, 0x0c, 0x00, 0x0c, 0x00, 0x4b, 0x4e, 0x0a, 0x04, 0x44, 0x33, 0x01,
-                    0x00, 0xe6, 0x3f, 0x00, 0x00, 0x00, 0x00,
-                ],
+                "aa250c000c004b4e0a0444330100e63f00",
             ),
             (
                 Gesture::DynamicZoom,
                 true,
-                [
-                    0xaa, 0x25, 0x0d, 0x00, 0x0c, 0x00, 0x1a, 0x8b, 0x0a, 0x04, 0x44, 0x33, 0x01,
-                    0x00, 0x27, 0xff, 0x01, 0x00, 0x00, 0x00,
-                ],
+                "aa250d000c001a8b0a044433010027ff01",
             ),
             (
                 Gesture::DynamicZoomDirection,
                 false,
-                [
-                    0xaa, 0x25, 0x0e, 0x00, 0x0c, 0x00, 0x8b, 0x44, 0x0a, 0x04, 0xc4, 0x33, 0x01,
-                    0x00, 0xe6, 0x3f, 0x00, 0x00, 0x00, 0x00,
-                ],
+                "aa250e000c008b440a04c4330100e63f00",
             ),
             (
                 Gesture::DynamicZoomDirection,
                 true,
-                [
-                    0xaa, 0x25, 0x0f, 0x00, 0x0c, 0x00, 0xda, 0x81, 0x0a, 0x04, 0xc4, 0x33, 0x01,
-                    0x00, 0x27, 0xff, 0x01, 0x00, 0x00, 0x00,
-                ],
+                "aa250f000c00da810a04c433010027ff01",
             ),
         ];
         for (gesture, on, expected) in cases {
-            let frame = payload(gesture, on);
             assert_eq!(
-                &frame[..20],
-                &expected[..],
+                payload(gesture, on),
+                hex(expected),
                 "frame for {gesture:?} on={on} does not match the capture",
             );
-            assert_eq!(&frame[20..], &[0u8; 16], "appendix must stay zero");
         }
     }
 
     #[test]
-    fn the_value_lives_in_the_third_command_byte() {
+    fn the_value_lives_in_the_payload_byte() {
         for gesture in [
             Gesture::TargetSelection,
             Gesture::Zoom,

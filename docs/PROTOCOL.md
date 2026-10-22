@@ -467,7 +467,6 @@ audio-rate counter.
 
 Still unknown: selectors 1, 4, 5, 7, 10, 12, 13 and 14 semantics, and
 whether preset read-back lives behind a different request shape.
-whether preset read-back lives behind a different request shape.
 
 #### Selector `0x06` — GET_CUR returns 60-byte status struct
 
