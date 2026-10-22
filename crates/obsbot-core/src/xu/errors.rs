@@ -59,6 +59,21 @@ pub enum XuError {
     /// create/update/rename/delete commands (1..=3).
     #[error("preset slot out of range (must be 1..=3, got {0})")]
     InvalidPresetSlot(u8),
+
+    /// The vendor XU did not answer `GET_LEN` on a selector the app
+    /// depends on. The descriptor surface differs between firmware
+    /// versions (see `PROTOCOL.md §3.1`), so a unit whose unit or
+    /// selector layout changed lands here instead of failing later
+    /// with a bare ioctl error.
+    #[error(
+        "vendor XU not available: unit {unit:#x} selector {selector:#x} did not answer GET_LEN"
+    )]
+    XuUnavailable {
+        /// The XU unit that was probed.
+        unit: u8,
+        /// The XU selector that did not answer.
+        selector: u8,
+    },
 }
 
 impl From<XuError> for crate::Error {

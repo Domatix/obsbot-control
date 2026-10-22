@@ -13,9 +13,13 @@
 # `_("...")` markers in *.blp stay so the v0.6 follow-up has source
 # to extract from.
 
+crates/obsbot-gui/src/ai_effects_view.rs
 crates/obsbot-gui/src/application.rs
 crates/obsbot-gui/src/controls_view.rs
 crates/obsbot-gui/src/exposure_group.rs
+crates/obsbot-gui/src/extras_view.rs
+crates/obsbot-gui/src/preview.rs
 crates/obsbot-gui/src/ptz_pad.rs
+crates/obsbot-gui/src/settings.rs
 crates/obsbot-gui/src/wb_group.rs
 crates/obsbot-gui/src/window.rs

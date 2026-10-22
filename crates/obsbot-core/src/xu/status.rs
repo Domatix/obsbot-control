@@ -38,8 +38,11 @@ pub const STATUS_OFFSET_HDR: usize = 0x06;
 pub const STATUS_OFFSET_AI_M: usize = 0x18;
 /// Byte offset where the AI mode `n` tuple-half lives.
 pub const STATUS_OFFSET_AI_N: usize = 0x1c;
-/// Byte offset where the tracking speed lives (Tiny4Linux).
-pub const STATUS_OFFSET_TRACKING_SPEED: usize = 0x21;
+/// Byte offset where the tracking speed lives on firmware 6.2.5.x.
+pub const STATUS_OFFSET_TRACKING_SPEED: usize = 0x24;
+/// Byte offset the same field occupied on the older capture recorded in
+/// PROTOCOL.md. The firmware moved it; decoding accepts either.
+pub const STATUS_OFFSET_TRACKING_SPEED_LEGACY: usize = 0x21;
 
 /// Decoded snapshot of the camera's vendor-XU state.
 ///
@@ -77,7 +80,16 @@ impl Status {
         let sleep = SleepState::from(raw[STATUS_OFFSET_SLEEP]);
         let hdr_on = raw[STATUS_OFFSET_HDR] != 0;
         let ai_mode = AiMode::try_from((raw[STATUS_OFFSET_AI_M], raw[STATUS_OFFSET_AI_N]))?;
-        let tracking_speed = TrackingSpeed::from_status_byte(raw[STATUS_OFFSET_TRACKING_SPEED]);
+        // The field moved between firmware versions: 0x21 on the older
+        // capture, 0x24 on 6.2.5.x. `0x02` is the only value that is not
+        // the default, so checking both is unambiguous.
+        let tracking_speed = if raw[STATUS_OFFSET_TRACKING_SPEED] == 0x02
+            || raw[STATUS_OFFSET_TRACKING_SPEED_LEGACY] == 0x02
+        {
+            TrackingSpeed::Sport
+        } else {
+            TrackingSpeed::Standard
+        };
         Ok(Self {
             sleep,
             hdr_on,
@@ -118,6 +130,22 @@ mod tests {
         0x00, 0x1e, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     ];
+
+    /// Raw struct captured from a Tiny 2 Lite (firmware 6.2.5.3) with
+    /// tracking speed set to Sport: byte 0x24 is 0x02, byte 0x21 stays
+    /// 0x03.
+    const FIXTURE_LITE_6_2_5_SPORT: [u8; STATUS_LEN] = [
+        0x24, 0x01, 0x01, 0x01, 0x00, 0x00, 0x01, 0x01, 0x01, 0x03, 0x78, 0x00, 0x00, 0x01, 0x01,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x21, 0x00, 0x00, 0x01, 0x03, 0x00, 0x00, 0x00,
+        0x00, 0x1e, 0x00, 0x03, 0x10, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    ];
+
+    #[test]
+    fn decodes_lite_sport_at_moved_offset() {
+        let status = Status::decode(FIXTURE_LITE_6_2_5_SPORT).unwrap();
+        assert_eq!(status.tracking_speed, TrackingSpeed::Sport);
+    }
 
     #[test]
     fn decodes_tiny4linux_fixture_vector() {
@@ -171,7 +199,8 @@ mod tests {
         assert_eq!(STATUS_OFFSET_HDR, 0x06);
         assert_eq!(STATUS_OFFSET_AI_M, 0x18);
         assert_eq!(STATUS_OFFSET_AI_N, 0x1c);
-        assert_eq!(STATUS_OFFSET_TRACKING_SPEED, 0x21);
+        assert_eq!(STATUS_OFFSET_TRACKING_SPEED, 0x24);
+        assert_eq!(STATUS_OFFSET_TRACKING_SPEED_LEGACY, 0x21);
         assert_eq!(STATUS_LEN, 60);
     }
 }
