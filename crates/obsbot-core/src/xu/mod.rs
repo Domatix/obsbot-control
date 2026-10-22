@@ -73,8 +73,10 @@
 
 pub mod command02;
 pub mod commands;
+pub mod crc16;
 pub mod enums;
 pub mod errors;
+pub mod frame;
 pub mod status;
 pub mod transport;
 pub mod v4l2_ptz;
