@@ -88,6 +88,14 @@ pub fn build_extras_group(cam: &CameraInfo) -> Option<adw::PreferencesGroup> {
             return None;
         }
     };
+    if let Err(err) = obsbot_core::xu::probe(&file) {
+        eprintln!(
+            "warning: extras_view: {} does not answer the vendor XU ({err}); \
+             skipping Presets group",
+            path.display()
+        );
+        return None;
+    }
 
     let group = adw::PreferencesGroup::builder()
         .title(gettext("Presets"))

@@ -230,14 +230,20 @@ pub fn get_cur(camera: &File, unit: u8, selector: u8, buf: &mut [u8]) -> Result<
 ///
 /// # Errors
 /// Returns [`XuError::XuUnavailable`] when either selector does not
-/// answer; propagates nothing else, since the probe is a capability
-/// check rather than a read of user data.
+/// answer; the underlying `GET_LEN` error is preserved as the
+/// source, so support diagnostics can tell a missing unit apart
+/// from a permissions or busy failure.
 pub fn probe(camera: &File) -> Result<(), XuError> {
     for selector in [SELECTOR_FRAME, SELECTOR_OPCODE] {
-        if get_len(camera, BUNIT_ID, selector).is_err() {
+        if let Err(err) = get_len(camera, BUNIT_ID, selector) {
+            let source = match err {
+                XuError::Io(io) => io,
+                other => std::io::Error::other(other.to_string()),
+            };
             return Err(XuError::XuUnavailable {
                 unit: BUNIT_ID,
                 selector,
+                source,
             });
         }
     }

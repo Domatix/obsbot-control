@@ -85,6 +85,10 @@ pub enum XuError {
         unit: u8,
         /// The XU selector that did not answer.
         selector: u8,
+        /// The `GET_LEN` failure itself, preserved for diagnostics
+        /// (permissions, busy, no such device).
+        #[source]
+        source: std::io::Error,
     },
 }
 
