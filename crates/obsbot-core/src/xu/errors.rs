@@ -55,6 +55,11 @@ pub enum XuError {
     #[error("preset index out of range (must be 0..=2, got {0})")]
     InvalidPresetIndex(i8),
 
+    /// A preset slot outside the range the camera exposes to the
+    /// create/update/rename/delete commands (1..=3).
+    #[error("preset slot out of range (must be 1..=3, got {0})")]
+    InvalidPresetSlot(u8),
+
     /// The vendor XU did not answer `GET_LEN` on a selector the app
     /// depends on. The descriptor surface differs between firmware
     /// versions (see `PROTOCOL.md §3.1`), so a unit whose unit or

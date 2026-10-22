@@ -59,3 +59,7 @@ data/icons/scalable/apps/*.png
 
 # Claude Code local cache
 .claude/cache/
+
+# Local verification ledger and hardware probe (not shipped)
+GATES.md
+scripts/verify-recall.sh

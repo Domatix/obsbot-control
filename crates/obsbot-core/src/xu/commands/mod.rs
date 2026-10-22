@@ -21,6 +21,7 @@ pub mod fov;
 pub mod gesture;
 pub mod hdr;
 pub mod preset;
+pub mod preset_read;
 pub mod sleep;
 pub mod tracking_speed;
 
