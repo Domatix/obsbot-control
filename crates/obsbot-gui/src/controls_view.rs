@@ -980,7 +980,7 @@ fn integer_scale_row(
     }
 
     let row = adw::ActionRow::builder()
-        .title(&crate::v4l2_labels::control_name(ctrl.id, &ctrl.name))
+        .title(crate::v4l2_labels::control_name(ctrl.id, &ctrl.name))
         .activatable(false)
         .build();
     row.add_suffix(&scale);
@@ -1041,7 +1041,7 @@ fn boolean_switch_row(
     serial: Option<&str>,
 ) -> adw::SwitchRow {
     let row = adw::SwitchRow::builder()
-        .title(&crate::v4l2_labels::control_name(ctrl.id, &ctrl.name))
+        .title(crate::v4l2_labels::control_name(ctrl.id, &ctrl.name))
         .active(current)
         .build();
 
@@ -1083,7 +1083,7 @@ fn readonly_action_row(ctrl: &ControlDescriptor) -> adw::ActionRow {
     };
 
     adw::ActionRow::builder()
-        .title(&crate::v4l2_labels::control_name(ctrl.id, &ctrl.name))
+        .title(crate::v4l2_labels::control_name(ctrl.id, &ctrl.name))
         .subtitle(&subtitle)
         .build()
 }
@@ -1109,7 +1109,7 @@ fn menu_combo_row(
         .unwrap_or(0);
 
     let row = adw::ComboRow::builder()
-        .title(&crate::v4l2_labels::control_name(ctrl.id, &ctrl.name))
+        .title(crate::v4l2_labels::control_name(ctrl.id, &ctrl.name))
         .model(&model)
         .selected(selected)
         .build();
