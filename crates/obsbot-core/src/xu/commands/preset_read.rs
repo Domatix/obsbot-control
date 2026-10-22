@@ -38,13 +38,17 @@ use crate::xu::XuError;
 const SEL_PRESET_LIST: u8 = 0x0c;
 /// XU unit 2 selector walking one preset entry per read.
 const SEL_PRESET_ENTRY: u8 = 0x0d;
-/// Cursor status byte meaning "no more entries".
+/// Cursor status byte meaning "no more entries". The empty store
+/// answers `0x03`, which repeats; both end the walk.
 const ENTRY_EXHAUSTED: u8 = 0x02;
 /// Cursor status byte carrying a real entry.
 const ENTRY_VALID: u8 = 0x00;
 /// Upper bound on slots walked before giving up (3 on the Lite;
 /// headroom for other models).
 const MAX_ENTRIES: usize = 8;
+/// Bytes before the base64 name in an entry: status, slot, two unused
+/// bytes, pitch, yaw and zoom.
+const ENTRY_NAME_OFFSET: usize = 10;
 
 /// One preset as reported by the entry cursor.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -84,12 +88,55 @@ pub fn list_preset_slots(camera: &File) -> Result<Vec<u8>, XuError> {
     Ok(buf[1..=count].to_vec())
 }
 
+/// Parse one entry from the cursor read.
+///
+/// `Ok(None)` when the status byte says the walk is over: `0x02` is
+/// exhausted and `0x03` is what an empty store returns (it repeats, so
+/// treating it as an entry fabricates ghost presets in slot 0). Any
+/// other status is not an entry either.
+///
+/// # Errors
+/// [`XuError::Io`] when the buffer is shorter than the fixed fields or
+/// the name is not valid base64.
+fn parse_entry(buf: &[u8]) -> Result<Option<PresetEntry>, XuError> {
+    // Only status 0x00 is an entry. 0x02 is exhausted, 0x03 is what
+    // the empty store returns (it repeats), and an empty buffer means
+    // the read returned nothing.
+    let status = buf.first().copied().unwrap_or(ENTRY_EXHAUSTED);
+    if status != ENTRY_VALID {
+        return Ok(None);
+    }
+    let fields = buf.get(..ENTRY_NAME_OFFSET).ok_or_else(|| {
+        XuError::Io(std::io::Error::other(format!(
+            "preset entry is {} bytes, need at least {ENTRY_NAME_OFFSET}",
+            buf.len()
+        )))
+    })?;
+    let name_field = &buf[ENTRY_NAME_OFFSET..];
+    let end = name_field
+        .iter()
+        .position(|&b| b == 0)
+        .unwrap_or(name_field.len());
+    let name = decode_base64(&name_field[..end])
+        .map_err(|err| XuError::Io(std::io::Error::other(format!("preset name: {err}"))))?;
+    Ok(Some(PresetEntry {
+        slot: fields[1],
+        pitch_centideg: i16::from_le_bytes([fields[4], fields[5]]),
+        yaw_centideg: i16::from_le_bytes([fields[6], fields[7]]),
+        zoom_x100: u16::from_le_bytes([fields[8], fields[9]]),
+        name,
+    }))
+}
+
 /// Walk the preset entry cursor and collect every stored preset with
 /// its pose and name.
 ///
 /// Echoes the `0x0C` block back first to reset the cursor — without
 /// that reset a cursor left exhausted by a previous walk answers
-/// `0x02` immediately.
+/// `0x02` immediately. The buffer is sized from `GET_LEN` on the entry
+/// selector, like the flat-list read: `get_cur` requires an exact
+/// length and a hardcoded 60 only works on firmware where the selector
+/// happens to be that long.
 ///
 /// # Errors
 /// Propagates transport errors and reports malformed base64 names as
@@ -104,33 +151,21 @@ pub fn read_preset_entries(camera: &File) -> Result<Vec<PresetEntry>, XuError> {
     set_cur(camera, BUNIT_ID, SEL_PRESET_LIST, &block)?;
     std::thread::sleep(Duration::from_millis(400));
 
+    let entry_len = usize::from(get_len(camera, BUNIT_ID, SEL_PRESET_ENTRY)?);
+    if entry_len < ENTRY_NAME_OFFSET {
+        return Err(XuError::Io(std::io::Error::other(format!(
+            "preset entry selector is {entry_len} bytes, need at least {ENTRY_NAME_OFFSET}"
+        ))));
+    }
+    let mut buf = vec![0u8; entry_len];
     let mut out = Vec::new();
     for _ in 0..MAX_ENTRIES {
-        let mut buf = [0u8; 60];
+        buf.fill(0);
         get_cur(camera, BUNIT_ID, SEL_PRESET_ENTRY, &mut buf)?;
-        // Only status 0x00 is an entry. 0x02 is "exhausted", and 0x03
-        // is what an empty store returns (it repeats, so treating it
-        // as an entry fabricates ghost presets in slot 0).
-        if buf[0] == ENTRY_EXHAUSTED {
+        let Some(entry) = parse_entry(&buf)? else {
             break;
-        }
-        if buf[0] != ENTRY_VALID {
-            break;
-        }
-        let name_field = &buf[10..];
-        let end = name_field
-            .iter()
-            .position(|&b| b == 0)
-            .unwrap_or(name_field.len());
-        let name = decode_base64(&name_field[..end])
-            .map_err(|err| XuError::Io(std::io::Error::other(format!("preset name: {err}"))))?;
-        out.push(PresetEntry {
-            slot: buf[1],
-            pitch_centideg: i16::from_le_bytes([buf[4], buf[5]]),
-            yaw_centideg: i16::from_le_bytes([buf[6], buf[7]]),
-            zoom_x100: u16::from_le_bytes([buf[8], buf[9]]),
-            name,
-        });
+        };
+        out.push(entry);
         std::thread::sleep(Duration::from_millis(200));
     }
     Ok(out)
@@ -173,7 +208,36 @@ fn decode_base64(input: &[u8]) -> Result<String, &'static str> {
 
 #[cfg(test)]
 mod tests {
-    use super::decode_base64;
+    use super::{decode_base64, parse_entry};
+    use crate::xu::XuError;
+
+    #[test]
+    fn parses_a_valid_entry() {
+        // Entry captured on a Tiny 2 Lite: slot 1, pose, name "TestA".
+        let mut buf = vec![0x00, 0x01, 0x00, 0x00, 0x10, 0x00, 0x20, 0x00, 0x64, 0x00];
+        buf.extend_from_slice(b"VGVzdEE=");
+        buf.resize(60, 0);
+        let entry = parse_entry(&buf).unwrap().expect("one entry");
+        assert_eq!(entry.slot, 1);
+        assert_eq!(entry.pitch_centideg, 16);
+        assert_eq!(entry.yaw_centideg, 32);
+        assert_eq!(entry.zoom_x100, 100);
+        assert_eq!(entry.name, "TestA");
+    }
+
+    #[test]
+    fn exhausted_and_empty_store_statuses_end_the_walk() {
+        assert!(parse_entry(&[0x02; 60]).unwrap().is_none());
+        // The empty store answers 0x03 and repeats it for every read.
+        assert!(parse_entry(&[0x03; 60]).unwrap().is_none());
+        assert!(parse_entry(&[]).unwrap().is_none());
+    }
+
+    #[test]
+    fn a_short_entry_is_an_error() {
+        let err = parse_entry(&[0x00, 0x01, 0x00]).unwrap_err();
+        assert!(matches!(err, XuError::Io(_)), "got {err:?}");
+    }
 
     #[test]
     fn decodes_camera_captured_names() {
