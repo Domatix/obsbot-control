@@ -136,11 +136,14 @@ struct State {
 /// Update the group description and the per-row subtitles from the
 /// camera: the framed list says whether anything is stored, and the
 /// entry cursor (selector `0x0D`, see `docs/PROTOCOL.md`) supplies
-/// per-slot occupancy and names. Failures leave the previous
-/// rendering in place.
+/// per-slot occupancy and names. A failed list read leaves the
+/// previous rendering in place; entry reads are best-effort and
+/// render as empty rows on failure.
 fn refresh_state(state: &State) {
     // The framed list reply is the plain list of stored slot ids.
-    let ids = preset::list_presets(&state.file).unwrap_or_default();
+    let Ok(ids) = preset::list_presets(&state.file) else {
+        return;
+    };
     let description = if ids.is_empty() {
         gettext(
             "No presets stored yet. Use the save button on a row to store the current position.",
@@ -350,7 +353,7 @@ fn ask_save(state: &Rc<State>, index: i8) {
         if response.as_str() != "save" {
             return;
         }
-        let name = entry.text().trim().to_string();
+        let name = clamp_name(&entry.text());
         save_with_feedback(&state_for_dialog, index, &name);
         refresh_state(&state_for_dialog);
     });
@@ -365,7 +368,19 @@ fn save_with_feedback(state: &State, index: i8, name: &str) {
         return;
     };
     let slot = u8::try_from(index + 1).unwrap_or(1);
-    if let Err(err) = preset::add_preset(&state.file, slot, pose) {
+    // add vs update follows occupancy: re-saving an occupied slot goes
+    // through the update command, which is the documented path for
+    // slots that already hold a preset.
+    let occupied = state
+        .ids
+        .borrow()
+        .contains(&u8::try_from(index).unwrap_or(0));
+    let save = if occupied {
+        preset::update_preset(&state.file, slot, pose)
+    } else {
+        preset::add_preset(&state.file, slot, pose)
+    };
+    if let Err(err) = save {
         report_xu_error("Preset save", &err);
         return;
     }
@@ -417,7 +432,7 @@ fn ask_name(file: &Rc<File>, index: i8, state: &Rc<State>) {
         if response.as_str() != "rename" {
             return;
         }
-        let name = entry.text().trim().to_string();
+        let name = clamp_name(&entry.text());
         if name.is_empty() {
             return;
         }
@@ -449,4 +464,38 @@ fn report_xu_error(control: &str, err: &XuError) {
         .replace("{name}", control)
         .replace("{error}", &err.to_string());
     settings::surface_error(&msg);
+}
+
+/// Trim a preset name and cap it at 40 bytes on a char boundary: the
+/// rename frame carries the name inline and the transport rejects
+/// payloads beyond the selector budget with an opaque length error.
+fn clamp_name(name: &str) -> String {
+    const MAX_NAME_BYTES: usize = 40;
+    let trimmed = name.trim();
+    if trimmed.len() <= MAX_NAME_BYTES {
+        return trimmed.to_owned();
+    }
+    let mut end = MAX_NAME_BYTES;
+    while !trimmed.is_char_boundary(end) {
+        end -= 1;
+    }
+    trimmed[..end].to_owned()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::clamp_name;
+
+    #[test]
+    fn clamp_name_trims_and_keeps_short_names() {
+        assert_eq!(clamp_name("  Check42  "), "Check42");
+    }
+
+    #[test]
+    fn clamp_name_caps_at_forty_bytes_on_a_char_boundary() {
+        let long = "ä".repeat(21); // 42 bytes, one byte over
+        assert_eq!(clamp_name(&long).len(), 40);
+        let ascii = "a".repeat(60);
+        assert_eq!(clamp_name(&ascii).len(), 40);
+    }
 }

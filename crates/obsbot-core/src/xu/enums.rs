@@ -239,19 +239,6 @@ pub enum TrackingSpeed {
     Sport,
 }
 
-impl TrackingSpeed {
-    /// Default-to-Standard decode for status byte `0x21`.
-    #[must_use]
-    pub fn from_status_byte(byte: u8) -> Self {
-        match byte {
-            0x02 => Self::Sport,
-            // 0x00 = Standard; 0x01 is unmapped (Q6) and defaults
-            // to Standard per Tiny4Linux's permissive decode.
-            _ => Self::Standard,
-        }
-    }
-}
-
 /// Per-enum decode failure (a status byte or `(m, n)` tuple did
 /// not match any known variant).
 ///
@@ -336,24 +323,5 @@ mod tests {
         assert_eq!(SleepState::from(0x00), SleepState::Awake);
         assert_eq!(SleepState::from(0x01), SleepState::Sleep);
         assert_eq!(SleepState::from(0x99), SleepState::Unknown);
-    }
-
-    #[test]
-    fn tracking_speed_q6_gap_defaults_to_standard() {
-        assert_eq!(
-            TrackingSpeed::from_status_byte(0x00),
-            TrackingSpeed::Standard
-        );
-        assert_eq!(TrackingSpeed::from_status_byte(0x02), TrackingSpeed::Sport);
-        // Q6 — 0x01 is the unmapped gap; defaults to Standard.
-        assert_eq!(
-            TrackingSpeed::from_status_byte(0x01),
-            TrackingSpeed::Standard
-        );
-        // Anything else also defaults to Standard.
-        assert_eq!(
-            TrackingSpeed::from_status_byte(0xff),
-            TrackingSpeed::Standard
-        );
     }
 }

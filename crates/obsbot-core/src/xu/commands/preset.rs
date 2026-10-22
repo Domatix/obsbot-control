@@ -375,15 +375,24 @@ pub fn rename_preset(camera: &File, slot: u8, name: &str) -> Result<(), XuError>
 /// Propagates transport errors and reports a malformed reply as
 /// [`XuError::Io`].
 pub fn list_presets(camera: &File) -> Result<Vec<u8>, XuError> {
-    let frame = crate::xu::frame::encode_get(next_seq(), 0x04, CMD_LIST);
+    let seq = next_seq();
+    let frame = crate::xu::frame::encode_get(seq, 0x04, CMD_LIST);
     set_cur(camera, BUNIT_ID, SELECTOR_FRAME, &frame)?;
     std::thread::sleep(std::time::Duration::from_millis(250));
     let mut buf = [0u8; crate::xu::status::STATUS_LEN];
     get_cur(camera, BUNIT_ID, SELECTOR_FRAME, &mut buf)?;
-    match crate::xu::frame::parse_reply(&buf) {
-        Ok(reply) => Ok(reply.payload),
-        Err(err) => Err(XuError::Io(std::io::Error::other(format!(
-            "malformed reply: {err:?}"
-        )))),
+    let reply = crate::xu::frame::parse_reply(&buf)
+        .map_err(|err| XuError::Io(std::io::Error::other(format!("malformed reply: {err:?}"))))?;
+    if reply.seq != seq || reply.command != CMD_LIST {
+        return Err(XuError::Io(std::io::Error::other(format!(
+            "stale reply: command {:#06x} seq {:#06x}, expected command {:#06x} seq {:#06x}",
+            reply.command, reply.seq, CMD_LIST, seq
+        ))));
     }
+    if reply.error {
+        return Err(XuError::Io(std::io::Error::other(
+            "device returned the error signature for the preset list query",
+        )));
+    }
+    Ok(reply.payload)
 }

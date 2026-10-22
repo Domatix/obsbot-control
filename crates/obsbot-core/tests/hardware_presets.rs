@@ -103,7 +103,16 @@ fn save_rename_read_and_delete_roundtrip() {
         .open(device_path())
         .expect("open device");
 
-    let slot: u8 = 1;
+    let slot: u8 = {
+        // Pick a slot the camera reports as free so the roundtrip never
+        // destroys a preset the user saved. All three occupied is a hard
+        // stop, not a reason to overwrite.
+        let occupied = list_preset_slots(&file).expect("list before test");
+        [1u8, 2, 3]
+            .into_iter()
+            .find(|slot| !occupied.contains(&(slot - 1)))
+            .expect("no free preset slot: delete a preset before running this test")
+    };
     let _guard = SlotGuard { file: &file, slot };
 
     // Save the current pose so the test never moves the gimbal.

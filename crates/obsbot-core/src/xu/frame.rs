@@ -76,7 +76,8 @@ pub fn encode(seq: u16, function_group: [u8; 4], payload: &[u8]) -> Vec<u8> {
     }
 
     let mut block = Vec::with_capacity(4 + payload.len());
-    let len = u16::try_from(payload.len()).expect("payload fits in u16");
+    debug_assert!(u16::try_from(payload.len()).is_ok(), "payload fits in u16");
+    let len = u16::try_from(payload.len()).unwrap_or(u16::MAX);
     block.extend_from_slice(&len.to_le_bytes());
     block.extend_from_slice(&[0, 0]);
     block.extend_from_slice(payload);
