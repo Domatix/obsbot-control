@@ -21,5 +21,6 @@ crates/obsbot-gui/src/extras_view.rs
 crates/obsbot-gui/src/preview.rs
 crates/obsbot-gui/src/ptz_pad.rs
 crates/obsbot-gui/src/settings.rs
+crates/obsbot-gui/src/v4l2_labels.rs
 crates/obsbot-gui/src/wb_group.rs
 crates/obsbot-gui/src/window.rs

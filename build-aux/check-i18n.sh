@@ -39,11 +39,47 @@ for path in glob.glob("crates/obsbot-gui/resources/*.blp"):
     sources |= set(re.findall(r'_\("((?:[^"\\]|\\.)*)"\)', text))
 
 failed = False
+
+
+def parse_entries(text):
+    # Parse (msgid, msgstr) pairs, joining continuation lines so
+    # wrapped entries (msgmerge wraps lines past ~80 columns) do not
+    # fool the coverage check. Escapes are kept verbatim, matching
+    # the extraction regexes above.
+    entries = {}
+    msgid_parts, msgstr_parts = [], []
+    mode = None
+
+    def commit():
+        if mode == "msgstr" or msgstr_parts:
+            key = "".join(msgid_parts)
+            if key:
+                entries[key] = "".join(msgstr_parts)
+
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            if stripped.startswith("#,") and "fuzzy" in stripped:
+                # A fuzzy entry is not a translation: drop it.
+                msgid_parts, msgstr_parts = [], []
+                mode = None
+            continue
+        if stripped.startswith('msgid "'):
+            commit()
+            msgid_parts, msgstr_parts = [stripped[7:-1]], []
+            mode = "msgid"
+        elif stripped.startswith('msgstr "'):
+            msgstr_parts = [stripped[8:-1]]
+            mode = "msgstr"
+        elif stripped.startswith('"') and mode:
+            (msgid_parts if mode == "msgid" else msgstr_parts).append(stripped[1:-1])
+    commit()
+    return entries
+
+
 for catalog in catalogs:
     text = open(catalog, encoding="utf-8").read()
-    entries = dict(
-        re.findall(r'^msgid "((?:[^"\\]|\\.)*)"\nmsgstr "((?:[^"\\]|\\.)*)"', text, re.M)
-    )
+    entries = parse_entries(text)
     missing = sorted(s for s in sources if s not in entries)
     empty = sorted(s for s in sources if s in entries and not entries[s])
     if missing:

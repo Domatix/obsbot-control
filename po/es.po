@@ -3,19 +3,14 @@
 # This file is distributed under the same license as the
 # obsbot-control package (GPL-3.0-or-later).
 #
-# Placeholder file committed by T-107: the gettext scaffolding lands
-# in v0.2 but the actual translation work is deferred to v0.6
-# (ROADMAP §v0.6 — "Polish for GNOME Circle"). Until then, this
-# file's header is enough for `msgfmt` to produce a valid (empty) .mo.
-#
 msgid ""
 msgstr ""
 "Project-Id-Version: obsbot-control 0.2.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-08-14 12:25+0200\n"
+"POT-Creation-Date: 2026-10-22 12:00+0000\n"
 "PO-Revision-Date: 2026-10-19 22:00+0200\n"
 "Last-Translator: Domatix and contributors <noreply@domatix.com>\n"
-"Language-Team: Spanish\n"
+"Language-Team: Domatix\n"
 "Language: es\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -120,7 +115,7 @@ msgstr "Seguimiento normal"
 
 #: crates/obsbot-gui/src/ai_effects_view.rs:423
 msgid "Upper body"
-msgstr "Medio cuerpo"
+msgstr "Cuerpo superior"
 
 #: crates/obsbot-gui/src/ai_effects_view.rs:424
 msgid "Close-up"
@@ -450,39 +445,6 @@ msgstr "Renombrado de preajuste"
 msgid "Preset save"
 msgstr "Guardado de preajuste"
 
-msgid "No frame available - start the preview first"
-msgstr "No hay imagen disponible - inicia primero la vista previa"
-
-msgid "The preview has no drawable surface yet."
-msgstr "La vista previa todavía no tiene una superficie donde dibujar."
-
-msgid "The window is not ready to render the preview yet."
-msgstr "La ventana aún no está lista para dibujar la vista previa."
-
-msgid "The camera did not answer ({error})."
-msgstr "La cámara no respondió ({error})."
-
-msgid "The camera reported an unrecognised state ({error})."
-msgstr "La cámara informó un estado no reconocido ({error})."
-
-msgid "The command is {payload} bytes long and the camera only accepts {limit} on this channel."
-msgstr "El comando ocupa {payload} bytes y la cámara solo acepta {limit} por este canal."
-
-msgid "Preset index {n} is out of range (0 to 2)."
-msgstr "El índice de preajuste {n} está fuera de rango (0 a 2)."
-
-msgid "Preset slot {n} is out of range (1 to 3)."
-msgstr "El hueco de preajuste {n} está fuera de rango (1 a 3)."
-
-msgid "The preview needs the GStreamer element {name}, which is not installed."
-msgstr "La vista previa necesita el elemento de GStreamer {name}, que no está instalado."
-
-msgid "The preview could not start. Is another application using the camera? ({error})"
-msgstr "La vista previa no pudo arrancar. ¿Hay otra aplicación usando la cámara? ({error})"
-
-msgid "GStreamer could not be initialised ({error})."
-msgstr "No se pudo inicializar GStreamer ({error})."
-
 msgid "Brightness"
 msgstr "Brillo"
 
@@ -566,6 +528,3 @@ msgstr "Modo manual"
 
 msgid "Aperture Priority Mode"
 msgstr "Modo prioridad a la apertura"
-
-msgid "This app can only recall presets, not save them."
-msgstr "Esta aplicación solo puede recuperar preajustes, no guardarlos."
