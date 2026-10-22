@@ -268,6 +268,22 @@ expose one or the other; OBSBOT exposes both, gated by the same
   gamma as XU-only on this family until disproven; if a vendor XU
   selector carries it, document under §3.
 
+- **Q15 — `pan_absolute` / `tilt_absolute` signs move the picture,
+  not the gimbal body.** Measured on a Tiny 2 Lite with phase
+  correlation between captured frames (2026-10-19, PR #34):
+  `pan_absolute` positive moves the content **left** (~64 px per
+  5°), as the UVC spec implies, while `tilt_absolute` positive moved
+  the content **up** (~40 px per 3°), the opposite of what the V4L2
+  docs suggest. The GUI's pad and keyboard therefore map
+  "right" → smaller pan and "up" → larger tilt. **Unresolved:** the
+  original issue #29 reporter observed `tilt +STEP` making the view
+  go **down**, which contradicts the measurement above and matches
+  the kernel's documented convention. The vertical sign needs a
+  re-measurement before treating either direction as settled; if the
+  mirror toggle (T-210, currently `method=none` with the control
+  hidden since T-221) is ever surfaced again, the horizontal signs
+  must follow its state.
+
 ### 2.4 Streaming formats and frame sizes
 
 Default at capture time: `MJPG 1920×1080 @ 30 fps`. The preview
@@ -388,9 +404,10 @@ Conventions used in the tables below:
 
 All frames share the layout
 `[FRAME_ID=0xaa,0x25, seq_nr(2), SEGMENT_SIZE=0x0c,0x00, checksum(2),
-function_group(6), command(6), appendix(16)]`. Checksum values are
-opaque to us (per-command constants captured by the FOSS extraction);
-do **not** attempt to recompute, copy verbatim. Appendix is zero
+function_group(6), command(6), appendix(16)]`. The checksum is
+decoded: see "Frame layout and checksum (decoded)" below, which
+reproduces every captured frame from fields (the table kept here is
+the historical capture view). Appendix is zero
 unless noted.
 
 | Frame                | function_group                       | seq_nr      | checksum    | command                              | appendix              | Status @ | Source |
@@ -612,8 +629,9 @@ same values as the bitwise form.
 
 With this layout the "command" bytes of the tables above decompose as
 `CRC16 + payload`; for example the sleep frame payload is four zero
-bytes and the preset recall payload is a one-byte slot index plus four
-`1.0f32` values.
+bytes and the preset payloads are a 32-bit little-endian slot index
+(low byte = zero-based slot, upper three bytes zero) followed by
+four `1.0f32` values — 20 bytes in total.
 
 #### Selector map (measured on a Tiny 2 Lite, firmware 6.2.5.x)
 
@@ -668,8 +686,9 @@ whether preset read-back lives behind a different request shape.
 | `0x24` | Tracking speed | `0x00` Standard, `0x02` Sport (0x21 on firmware older than 6.2.5) | measured 6.2.5.x |
 
 Bytes `0x00`, `0x01`, `0x03`-`0x05`, `0x07`-`0x17`, `0x19`-`0x1b`,
-`0x1d`-`0x20`, `0x22`-`0x3b` are returned by the camera but
-**undecoded** by either FOSS project. They are the discovery
+`0x1d`-`0x20`, `0x22`-`0x23` and `0x25`-`0x3b` are returned by the
+camera but **undecoded** by either FOSS project (`0x24` is the
+tracking-speed byte, see the selector map above). They are the discovery
 frontier. The v0.3 GUI (T-302) shipped a "Dump status" debug dialog
 for capturing hex dumps of non-default states; it was removed in the
 v0.4.2 UI streamlining (T-220). The 60-byte `raw` payload remains
@@ -822,8 +841,8 @@ anyone who wants to resume the discovery work.
   (receiver `0x02`) in the vendor opcode table; `CAM_SET_DEV_STATUS`
   is `0xA0C2`. The 60-byte block a framed GET returns is the flat
   status block the camera pushes on the reply channel — the same
-  bytes selector `0x0C`-style flat reads expose as selector `6`
-  `GET_CUR` (60 bytes). The vendor host code copies the block raw
+  bytes a `GET_CUR` on selector `0x06` returns (60 bytes). The vendor
+  host code copies the block raw
   with no per-offset struct; the only field decode that exists is
   `cgevans/tiny2`'s hardware-verified one (on the regular Tiny 2):
   zoom u16 @0x04 (% of the 1.0-2.0x range), HDR flag @0x06,
