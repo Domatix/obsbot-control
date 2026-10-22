@@ -262,7 +262,7 @@ fn pose_bytes(pose: Pose) -> Vec<u8> {
 /// Build the frame that creates preset `slot` with `pose`.
 ///
 /// # Errors
-/// [`XuError::InvalidPresetIndex`] when `slot` is outside `1..=3`.
+/// [`XuError::InvalidPresetSlot`] when `slot` is outside `1..=3`.
 pub fn add_payload(seq: u16, slot: u8, pose: Pose) -> Result<Vec<u8>, XuError> {
     let mut payload = slot_index(slot)?.to_le_bytes().to_vec();
     payload.extend_from_slice(&pose_bytes(pose));
@@ -276,7 +276,7 @@ pub fn add_payload(seq: u16, slot: u8, pose: Pose) -> Result<Vec<u8>, XuError> {
 /// Build the frame that updates preset `slot` in place.
 ///
 /// # Errors
-/// [`XuError::InvalidPresetIndex`] when `slot` is outside `1..=3`.
+/// [`XuError::InvalidPresetSlot`] when `slot` is outside `1..=3`.
 pub fn update_payload(seq: u16, slot: u8, pose: Pose) -> Result<Vec<u8>, XuError> {
     let mut payload = slot_index(slot)?.to_le_bytes().to_vec();
     payload.extend_from_slice(&pose_bytes(pose));
@@ -290,7 +290,7 @@ pub fn update_payload(seq: u16, slot: u8, pose: Pose) -> Result<Vec<u8>, XuError
 /// Build the frame that deletes preset `slot`.
 ///
 /// # Errors
-/// [`XuError::InvalidPresetIndex`] when `slot` is outside `1..=3`.
+/// [`XuError::InvalidPresetSlot`] when `slot` is outside `1..=3`.
 pub fn delete_payload(seq: u16, slot: u8) -> Result<Vec<u8>, XuError> {
     Ok(crate::xu::frame::encode(
         seq,
