@@ -92,6 +92,34 @@ const PAN_TILT_STEP_DEGREES: i64 = 5;
 /// Step size per directional click/keypress, in raw V4L2 units.
 const PAN_TILT_STEP: i64 = PAN_TILT_STEP_DEGREES * UNITS_PER_DEGREE;
 
+/// Signed (pan, tilt) step per direction, in content coordinates:
+/// the pressed arrow moves the *picture*, not the gimbal body. The
+/// signs are the phase-correlation measurements recorded in
+/// `PROTOCOL.md` §2.3 Q15 (see the open question on the vertical
+/// axis).
+const DIR_N: (i64, i64) = (0, 1);
+const DIR_S: (i64, i64) = (0, -1);
+const DIR_E: (i64, i64) = (-1, 0);
+const DIR_W: (i64, i64) = (1, 0);
+const DIR_NE: (i64, i64) = (-1, 1);
+const DIR_NW: (i64, i64) = (1, 1);
+const DIR_SE: (i64, i64) = (-1, -1);
+const DIR_SW: (i64, i64) = (1, -1);
+
+/// The on-screen pad, as (template button id, direction) pairs. The
+/// keyboard handler maps arrow keys onto the same `DIR_*` constants
+/// via [`key_direction`], so there is exactly one direction table.
+const PAD_DIRECTIONS: [(&str, (i64, i64)); 8] = [
+    ("btn_n", DIR_N),
+    ("btn_s", DIR_S),
+    ("btn_e", DIR_E),
+    ("btn_w", DIR_W),
+    ("btn_ne", DIR_NE),
+    ("btn_nw", DIR_NW),
+    ("btn_se", DIR_SE),
+    ("btn_sw", DIR_SW),
+];
+
 /// Read-once snapshot of an integer control's range + current value.
 #[derive(Debug, Clone, Copy)]
 struct IntRange {
@@ -144,16 +172,11 @@ pub fn build_ptz_pad(
     // `method=none` and its toggle is hidden since T-221. If that
     // toggle is ever surfaced again, the horizontal signs must follow
     // its state (with the mirror on, "right" writes pan+ again).
-    for (button_id, dx, dy) in [
-        ("btn_n", 0, 1),
-        ("btn_s", 0, -1),
-        ("btn_e", -1, 0),
-        ("btn_w", 1, 0),
-        ("btn_ne", -1, 1),
-        ("btn_nw", 1, 1),
-        ("btn_se", -1, -1),
-        ("btn_sw", 1, -1),
-    ] {
+    //
+    // The steps live in one place (`DIR_*` + `PAD_DIRECTIONS`); the
+    // keyboard handler resolves to the same constants through
+    // `key_direction`, so buttons and arrows cannot drift apart.
+    for (button_id, (dx, dy)) in PAD_DIRECTIONS {
         wire_direction(&builder, button_id, dx, dy, &ctx);
     }
 
@@ -424,15 +447,8 @@ pub fn wire_keyboard_arrows<W>(
             return glib::Propagation::Proceed;
         }
 
-        let (dx, dy) = match keyval {
-            // Both axes follow the same content-direction convention
-            // as the on-screen pad: the arrow moves the picture, not
-            // the gimbal body (see the note above the button table).
-            gtk::gdk::Key::Left | gtk::gdk::Key::KP_Left => (1, 0),
-            gtk::gdk::Key::Right | gtk::gdk::Key::KP_Right => (-1, 0),
-            gtk::gdk::Key::Up | gtk::gdk::Key::KP_Up => (0, 1),
-            gtk::gdk::Key::Down | gtk::gdk::Key::KP_Down => (0, -1),
-            gtk::gdk::Key::Home | gtk::gdk::Key::KP_Home => {
+        let Some((dx, dy)) = key_direction(keyval) else {
+            if matches!(keyval, gtk::gdk::Key::Home | gtk::gdk::Key::KP_Home) {
                 write(
                     &owned_path,
                     CID_PAN_ABSOLUTE,
@@ -449,7 +465,7 @@ pub fn wire_keyboard_arrows<W>(
                 );
                 return glib::Propagation::Stop;
             }
-            _ => return glib::Propagation::Proceed,
+            return glib::Propagation::Proceed;
         };
 
         step_axes(dx, dy, pan, tilt, &owned_path, &owned_serial);
@@ -457,6 +473,20 @@ pub fn wire_keyboard_arrows<W>(
     });
 
     target.add_controller(controller);
+}
+
+/// Direction applied by an arrow key. Shares the `DIR_*` constants
+/// with the on-screen pad so the keyboard and the buttons can never
+/// diverge again (they are the same table, see `PAD_DIRECTIONS`).
+fn key_direction(key: gtk::gdk::Key) -> Option<(i64, i64)> {
+    use gtk::gdk::Key;
+    Some(match key {
+        Key::Left | Key::KP_Left => DIR_W,
+        Key::Right | Key::KP_Right => DIR_E,
+        Key::Up | Key::KP_Up => DIR_N,
+        Key::Down | Key::KP_Down => DIR_S,
+        _ => return None,
+    })
 }
 
 /// Add the two focus rows directly to `group`: an `AdwSwitchRow` for
@@ -591,7 +621,19 @@ fn f64_to_i32_saturating(v: f64) -> i32 {
 
 #[cfg(test)]
 mod tests {
-    use super::next_position;
+    use super::{key_direction, next_position, DIR_E, DIR_N, DIR_S, DIR_W};
+
+    #[test]
+    fn keyboard_directions_mirror_the_pad_constants() {
+        use gtk4::gdk::Key;
+        assert_eq!(key_direction(Key::Up), Some(DIR_N));
+        assert_eq!(key_direction(Key::Down), Some(DIR_S));
+        assert_eq!(key_direction(Key::Right), Some(DIR_E));
+        assert_eq!(key_direction(Key::Left), Some(DIR_W));
+        assert_eq!(key_direction(Key::KP_Up), Some(DIR_N));
+        assert_eq!(key_direction(Key::Home), None);
+        assert_eq!(key_direction(Key::space), None);
+    }
 
     // A Tiny 2 Lite advertises pan/tilt roughly ±130° = ±468000 units;
     // the exact bounds do not matter for the arithmetic, only that

@@ -51,6 +51,7 @@ pub fn build(
     appendix: Option<[u8; 16]>,
 ) -> Vec<u8> {
     let len = usize::from(u16::from_le_bytes([function_group[4], function_group[5]]));
+    debug_assert!(len <= 20, "declared payload length fits the built block");
     let mut data = [0u8; 20];
     data[0..4].copy_from_slice(&command[2..6]);
     if let Some(app) = appendix {
@@ -64,7 +65,7 @@ pub fn build(
             function_group[2],
             function_group[3],
         ],
-        &data[..len],
+        &data[..len.min(data.len())],
     )
 }
 
