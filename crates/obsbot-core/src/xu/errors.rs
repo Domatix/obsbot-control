@@ -60,6 +60,18 @@ pub enum XuError {
     #[error("preset slot out of range (must be 1..=3, got {0})")]
     InvalidPresetSlot(u8),
 
+    /// A preset name is longer than the rename frame can carry. The
+    /// frame is `slot(4) + name` inside a payload block of at most
+    /// 44 bytes (`PROTOCOL.md §3.2`), so 40 is the ceiling; the vendor
+    /// SDK caps names below 50 as well.
+    #[error("preset name too long: {len} bytes, at most {max} allowed")]
+    PresetNameTooLong {
+        /// Length of the rejected name, in bytes.
+        len: usize,
+        /// Longest name the selector can carry.
+        max: usize,
+    },
+
     /// The vendor XU did not answer `GET_LEN` on a selector the app
     /// depends on. The descriptor surface differs between firmware
     /// versions (see `PROTOCOL.md §3.1`), so a unit whose unit or

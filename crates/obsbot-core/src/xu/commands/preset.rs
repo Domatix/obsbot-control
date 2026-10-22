@@ -154,6 +154,25 @@ mod tests {
     }
 
     #[test]
+    fn rename_accepts_the_longest_name() {
+        let name = "x".repeat(MAX_PRESET_NAME_LEN);
+        let frame = rename_payload(0x0203, 1, &name).expect("longest name fits");
+        assert_eq!(frame.len(), 12 + 4 + 4 + MAX_PRESET_NAME_LEN);
+        verify_checksums(&frame);
+    }
+
+    #[test]
+    fn rename_rejects_a_name_that_does_not_fit() {
+        let name = "x".repeat(MAX_PRESET_NAME_LEN + 1);
+        let err = rename_payload(0x0204, 1, &name).unwrap_err();
+        assert!(
+            matches!(err, XuError::PresetNameTooLong { len, max }
+                if len == MAX_PRESET_NAME_LEN + 1 && max == MAX_PRESET_NAME_LEN),
+            "got {err:?}",
+        );
+    }
+
+    #[test]
     fn rename_frame_layout() {
         let frame = rename_payload(0x0202, 3, "Desk").unwrap();
         assert_eq!(&frame[8..12], &[0x0a, 0x04, 0x84, 0x3a], "cmd 0x3A84");
@@ -206,6 +225,11 @@ const CMD_SET_NAME: u16 = 0x3a84;
 /// Wire command that lists the stored presets.
 const CMD_LIST: u16 = 0x3b44;
 
+/// Longest preset name a rename frame can carry: the payload is
+/// `slot(4) + name` inside a block of `60 - 16` bytes, so 40 is the
+/// ceiling, and the vendor SDK caps names below 50 as well.
+pub const MAX_PRESET_NAME_LEN: usize = 40;
+
 /// Sequence numbers are advisory: the device echoes them back. A shared
 /// counter keeps them distinct across calls.
 static NEXT_SEQ: std::sync::atomic::AtomicU16 = std::sync::atomic::AtomicU16::new(0x0100);
@@ -238,7 +262,7 @@ fn pose_bytes(pose: Pose) -> Vec<u8> {
 /// Build the frame that creates preset `slot` with `pose`.
 ///
 /// # Errors
-/// [`XuError::InvalidPresetIndex`] when `slot` is outside `1..=3`.
+/// [`XuError::InvalidPresetSlot`] when `slot` is outside `1..=3`.
 pub fn add_payload(seq: u16, slot: u8, pose: Pose) -> Result<Vec<u8>, XuError> {
     let mut payload = slot_index(slot)?.to_le_bytes().to_vec();
     payload.extend_from_slice(&pose_bytes(pose));
@@ -252,7 +276,7 @@ pub fn add_payload(seq: u16, slot: u8, pose: Pose) -> Result<Vec<u8>, XuError> {
 /// Build the frame that updates preset `slot` in place.
 ///
 /// # Errors
-/// [`XuError::InvalidPresetIndex`] when `slot` is outside `1..=3`.
+/// [`XuError::InvalidPresetSlot`] when `slot` is outside `1..=3`.
 pub fn update_payload(seq: u16, slot: u8, pose: Pose) -> Result<Vec<u8>, XuError> {
     let mut payload = slot_index(slot)?.to_le_bytes().to_vec();
     payload.extend_from_slice(&pose_bytes(pose));
@@ -266,7 +290,7 @@ pub fn update_payload(seq: u16, slot: u8, pose: Pose) -> Result<Vec<u8>, XuError
 /// Build the frame that deletes preset `slot`.
 ///
 /// # Errors
-/// [`XuError::InvalidPresetIndex`] when `slot` is outside `1..=3`.
+/// [`XuError::InvalidPresetSlot`] when `slot` is outside `1..=3`.
 pub fn delete_payload(seq: u16, slot: u8) -> Result<Vec<u8>, XuError> {
     Ok(crate::xu::frame::encode(
         seq,
@@ -278,8 +302,17 @@ pub fn delete_payload(seq: u16, slot: u8) -> Result<Vec<u8>, XuError> {
 /// Build the frame that renames preset `slot`.
 ///
 /// # Errors
-/// [`XuError::InvalidPresetIndex`] when `slot` is outside `1..=3`.
+/// [`XuError::InvalidPresetSlot`] when `slot` is outside `1..=3`, and
+/// [`XuError::PresetNameTooLong`] when the name exceeds
+/// [`MAX_PRESET_NAME_LEN`] bytes (the frame would not fit the
+/// selector and `set_cur` would reject it with a bare length error).
 pub fn rename_payload(seq: u16, slot: u8, name: &str) -> Result<Vec<u8>, XuError> {
+    if name.len() > MAX_PRESET_NAME_LEN {
+        return Err(XuError::PresetNameTooLong {
+            len: name.len(),
+            max: MAX_PRESET_NAME_LEN,
+        });
+    }
     let mut payload = slot_index(slot)?.to_le_bytes().to_vec();
     payload.extend_from_slice(name.as_bytes());
     Ok(crate::xu::frame::encode(
