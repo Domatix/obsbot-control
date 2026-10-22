@@ -33,9 +33,10 @@
 //! `pan_absolute` / `tilt_absolute`, adds one signed step, clamps to
 //! the advertised range, and writes the absolute target.
 //!
-//! Keyboard arrows mirror this: Left/Right pan, Up/Down tilt (Up =
-//! camera looks up), `Home` recenters to 0/0. **One key-press event =
-//! one step.** No press-and-hold, no continuous-motion timers, no
+//! Keyboard arrows mirror this: Left/Right pan, Up/Down tilt, all of
+//! them moving the picture rather than the gimbal body (see the sign
+//! derivation above the button table). `Home` recenters to 0/0. **One
+//! key-press event = one step.** No press-and-hold, no continuous-motion timers, no
 //! per-axis accumulators, no auto-repeat suppression — the earlier
 //! (v0.3.x, T-101a/b/c) hold machinery was removed in T-101d because
 //! it bugged out (sticky timers, drift). If the OS auto-repeats a held
@@ -128,15 +129,30 @@ pub fn build_ptz_pad(
         serial: owned_serial.clone(),
     };
     // Eight directional buttons, each a plain one-click-one-step.
+    //
+    // The pressed arrow moves the *picture*, not the gimbal body. The
+    // signs come from measuring the camera with phase correlation, not
+    // from the V4L2 spec:
+    //
+    // - `pan_absolute` positive moves the content left (the camera
+    //   turns right), so "right" writes a smaller pan;
+    // - `tilt_absolute` positive moves the content up on this unit
+    //   (the camera body tilts down, the opposite of what the kernel
+    //   documentation implies), so "up" writes a larger tilt.
+    //
+    // The preview is not mirrored: the T-210 filter sits at
+    // `method=none` and its toggle is hidden since T-221. If that
+    // toggle is ever surfaced again, the horizontal signs must follow
+    // its state (with the mirror on, "right" writes pan+ again).
     for (button_id, dx, dy) in [
         ("btn_n", 0, 1),
         ("btn_s", 0, -1),
-        ("btn_e", 1, 0),
-        ("btn_w", -1, 0),
-        ("btn_ne", 1, 1),
-        ("btn_nw", -1, 1),
-        ("btn_se", 1, -1),
-        ("btn_sw", -1, -1),
+        ("btn_e", -1, 0),
+        ("btn_w", 1, 0),
+        ("btn_ne", -1, 1),
+        ("btn_nw", 1, 1),
+        ("btn_se", -1, -1),
+        ("btn_sw", 1, -1),
     ] {
         wire_direction(&builder, button_id, dx, dy, &ctx);
     }
@@ -365,11 +381,12 @@ fn current_axis(path: &Path, id: u32) -> Option<i64> {
 /// Attach an `EventControllerKey` to `target` so the arrow keys + Home
 /// drive the PTZ from the keyboard (T-101b, simplified by T-101d).
 ///
-/// Mapping mirrors the on-screen pad: Left / Right pan, Up / Down tilt
-/// (Up = camera looks up, matching `btn_n`), `Home` recenters to
-/// pan = tilt = 0. **One key-press = one [`PAN_TILT_STEP`] step** — no
-/// timers, no hold. Modifiers (Ctrl / Alt / Super) abort propagation so
-/// app-level shortcuts (e.g. Ctrl+Q) keep working.
+/// Mapping mirrors the on-screen pad: Left / Right pan, Up / Down
+/// tilt, all of them moving the picture (signs derived by measuring
+/// the camera), `Home` recenters to pan = tilt = 0. **One key-press = one
+/// [`PAN_TILT_STEP`] step** — no timers, no hold. Modifiers (Ctrl /
+/// Alt / Super) abort propagation so app-level shortcuts (e.g.
+/// Ctrl+Q) keep working.
 ///
 /// Propagation phase is **Bubble** so a focused `gtk::Scale` /
 /// `gtk::SpinButton` / `adw::ComboRow` consumes the arrow first; the
@@ -408,8 +425,11 @@ pub fn wire_keyboard_arrows<W>(
         }
 
         let (dx, dy) = match keyval {
-            gtk::gdk::Key::Left | gtk::gdk::Key::KP_Left => (-1, 0),
-            gtk::gdk::Key::Right | gtk::gdk::Key::KP_Right => (1, 0),
+            // Both axes follow the same content-direction convention
+            // as the on-screen pad: the arrow moves the picture, not
+            // the gimbal body (see the note above the button table).
+            gtk::gdk::Key::Left | gtk::gdk::Key::KP_Left => (1, 0),
+            gtk::gdk::Key::Right | gtk::gdk::Key::KP_Right => (-1, 0),
             gtk::gdk::Key::Up | gtk::gdk::Key::KP_Up => (0, 1),
             gtk::gdk::Key::Down | gtk::gdk::Key::KP_Down => (0, -1),
             gtk::gdk::Key::Home | gtk::gdk::Key::KP_Home => {
