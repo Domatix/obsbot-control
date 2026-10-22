@@ -321,7 +321,7 @@ record blocks and cursors is actually live. Status as of 2026-10-20
 
 | Selector | Role | Evidence |
 |---|---|---|
-| `0x02` | framed command channel (36-byte frames) | hardware + RE |
+| `0x02` | framed command channel: 12-byte header plus an optional payload block | hardware + RE |
 | `0x03`-`0x05` | further framed sub-channels | xrefs in the vendor library; unused by this app |
 | `0x06` | tagged command channel **and** the 60-byte status block | hardware + RE |
 | `0x07` | legacy gimbal-preset pose records (6 x 10 bytes) | hardware |
@@ -384,7 +384,7 @@ Conventions used in the tables below:
 | `Hand`           | 0x06 | 0x00 | ⚠ See quirk Q4 — cgevans + Tiny4Linux setters write `m=3`, decoders read `m=6`. Validate live. |
 | `Group`          | 0x01 | 0x00 |                                                      |
 
-#### Selector `0x02` — structured 36-byte frames
+#### Selector `0x02` — structured frames
 
 All frames share the layout
 `[FRAME_ID=0xaa,0x25, seq_nr(2), SEGMENT_SIZE=0x0c,0x00, checksum(2),
@@ -762,8 +762,9 @@ anyone who wants to resume the discovery work.
   shim over `ioctl`, while calling its gesture API. Only the observed
   bytes were kept: the SDK is neither linked nor redistributed, so
   ADR-0002 stands.
-  Selector `0x02`, standard 36-byte frame. The `function_group` picks
-  the gesture and the `command` carries the value in its third byte:
+  Selector `0x02`, standard frame as described above: 12-byte header
+  plus a payload block. The `function_group` picks the gesture and the
+  `command` carries the value in its third byte:
 
   | Gesture | `function_group` |
   |---|---|

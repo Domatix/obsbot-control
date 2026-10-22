@@ -48,9 +48,14 @@ pub const HEADER_LEN: usize = 12;
 /// example `0a 04 c4 0c` recalls tracking speed). `payload` is empty
 /// for commands without arguments.
 ///
-/// The result is byte-identical to the frames captured from the
+/// The header and both checksums match the frames captured from the
 /// vendor application for every command documented in `PROTOCOL.md`
-/// §3.2, both checksums included.
+/// §3.2. The result is `12 + 4 + payload.len()` bytes, so a command
+/// with a short payload comes out shorter than the 36-byte capture it
+/// came from: the vendor padded, and so does
+/// [`crate::xu::transport::set_cur`], which zero-fills every payload to
+/// the selector length (60) before the ioctl. Bytes on the wire are
+/// therefore identical; the trailing zeroes are just added later.
 ///
 /// # Panics
 /// Panics if `payload` is longer than `u16::MAX` bytes, which the
@@ -103,10 +108,12 @@ mod tests {
         ]
     }
 
-    /// Every frame captured from the vendor app, as documented in
-    /// `PROTOCOL.md` §3.2. Expected bytes include the captured
-    /// checksums, so a regression in the encoder or in the CRC tables
-    /// fails here.
+    /// The prefix of every frame captured from the vendor app, as
+    /// documented in `PROTOCOL.md` §3.2. The captures are 36 bytes;
+    /// these expectations stop at the last payload byte because the
+    /// encoder does not emit the trailing zero padding (see
+    /// [`encode`]). Expected bytes include the captured checksums, so a
+    /// regression in the encoder or in the CRC tables fails here.
     #[test]
     fn matches_captured_frames() {
         let cases: [(u16, [u8; 4], &[u8], &str); 9] = [
